@@ -62,6 +62,21 @@ class WhatsmeowSession(models.Model):
              "queue leaves this number alone.",
     )
 
+    # -- inbound filtering ----------------------------------------------------
+    inbound_default = fields.Selection(
+        [("accept", "Accept"), ("reject", "Reject")],
+        default="accept", required=True,
+        string="Unmatched inbound messages",
+        help="What to do with an incoming message that no rule matches. "
+             "'Accept' + reject-rules = a blocklist; 'Reject' + accept-rules = "
+             "an allowlist. The default 'Accept' keeps the session accepting "
+             "everything, exactly as before any rule is added.",
+    )
+    inbound_rule_ids = fields.One2many(
+        "whatsmeow.session.rule", "session_id", string="Inbound Filter Rules",
+    )
+    inbound_rule_count = fields.Integer(compute="_compute_inbound_rule_count")
+
     _code_conn_uniq = models.Constraint(
         "UNIQUE (code, connection_id)",
         "Session key must be unique per gateway connection.",
@@ -88,6 +103,37 @@ class WhatsmeowSession(models.Model):
                     "(%(max)s s).",
                     min=rec.send_delay_min, max=rec.send_delay_max,
                 ))
+
+    # -- inbound filtering ----------------------------------------------------
+    @api.depends("inbound_rule_ids")
+    def _compute_inbound_rule_count(self):
+        for rec in self:
+            rec.inbound_rule_count = len(rec.inbound_rule_ids)
+
+    def _inbound_decision(self, facts):
+        """Decide whether to accept an inbound message, given its facts dict.
+
+        First matching rule wins (ordered by sequence, then id); if none match,
+        fall back to `inbound_default`. Archived rules are already excluded from
+        `inbound_rule_ids` by active_test. The rules are an already-prefetched
+        One2many, so this is O(rules) pure Python per message.
+        """
+        self.ensure_one()
+        for rule in self.inbound_rule_ids.sorted(key=lambda r: (r.sequence, r.id)):
+            if rule._matches(facts):
+                return rule.action
+        return self.inbound_default
+
+    def action_view_inbound_rules(self):
+        self.ensure_one()
+        return {
+            "type": "ir.actions.act_window",
+            "name": self.env._("Inbound Filter Rules"),
+            "res_model": "whatsmeow.session.rule",
+            "view_mode": "list,form",
+            "domain": [("session_id", "=", self.id)],
+            "context": {"default_session_id": self.id},
+        }
 
     # -- send throttling ------------------------------------------------------
     # Bursting is the main ban lever on the unofficial protocol, so the queue

@@ -748,6 +748,286 @@ class TestSecurity(WhatsmeowCommon):
 
 
 @tagged("post_install", "-at_install")
+class TestInboundFilterMatcher(WhatsmeowCommon):
+    """The matcher is pure Python over a facts dict, so it needs no gateway and
+    no stored message — just a rule and a dict."""
+
+    GROUP_JID = "120363000000000000@g.us"
+
+    def _rule(self, **vals):
+        vals.setdefault("session_id", self.session.id)
+        return self.env["whatsmeow.session.rule"].create(vals)
+
+    def _facts(self, **over):
+        facts = {
+            "chat_type": "private", "message_type": "text",
+            "partner_id": False, "chat_jid": "447700900123@s.whatsapp.net",
+            "phone_tail": "7700900123", "sender_lid": "",
+            "body": "hello there", "is_placeholder": False,
+        }
+        facts.update(over)
+        return facts
+
+    def test_empty_rule_matches_everything(self):
+        rule = self._rule()
+        self.assertTrue(rule._matches(self._facts()))
+        self.assertTrue(rule._matches(self._facts(chat_type="group", body="")))
+
+    def test_chat_type_criterion(self):
+        rule = self._rule(chat_type="group")
+        self.assertTrue(rule._matches(self._facts(chat_type="group")))
+        self.assertFalse(rule._matches(self._facts(chat_type="private")))
+
+    def test_message_type_criterion(self):
+        rule = self._rule(message_type="image")
+        self.assertTrue(rule._matches(self._facts(message_type="image")))
+        self.assertFalse(rule._matches(self._facts(message_type="text")))
+
+    def test_partner_criterion(self):
+        alice = self.env["res.partner"].create({"name": "Alice"})
+        bob = self.env["res.partner"].create({"name": "Bob"})
+        rule = self._rule(partner_ids=[(6, 0, alice.ids)])
+        self.assertTrue(rule._matches(self._facts(partner_id=alice.id)))
+        self.assertFalse(rule._matches(self._facts(partner_id=bob.id)))
+        self.assertFalse(rule._matches(self._facts(partner_id=False)))
+
+    def test_chat_jids_criterion_multi_value(self):
+        rule = self._rule(chat_jids=f"{self.GROUP_JID},\n999@g.us")
+        self.assertTrue(rule._matches(self._facts(chat_jid=self.GROUP_JID)))
+        self.assertTrue(rule._matches(self._facts(chat_jid="999@g.us")))
+        self.assertFalse(rule._matches(self._facts(chat_jid="111@g.us")))
+
+    def test_phones_criterion_last_ten_digits(self):
+        """A rule keyed by a formatted number matches the bare tail the webhook
+        computes, and vice versa — both reduce to the last 10 digits."""
+        rule = self._rule(phones="+44 7700 900123, 966550199013")
+        self.assertTrue(rule._matches(self._facts(phone_tail="7700900123")))
+        self.assertTrue(rule._matches(self._facts(phone_tail="6550199013")))
+        self.assertFalse(rule._matches(self._facts(phone_tail="0000000000")))
+        # a LID-only sender has no phone tail, so a phone rule can't match it
+        self.assertFalse(rule._matches(self._facts(phone_tail="")))
+
+    def test_sender_lids_criterion(self):
+        rule = self._rule(sender_lids="126864760766535")
+        self.assertTrue(rule._matches(self._facts(sender_lid="126864760766535")))
+        self.assertFalse(rule._matches(self._facts(sender_lid="999")))
+
+    def test_keyword_is_case_insensitive_substring(self):
+        rule = self._rule(keyword="STOP")
+        self.assertTrue(rule._matches(self._facts(body="please stop now")))
+        self.assertFalse(rule._matches(self._facts(body="carry on")))
+
+    def test_keyword_never_matches_a_placeholder(self):
+        """The placeholder's body is a stand-in, so a keyword can't be judged;
+        the rule falls through and the real copy is judged later."""
+        rule = self._rule(keyword="stop")
+        self.assertFalse(rule._matches(self._facts(body="stop", is_placeholder=True)))
+        self.assertTrue(rule._matches(self._facts(body="stop", is_placeholder=False)))
+
+    def test_identity_rule_still_fires_on_a_placeholder(self):
+        rule = self._rule(chat_jids=self.GROUP_JID)
+        self.assertTrue(rule._matches(
+            self._facts(chat_jid=self.GROUP_JID, is_placeholder=True)))
+
+    def test_criteria_are_anded(self):
+        """A rule with two criteria needs both to match."""
+        rule = self._rule(chat_type="group", keyword="urgent")
+        self.assertTrue(rule._matches(
+            self._facts(chat_type="group", body="urgent: call me")))
+        self.assertFalse(rule._matches(
+            self._facts(chat_type="group", body="hi")))
+        self.assertFalse(rule._matches(
+            self._facts(chat_type="private", body="urgent")))
+
+
+@tagged("post_install", "-at_install")
+class TestInboundFilterEngine(WhatsmeowCommon):
+    """`_inbound_decision` walks the rules in order and falls back to the
+    session default."""
+
+    def _facts(self, **over):
+        facts = {
+            "chat_type": "private", "message_type": "text", "partner_id": False,
+            "chat_jid": "447700900123@s.whatsapp.net", "phone_tail": "7700900123",
+            "sender_lid": "", "body": "hello", "is_placeholder": False,
+        }
+        facts.update(over)
+        return facts
+
+    def _rule(self, **vals):
+        vals.setdefault("session_id", self.session.id)
+        return self.env["whatsmeow.session.rule"].create(vals)
+
+    def test_no_rules_uses_the_default(self):
+        self.assertEqual(self.session.inbound_default, "accept")
+        self.assertEqual(self.session._inbound_decision(self._facts()), "accept")
+        self.session.inbound_default = "reject"
+        self.assertEqual(self.session._inbound_decision(self._facts()), "reject")
+
+    def test_first_match_wins(self):
+        # lower sequence is evaluated first
+        self._rule(sequence=20, keyword="hello", action="reject")
+        self._rule(sequence=10, keyword="hello", action="accept")
+        self.assertEqual(self.session._inbound_decision(self._facts()), "accept")
+
+    def test_blocklist_accept_default_with_reject_rule(self):
+        self.session.inbound_default = "accept"
+        self._rule(chat_type="group", action="reject")
+        self.assertEqual(
+            self.session._inbound_decision(self._facts(chat_type="group")), "reject")
+        self.assertEqual(
+            self.session._inbound_decision(self._facts(chat_type="private")), "accept")
+
+    def test_allowlist_reject_default_with_accept_rule(self):
+        self.session.inbound_default = "reject"
+        self._rule(chat_jids="120363@g.us", action="accept")
+        self.assertEqual(
+            self.session._inbound_decision(self._facts(chat_jid="120363@g.us")), "accept")
+        self.assertEqual(
+            self.session._inbound_decision(self._facts(chat_jid="other@g.us")), "reject")
+
+    def test_accept_a_group_except_one_member(self):
+        """The mixed case the single-default+rules design exists for."""
+        self.session.inbound_default = "reject"
+        # reject the one noisy member first, then accept the whole group
+        self._rule(sequence=10, phones="447700900999", action="reject")
+        self._rule(sequence=20, chat_jids="site@g.us", action="accept")
+        group = {"chat_type": "group", "chat_jid": "site@g.us"}
+        self.assertEqual(self.session._inbound_decision(
+            self._facts(phone_tail="7700900999", **group)), "reject")
+        self.assertEqual(self.session._inbound_decision(
+            self._facts(phone_tail="7700900123", **group)), "accept")
+
+    def test_empty_catch_all_rule(self):
+        self._rule(sequence=99, action="reject")  # all-empty -> matches anything
+        self.assertEqual(self.session._inbound_decision(self._facts()), "reject")
+
+    def test_archived_rules_are_skipped(self):
+        rule = self._rule(keyword="hello", action="reject")
+        self.assertEqual(self.session._inbound_decision(self._facts()), "reject")
+        rule.active = False
+        self.session.invalidate_recordset(["inbound_rule_ids"])
+        self.assertEqual(self.session._inbound_decision(self._facts()), "accept")
+
+
+@tagged("post_install", "-at_install")
+class TestInboundFilterWebhook(WhatsmeowCommon):
+    """End-to-end: the filter decides whether a webhook creates a record."""
+
+    def setUp(self):
+        super().setUp()
+        from odoo.addons.whatsmeow.controllers.webhook import WhatsmeowWebhook
+        self.ctrl = WhatsmeowWebhook()
+
+    def _messages(self, wa_id):
+        return self.env["whatsmeow.message"].search([("wa_message_id", "=", wa_id)])
+
+    def test_no_rules_stores_inbound_exactly_as_before(self):
+        """Backward compatibility: a fresh session accepts everything."""
+        self.ctrl._on_message(self.env, self.session, {
+            "wa_message_id": "BC-1", "sender_phone": "447700900123", "body": "hi",
+        })
+        self.assertEqual(len(self._messages("BC-1")), 1)
+
+    def test_rejected_message_creates_no_record_and_posts_nothing(self):
+        partner = self.env["res.partner"].create({
+            "name": "Blocked", "phone": "+44 7700 900123",
+        })
+        self.session.inbound_default = "reject"
+        with self.assertLogs(
+                "odoo.addons.whatsmeow.controllers.webhook", level="INFO"):
+            self.ctrl._on_message(self.env, self.session, {
+                "wa_message_id": "REJ-1", "sender_phone": "447700900123",
+                "body": "go away",
+            })
+        self.assertFalse(self._messages("REJ-1"))
+        # No chatter post carries the rejected body (res.partner may auto-log a
+        # "created" note, so assert on the content rather than a bare count).
+        self.assertFalse(self.env["mail.message"].search([
+            ("model", "=", "res.partner"), ("res_id", "=", partner.id),
+            ("body", "like", "go away"),
+        ]))
+
+    def test_accepted_message_behaves_normally(self):
+        self.session.inbound_default = "reject"
+        self.env["whatsmeow.session.rule"].create({
+            "session_id": self.session.id, "phones": "447700900123",
+            "action": "accept",
+        })
+        self.ctrl._on_message(self.env, self.session, {
+            "wa_message_id": "ACC-1", "sender_phone": "447700900123", "body": "hi",
+        })
+        self.assertEqual(len(self._messages("ACC-1")), 1)
+
+    def test_a_rejected_retry_is_still_a_no_op(self):
+        self.session.inbound_default = "reject"
+        data = {"wa_message_id": "REJ-RETRY", "sender_phone": "447700900123",
+                "body": "spam"}
+        with mute_logger("odoo.addons.whatsmeow.controllers.webhook"):
+            self.ctrl._on_message(self.env, self.session, data)
+            self.ctrl._on_message(self.env, self.session, data)
+        self.assertFalse(self._messages("REJ-RETRY"))
+
+    def test_keyword_only_rule_lets_a_placeholder_through_then_judges_the_real_copy(self):
+        """A keyword-reject rule can't judge the empty first copy, so the
+        placeholder is accepted (stored); the real copy is a duplicate and
+        merges, keeping today's dedup behaviour intact."""
+        self.session.inbound_default = "accept"
+        self.env["whatsmeow.session.rule"].create({
+            "session_id": self.session.id, "keyword": "stop", "action": "reject",
+        })
+        # placeholder: keyword can't be judged -> falls through -> default accept
+        self.ctrl._on_message(self.env, self.session, {
+            "wa_message_id": "PH-KW", "sender_phone": "447700900123",
+            "body": "[unsupported message type: text]", "placeholder": True,
+        })
+        self.assertEqual(len(self._messages("PH-KW")), 1)
+
+    def test_identity_rule_drops_a_placeholder_immediately(self):
+        self.session.inbound_default = "accept"
+        self.env["whatsmeow.session.rule"].create({
+            "session_id": self.session.id, "phones": "447700900123",
+            "action": "reject",
+        })
+        with mute_logger("odoo.addons.whatsmeow.controllers.webhook"):
+            self.ctrl._on_message(self.env, self.session, {
+                "wa_message_id": "PH-ID", "sender_phone": "447700900123",
+                "body": "[unsupported message type: text]", "placeholder": True,
+            })
+        self.assertFalse(self._messages("PH-ID"))
+
+    def test_allowlist_by_partner_drops_a_lid_only_sender(self):
+        """Correct but surprising: a LID-only sender resolves to no partner, so
+        an allowlist keyed on partners rejects it."""
+        alice = self.env["res.partner"].create({"name": "Alice"})
+        self.session.inbound_default = "reject"
+        self.env["whatsmeow.session.rule"].create({
+            "session_id": self.session.id, "partner_ids": [(6, 0, alice.ids)],
+            "action": "accept",
+        })
+        with mute_logger("odoo.addons.whatsmeow.controllers.webhook"):
+            self.ctrl._on_message(self.env, self.session, {
+                "wa_message_id": "LID-DROP", "sender_phone": "",
+                "sender_lid": "126864760766535", "body": "hello",
+            })
+        self.assertFalse(self._messages("LID-DROP"))
+
+    def test_sender_lids_rule_admits_a_lid_only_sender(self):
+        self.session.inbound_default = "reject"
+        self.env["whatsmeow.session.rule"].create({
+            "session_id": self.session.id, "sender_lids": "126864760766535",
+            "action": "accept",
+        })
+        self.ctrl._on_message(self.env, self.session, {
+            "wa_message_id": "LID-ADMIT", "sender_phone": "",
+            "sender_lid": "126864760766535", "body": "hello",
+        })
+        msg = self._messages("LID-ADMIT")
+        self.assertEqual(len(msg), 1)
+        self.assertEqual(msg.sender_lid, "126864760766535")
+
+
+@tagged("post_install", "-at_install")
 class TestWebhookRouting(WhatsmeowCommon):
 
     def test_lid_only_sender_is_not_stored_as_a_phone(self):

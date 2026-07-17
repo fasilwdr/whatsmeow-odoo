@@ -17,6 +17,12 @@
                  statusbar_visible="draft,qr,connected"/>
         </header>
         <sheet>
+          <div class="oe_button_box" name="button_box">
+            <button name="action_view_inbound_rules" type="object"
+                    class="oe_stat_button" icon="fa-filter">
+              <field name="inbound_rule_count" widget="statinfo" string="Filter Rules"/>
+            </button>
+          </div>
           <div class="oe_title">
             <label for="name"/>
             <h1><field name="name" placeholder="e.g. Client ACME"/></h1>
@@ -48,6 +54,45 @@
             </group>
           </group>
           <notebook>
+            <page string="Inbound Filtering" name="inbound_filtering">
+              <div class="alert alert-info" role="status"
+                   invisible="inbound_default != 'accept' or inbound_rule_count == 0">
+                <b>Blocklist</b> — accepting all inbound messages except those matched
+                by the rules below.
+              </div>
+              <div class="alert alert-warning" role="status"
+                   invisible="inbound_default != 'reject'">
+                <b>Allowlist</b> — rejecting all inbound messages except those matched
+                by the rules below.
+              </div>
+              <group>
+                <field name="inbound_default"/>
+              </group>
+              <field name="inbound_rule_ids">
+                <list editable="bottom">
+                  <field name="sequence" widget="handle"/>
+                  <field name="name" string="Label" optional="show"/>
+                  <field name="action"/>
+                  <field name="chat_type"/>
+                  <field name="message_type"/>
+                  <field name="partner_ids" widget="many2many_tags"
+                         options="{'no_create': True}"/>
+                  <field name="chat_jids"/>
+                  <field name="phones"/>
+                  <field name="sender_lids" optional="hide"/>
+                  <field name="keyword"/>
+                </list>
+              </field>
+              <p class="text-muted">
+                A rule matches when <b>every field you set</b> matches the message;
+                blank fields are wildcards, so a rule with nothing set matches
+                everything. The first matching rule (top to bottom) decides. A
+                keyword can't be judged on WhatsApp's empty first copy of a
+                double-delivered message, so such a rule waits for the real copy;
+                identity rules (chat, contact, phone, LID) apply immediately. A
+                LID-only contact has no partner or phone — match it by its Sender LID.
+              </p>
+            </page>
             <page string="Messages" name="messages">
               <field name="message_ids" readonly="1">
                 <list>

@@ -6,6 +6,9 @@ from psycopg2 import IntegrityError
 from odoo import http
 from odoo.http import request
 
+from ..models.whatsmeow_message import chat_type_for_jid
+from ..models.whatsmeow_session_rule import _phone_tail
+
 _logger = logging.getLogger(__name__)
 
 SESSION_EVENT_STATUS = {
@@ -90,6 +93,28 @@ class WhatsmeowWebhook(http.Controller):
             env["res.partner"]
         body = data.get("body") or ""
         media = data.get("media") or {}
+
+        # Per-session inbound filter (§9). Runs after the partner is resolved
+        # and before create, so a rejected message stores nothing: no row to
+        # collide on, no media to fetch, no chatter post. Dropping a fresh
+        # message (never an already-stored duplicate) also means a rejected
+        # placeholder simply never exists, so the real copy that follows is
+        # judged on its own body rather than merged into a stub.
+        facts = {
+            "chat_type": chat_type_for_jid(data.get("chat_jid")),
+            "message_type": (media.get("kind") or "document") if media else "text",
+            "partner_id": partner.id or False,
+            "chat_jid": data.get("chat_jid") or "",
+            "phone_tail": _phone_tail(phone),
+            "sender_lid": data.get("sender_lid") or "",
+            "body": body.lower(),
+            "is_placeholder": bool(data.get("placeholder")),
+        }
+        if session._inbound_decision(facts) == "reject":
+            _logger.info("whatsmeow: session %s dropped inbound %s by filter",
+                         session.code, wa_id)
+            return
+
         vals = {
             "session_id": session.id,
             "partner_id": partner.id or False,

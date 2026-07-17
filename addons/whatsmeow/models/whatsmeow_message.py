@@ -30,6 +30,45 @@ CHAT_TYPE_BY_SERVER = {
 }
 STATUS_JID = "status@broadcast"
 
+# The canonical selections a message can carry, factored out so the inbound
+# filter rules (whatsmeow.session.rule) match on exactly the same sets and can
+# never drift from what a message actually is — the same discipline as
+# SESSION_CODE_RE <-> sessionNameRe. chat_type is the rendering of
+# CHAT_TYPE_BY_SERVER; message_type is the media-kind set the gateway emits.
+CHAT_TYPES = [
+    ("private", "Private"),
+    ("group", "Group"),
+    ("broadcast", "Broadcast"),
+    ("status", "Status Update"),
+    ("newsletter", "Channel"),
+    ("unknown", "Unknown"),
+]
+MESSAGE_TYPES = [
+    ("text", "Text"),
+    ("image", "Image"),
+    ("video", "Video"),
+    ("audio", "Audio"),
+    ("document", "Document"),
+    ("sticker", "Sticker"),
+]
+
+
+def chat_type_for_jid(chat_jid):
+    """Derive a chat type from a chat JID's server, with no ORM in sight.
+
+    Shared by the message's stored `chat_type` compute and the inbound filter,
+    which needs the same answer before any record exists.
+    """
+    jid = (chat_jid or "").strip().lower()
+    if not jid:
+        # No JID means the message is addressed by phone number, which can
+        # only ever be a private chat.
+        return "private"
+    if jid == STATUS_JID:
+        return "status"
+    server = jid.rpartition("@")[2]
+    return CHAT_TYPE_BY_SERVER.get(server, "unknown")
+
 # Chat kinds the gateway can actually send to; the rest have their own send
 # paths in WhatsApp and are receive-only here.
 REPLYABLE_CHAT_TYPES = ("private", "group")
@@ -79,14 +118,7 @@ class WhatsmeowMessage(models.Model):
              "reply is addressed to — a phone number can only reach a private chat.",
     )
     chat_type = fields.Selection(
-        [
-            ("private", "Private"),
-            ("group", "Group"),
-            ("broadcast", "Broadcast"),
-            ("status", "Status Update"),
-            ("newsletter", "Channel"),
-            ("unknown", "Unknown"),
-        ],
+        CHAT_TYPES,
         compute="_compute_chat_type", store=True, index=True,
         help="Derived from the chat JID's server.",
     )
@@ -105,15 +137,7 @@ class WhatsmeowMessage(models.Model):
     )
     body = fields.Text(string="Message / Caption")
     message_type = fields.Selection(
-        [
-            ("text", "Text"),
-            ("image", "Image"),
-            ("video", "Video"),
-            ("audio", "Audio"),
-            ("document", "Document"),
-            ("sticker", "Sticker"),
-        ],
-        default="text", required=True,
+        MESSAGE_TYPES, default="text", required=True,
     )
     # attachment=True keeps the bytes in the filestore instead of the database.
     media_data = fields.Binary(string="Media", attachment=True)
@@ -171,16 +195,7 @@ class WhatsmeowMessage(models.Model):
     @api.depends("chat_jid")
     def _compute_chat_type(self):
         for rec in self:
-            jid = (rec.chat_jid or "").strip().lower()
-            if not jid:
-                # No JID means the message is addressed by phone number, which
-                # can only ever be a private chat.
-                rec.chat_type = "private"
-            elif jid == STATUS_JID:
-                rec.chat_type = "status"
-            else:
-                server = jid.rpartition("@")[2]
-                rec.chat_type = CHAT_TYPE_BY_SERVER.get(server, "unknown")
+            rec.chat_type = chat_type_for_jid(rec.chat_jid)
 
     @api.depends("direction", "chat_type", "chat_jid", "phone")
     def _compute_can_reply(self):
