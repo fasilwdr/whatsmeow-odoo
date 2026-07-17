@@ -209,6 +209,92 @@ class TestInboundToChannel(DiscussCommon):
 
 
 @tagged("post_install", "-at_install")
+class TestReactions(DiscussCommon):
+
+    def setUp(self):
+        super().setUp()
+        self.session.route_fallback_user_ids = [(6, 0, self.frontdesk.ids)]
+        self._inbound(sender_phone="447700900001")
+        self.channel = self._channels()
+        self.inbound = self.env["whatsmeow.message"].search([
+            ("session_id", "=", self.session.id), ("direction", "=", "in")], limit=1)
+        self.bubble = self.inbound.mail_message_id
+
+    def _react_inbound(self, emoji, **over):
+        data = {
+            "target_id": self.inbound.wa_message_id,
+            "emoji": emoji,
+            "sender_phone": "447700900001",
+        }
+        data.update(over)
+        with mute_logger("odoo.addons.whatsmeow.controllers.webhook"):
+            self.ctrl._on_reaction(self.env, self.session, data)
+
+    def _reactions(self):
+        return self.env["mail.message.reaction"].search(
+            [("message_id", "=", self.bubble.id)])
+
+    def test_inbound_reaction_lands_on_the_bubble(self):
+        self._react_inbound("👍")
+        reactions = self._reactions()
+        self.assertEqual(reactions.content, "👍")
+        self.assertEqual(reactions.partner_id, self.channel.whatsmeow_partner_id)
+
+    def test_inbound_reaction_change_replaces_previous(self):
+        self._react_inbound("👍")
+        self._react_inbound("❤️")
+        # WhatsApp keeps one reaction per sender — the heart replaced the thumb
+        self.assertEqual(self._reactions().content, "❤️")
+
+    def test_inbound_reaction_removal_clears_it(self):
+        self._react_inbound("👍")
+        self._react_inbound("")  # empty emoji = removed
+        self.assertFalse(self._reactions())
+
+    def test_applying_an_inbound_reaction_does_not_relay_out(self):
+        with patch.object(type(self.session), "_gw") as gw:
+            self._react_inbound("👍")
+        self.assertFalse(gw.called)
+
+    def test_operator_reaction_is_sent_over_whatsapp(self):
+        with patch.object(type(self.session), "_gw",
+                          return_value={"wa_message_id": "R1"}) as gw:
+            self.bubble.sudo()._message_reaction(
+                "🎉", "add", self.frontdesk.partner_id, self.env["mail.guest"])
+        self.assertTrue(gw.called)
+        path, payload = gw.call_args.args[1], gw.call_args.args[2]
+        self.assertIn("/react", path)
+        self.assertEqual(payload["target_id"], self.inbound.wa_message_id)
+        self.assertEqual(payload["emoji"], "🎉")
+        self.assertFalse(payload["from_me"])  # reacting to the contact's message
+
+    def test_operator_removing_a_reaction_clears_it_over_whatsapp(self):
+        with patch.object(type(self.session), "_gw",
+                          return_value={"wa_message_id": "R1"}):
+            self.bubble.sudo()._message_reaction(
+                "🎉", "add", self.frontdesk.partner_id, self.env["mail.guest"])
+        with patch.object(type(self.session), "_gw",
+                          return_value={"wa_message_id": "R2"}) as gw:
+            self.bubble.sudo()._message_reaction(
+                "🎉", "remove", self.frontdesk.partner_id, self.env["mail.guest"])
+        self.assertEqual(gw.call_args.args[2]["emoji"], "")
+
+    def test_reaction_to_own_reply_is_flagged_from_me(self):
+        # an operator reply, then a reaction on that outgoing bubble
+        with patch.object(type(self.session), "_gw",
+                          return_value={"wa_message_id": "OUT1"}):
+            self.channel.with_user(self.frontdesk).message_post(
+                body="on it", message_type="comment", subtype_xmlid="mail.mt_comment")
+        reply = self.env["whatsmeow.message"].search([
+            ("session_id", "=", self.session.id), ("direction", "=", "out")], limit=1)
+        with patch.object(type(self.session), "_gw",
+                          return_value={"wa_message_id": "R1"}) as gw:
+            reply.mail_message_id.sudo()._message_reaction(
+                "👍", "add", self.frontdesk.partner_id, self.env["mail.guest"])
+        self.assertTrue(gw.call_args.args[2]["from_me"])
+
+
+@tagged("post_install", "-at_install")
 class TestOutboundRelay(DiscussCommon):
 
     def _open_channel(self):

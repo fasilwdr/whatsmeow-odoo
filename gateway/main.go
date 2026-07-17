@@ -256,6 +256,13 @@ func makeEventHandler(s *Session) func(interface{}) {
 			if v.Info.IsFromMe {
 				return // don't loop our own outbound back into Odoo
 			}
+			// A reaction is not a message, it annotates one. Surface it as its
+			// own event so Odoo can put it on the target message instead of
+			// storing a noisy "[reaction] 👍" line of its own.
+			if react := reactionOf(v.Message); react != nil {
+				notifyOdoo(s.Name, "message.reaction", s.reactionPayload(v, react))
+				return
+			}
 			text := extractText(v.Message)
 			// Media is downloaded now, not on demand: WhatsApp expires it from
 			// its servers, so a later fetch would find nothing.
@@ -287,12 +294,7 @@ func makeEventHandler(s *Session) func(interface{}) {
 			}
 			sender := v.Info.Sender.ToNonAD()
 			senderPN := resolvePN(s.Client, sender, v.Info.SenderAlt)
-			lid := ""
-			if sender.Server == types.HiddenUserServer {
-				lid = sender.User
-			} else if v.Info.SenderAlt.Server == types.HiddenUserServer {
-				lid = v.Info.SenderAlt.User
-			}
+			lid := senderLID(v)
 			if senderPN.IsEmpty() {
 				// Better an empty phone Odoo can flag than a LID masquerading as one.
 				log.Printf("[%s] could not resolve a phone number for sender %s (mode=%s)",
@@ -630,6 +632,48 @@ func describeMessage(v *events.Message) string {
 		return "protocol/" + msg.GetProtocolMessage().GetType().String()
 	default:
 		return v.Info.Type
+	}
+}
+
+// reactionOf returns the reaction inside a message (unwrapping ephemeral/
+// view-once envelopes), or nil when the message is not a reaction.
+func reactionOf(msg *waE2E.Message) *waE2E.ReactionMessage {
+	if m := unwrap(msg); m != nil {
+		return m.GetReactionMessage()
+	}
+	return nil
+}
+
+// senderLID pulls the LID of whoever sent an event, whichever side of the
+// phone/LID pair carries it, or "" when the sender is known by phone only.
+func senderLID(v *events.Message) string {
+	sender := v.Info.Sender.ToNonAD()
+	if sender.Server == types.HiddenUserServer {
+		return sender.User
+	}
+	if v.Info.SenderAlt.Server == types.HiddenUserServer {
+		return v.Info.SenderAlt.User
+	}
+	return ""
+}
+
+// reactionPayload describes an inbound reaction for Odoo: which message it
+// targets, the emoji ("" means the sender removed their reaction) and who
+// reacted, mirroring the identity fields of a normal message.
+func (s *Session) reactionPayload(v *events.Message, react *waE2E.ReactionMessage) map[string]any {
+	sender := v.Info.Sender.ToNonAD()
+	senderPN := resolvePN(s.Client, sender, v.Info.SenderAlt)
+	key := react.GetKey()
+	return map[string]any{
+		"wa_message_id":  v.Info.ID,       // the reaction's own id
+		"target_id":      key.GetID(),     // the message being reacted to
+		"target_from_me": key.GetFromMe(), // was that message ours?
+		"emoji":          react.GetText(), // "" when the reaction was removed
+		"sender_jid":     sender.String(),
+		"sender_phone":   senderPN.User, // "" when only a LID is known
+		"sender_lid":     senderLID(v),
+		"chat_jid":       v.Info.Chat.String(),
+		"timestamp":      v.Info.Timestamp.UTC().Format(time.RFC3339),
 	}
 }
 
@@ -1054,6 +1098,67 @@ func handleSend(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+type reactRequest struct {
+	target
+	TargetID     string `json:"target_id"`     // message being reacted to
+	TargetSender string `json:"target_sender"` // JID that authored it (group/participant)
+	FromMe       bool   `json:"from_me"`       // was the target our own message?
+	Emoji        string `json:"emoji"`         // "" removes the reaction
+}
+
+// handleReact reacts to a message with an emoji (or clears the reaction when
+// emoji is empty). A reaction is a normal message under the hood, built by
+// BuildReaction, so it flows through SendMessage like everything else.
+func handleReact(w http.ResponseWriter, r *http.Request) {
+	s := requireSession(w, r)
+	if s == nil {
+		return
+	}
+	var req reactRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil ||
+		strings.TrimSpace(req.TargetID) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "'target_id' is required"})
+		return
+	}
+	chat, err := resolveTarget(req.target)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	status, _, _, _ := s.snapshot()
+	if status != "connected" {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "session not connected (status: " + status + ")"})
+		return
+	}
+	// The reaction key must name whoever authored the target message: our own
+	// JID when reacting to our message, otherwise the participant (the contact
+	// in a 1:1, or the specific group member). Defaults to the chat, which is
+	// the contact for a private chat.
+	sender := chat
+	if req.FromMe {
+		if s.Client.Store.ID == nil {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "session has no identity yet"})
+			return
+		}
+		sender = s.Client.Store.ID.ToNonAD()
+	} else if raw := strings.TrimSpace(req.TargetSender); raw != "" {
+		if p, perr := types.ParseJID(raw); perr == nil {
+			sender = p.ToNonAD()
+		}
+	}
+	msg := s.Client.BuildReaction(chat, sender, types.MessageID(req.TargetID), req.Emoji)
+	resp, err := s.Client.SendMessage(r.Context(), chat, msg)
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "reaction failed: " + err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":        "sent",
+		"wa_message_id": resp.ID,
+		"timestamp":     resp.Timestamp.UTC().Format(time.RFC3339),
+	})
+}
+
 // handleGetMedia streams a previously downloaded file to Odoo.
 func handleGetMedia(w http.ResponseWriter, r *http.Request) {
 	s := requireSession(w, r)
@@ -1340,6 +1445,7 @@ func main() {
 	mux.HandleFunc("GET /sessions/{name}/qr", handleQR)
 	mux.HandleFunc("POST /sessions/{name}/send", handleSend)
 	mux.HandleFunc("POST /sessions/{name}/send-media", handleSendMedia)
+	mux.HandleFunc("POST /sessions/{name}/react", handleReact)
 	mux.HandleFunc("GET /sessions/{name}/media/{id}", handleGetMedia)
 	mux.HandleFunc("DELETE /sessions/{name}/media/{id}", handleDeleteMedia)
 	mux.HandleFunc("POST /sessions/{name}/logout", handleLogout)

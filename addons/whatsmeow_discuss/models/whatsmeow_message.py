@@ -30,6 +30,60 @@ class WhatsmeowMessage(models.Model):
         channel = self._wa_get_or_create_channel()
         self._wa_post_into_channel(channel)
 
+    # -- reactions ------------------------------------------------------------
+    def _apply_reaction(self, emoji, partner):
+        """React on this message's Discuss bubble, mirroring WhatsApp's
+        one-reaction-per-sender rule: a new emoji replaces the sender's previous
+        one, and an empty emoji clears it. Applied under `whatsmeow_skip_send`
+        so it is not echoed straight back out to WhatsApp."""
+        self.ensure_one()
+        bubble = self.mail_message_id
+        if not bubble:
+            return  # not a routed conversation — no bubble to annotate
+        channel = (self.env["discuss.channel"].browse(bubble.res_id)
+                   if bubble.model == "discuss.channel"
+                   else self.env["discuss.channel"])
+        # A private chat's reactor may be unknown (LID-only); fall back to the
+        # conversation's correspondent. A group reactor with no partner can't be
+        # attributed, so it is dropped.
+        reactor = partner or channel.whatsmeow_partner_id
+        if not reactor:
+            return
+        guest = self.env["mail.guest"]
+        bubble = bubble.sudo().with_context(whatsmeow_skip_send=True)
+        current = self.env["mail.message.reaction"].sudo().search([
+            ("message_id", "=", bubble.id), ("partner_id", "=", reactor.id),
+        ]).mapped("content")
+        for content in current:
+            if content != emoji:
+                bubble._message_reaction(content, "remove", reactor, guest)
+        if emoji and emoji not in current:
+            bubble._message_reaction(emoji, "add", reactor, guest)
+
+    def _send_reaction(self, emoji):
+        """Send (or clear, when emoji is empty) a WhatsApp reaction on this
+        message. Inline like a reply — a reaction is a live gesture, not queued
+        traffic. A gateway failure is logged, never raised into the operator's
+        own reaction."""
+        self.ensure_one()
+        if not self.wa_message_id:
+            return
+        payload = {
+            **self._target_payload(),
+            "target_id": self.wa_message_id,
+            # who authored the target: the participant for an inbound message;
+            # for our own outbound message the gateway uses the session's JID.
+            "target_sender": self.sender_jid or "",
+            "from_me": self.direction == "out",
+            "emoji": emoji,
+        }
+        try:
+            self.session_id._gw(
+                "POST", f"/sessions/{self.session_id.code}/react", payload)
+        except Exception as exc:  # noqa: BLE001 - a failed reaction must not raise
+            _logger.warning("whatsmeow: reaction relay for message %s failed: %s",
+                            self.id, exc)
+
     # -- routing facts (from the stored record, so media delivery works too) --
     def _wa_route_facts(self):
         self.ensure_one()

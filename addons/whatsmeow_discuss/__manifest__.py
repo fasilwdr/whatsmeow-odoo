@@ -1,6 +1,6 @@
 {
     "name": "Whatsmeow Discuss Routing",
-    "version": "19.0.1.0.0",
+    "version": "19.0.1.1.0",
     "summary": "Attend WhatsApp conversations in Odoo Discuss, with rule-based routing",
     "description": """
 Turn accepted inbound WhatsApp messages into live Discuss conversations.

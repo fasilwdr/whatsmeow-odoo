@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"go.mau.fi/whatsmeow/proto/waCommon"
 	waE2E "go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
@@ -214,6 +215,60 @@ func TestSendRequestDecodesOdooPayload(t *testing.T) {
 	}
 	if ci := mreq.contextInfo(); ci.GetStanzaID() != "GRP-1" {
 		t.Errorf("media quote lost in decoding: %v", ci)
+	}
+}
+
+func TestReactRequestDecodesOdooPayload(t *testing.T) {
+	// Verbatim shape from whatsmeow.message._send_reaction() for reacting to an
+	// inbound message in a group.
+	body := `{"phone": "", "jid": "120363000000000000@g.us",
+	          "target_id": "GRP-7", "target_sender": "447700900123@s.whatsapp.net",
+	          "from_me": false, "emoji": "❤️"}`
+	var req reactRequest
+	if err := json.Unmarshal([]byte(body), &req); err != nil {
+		t.Fatalf("Odoo's reaction payload did not decode: %v", err)
+	}
+	if req.TargetID != "GRP-7" || req.Emoji != "❤️" || req.FromMe {
+		t.Errorf("reaction fields lost: %+v", req)
+	}
+	chat, err := resolveTarget(req.target)
+	if err != nil || chat.String() != "120363000000000000@g.us" {
+		t.Errorf("reaction addressed to %q (err %v), want the group", chat, err)
+	}
+
+	// Removing a reaction is an empty emoji; clearing our own message's reaction
+	// is addressed by phone with from_me set.
+	remove := `{"phone": "447700900123", "jid": "", "target_id": "M-1",
+	            "target_sender": "", "from_me": true, "emoji": ""}`
+	var rreq reactRequest
+	if err := json.Unmarshal([]byte(remove), &rreq); err != nil {
+		t.Fatalf("removal payload did not decode: %v", err)
+	}
+	if rreq.Emoji != "" || !rreq.FromMe {
+		t.Errorf("removal fields lost: %+v", rreq)
+	}
+	if chat, err := resolveTarget(rreq.target); err != nil ||
+		chat.String() != "447700900123@s.whatsapp.net" {
+		t.Errorf("phone-addressed reaction resolved to %q (err %v)", chat, err)
+	}
+}
+
+func TestReactionOfUnwraps(t *testing.T) {
+	plain := &waE2E.Message{ReactionMessage: &waE2E.ReactionMessage{
+		Text: proto.String("👍"), Key: &waCommon.MessageKey{ID: proto.String("T-1")},
+	}}
+	if r := reactionOf(plain); r == nil || r.GetText() != "👍" || r.GetKey().GetID() != "T-1" {
+		t.Errorf("plain reaction not detected: %v", r)
+	}
+	// A reaction can arrive wrapped in an ephemeral envelope.
+	wrapped := &waE2E.Message{EphemeralMessage: &waE2E.FutureProofMessage{
+		Message: &waE2E.Message{ReactionMessage: &waE2E.ReactionMessage{Text: proto.String("❤️")}},
+	}}
+	if r := reactionOf(wrapped); r == nil || r.GetText() != "❤️" {
+		t.Errorf("wrapped reaction not unwrapped: %v", r)
+	}
+	if r := reactionOf(&waE2E.Message{Conversation: proto.String("hi")}); r != nil {
+		t.Errorf("a plain text message is not a reaction: %v", r)
 	}
 }
 

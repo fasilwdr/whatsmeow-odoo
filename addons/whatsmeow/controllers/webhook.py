@@ -49,6 +49,8 @@ class WhatsmeowWebhook(http.Controller):
 
         if event == "message.received":
             self._on_message(env, session, data)
+        elif event == "message.reaction":
+            self._on_reaction(env, session, data)
         elif event == "message.receipt":
             self._on_receipt(env, data)
         elif event in SESSION_EVENT_STATUS:
@@ -174,6 +176,29 @@ class WhatsmeowWebhook(http.Controller):
             # The placeholder never reached the chatter/channel with anything
             # useful; deliver the real text now.
             existing._deliver_inbound()
+
+    def _on_reaction(self, env, session, data):
+        """Apply an inbound WhatsApp reaction to the message it targets.
+
+        A reaction is not a message — it annotates one — so it stores no row of
+        its own: it finds the target and hands off to `_apply_reaction`. Core
+        has no live place to show a reaction, so that seam does nothing until
+        the `whatsmeow_discuss` bridge overrides it to react on the channel
+        bubble. An empty emoji means the sender removed their reaction.
+        """
+        target_id = data.get("target_id")
+        if not target_id:
+            return
+        target = env["whatsmeow.message"].search([
+            ("session_id", "=", session.id),
+            ("wa_message_id", "=", target_id),
+        ], limit=1)
+        if not target:
+            return  # a reaction to a message we never stored (or already gone)
+        phone = (data.get("sender_phone") or "").strip()
+        partner = env["whatsmeow.message"]._find_partner(phone) if phone else \
+            env["res.partner"]
+        target._apply_reaction(data.get("emoji") or "", partner)
 
     def _on_receipt(self, env, data):
         state = "read" if data.get("receipt_type") == "read" else "delivered"

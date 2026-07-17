@@ -502,6 +502,15 @@ class WhatsmeowMessage(models.Model):
             except Exception as exc:  # noqa: BLE001
                 _logger.info("whatsmeow: could not release media %s: %s", rec.wa_message_id, exc)
 
+    def _apply_reaction(self, emoji, partner):
+        """Surface an inbound reaction on this message. A seam, like
+        `_deliver_inbound`: core has no live surface for a reaction (a chatter
+        post is not an updatable bubble), so it does nothing; `whatsmeow_discuss`
+        overrides this to react on the message's Discuss bubble. `emoji` is empty
+        when the sender removed their reaction."""
+        self.ensure_one()
+        return
+
     def _deliver_inbound(self):
         """Deliver an accepted inbound message to wherever it should land.
 
