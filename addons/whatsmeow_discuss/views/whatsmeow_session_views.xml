@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="whatsmeow_session_view_form_discuss" model="ir.ui.view">
+    <field name="name">whatsmeow.session.form.discuss</field>
+    <field name="model">whatsmeow.session</field>
+    <field name="inherit_id" ref="whatsmeow.whatsmeow_session_view_form"/>
+    <field name="arch" type="xml">
+
+      <xpath expr="//div[@name='button_box']" position="inside">
+        <button name="action_view_channels" type="object"
+                class="oe_stat_button" icon="fa-comments"
+                invisible="not route_to_discuss">
+          <field name="channel_count" widget="statinfo" string="Conversations"/>
+        </button>
+      </xpath>
+
+      <xpath expr="//page[@name='inbound_filtering']" position="after">
+        <page string="Discuss Routing" name="discuss_routing">
+          <group>
+            <field name="route_to_discuss"/>
+            <field name="auto_create_partner"
+                   invisible="not route_to_discuss"/>
+          </group>
+          <div class="alert alert-info" role="status"
+               invisible="not route_to_discuss">
+            Accepted inbound messages open a Discuss conversation instead of
+            posting to the contact's chatter. The first message of each
+            conversation is routed to operators by the rules below; a
+            conversation that matches no rule goes to the default operators.
+          </div>
+          <group invisible="not route_to_discuss">
+            <field name="route_fallback_user_ids" widget="many2many_tags"
+                   string="Default operators"
+                   options="{'no_create': True}"/>
+          </group>
+          <field name="route_ids" invisible="not route_to_discuss">
+            <list editable="bottom">
+              <field name="sequence" widget="handle"/>
+              <field name="name" string="Label" optional="show"/>
+              <field name="chat_type"/>
+              <field name="message_type" optional="hide"/>
+              <field name="sender_state"/>
+              <field name="partner_ids" widget="many2many_tags"
+                     options="{'no_create': True}"/>
+              <field name="chat_jids"/>
+              <field name="phones"/>
+              <field name="sender_lids" optional="hide"/>
+              <field name="keyword"/>
+              <field name="user_ids" widget="many2many_tags"
+                     string="Attend by" options="{'no_create': True}"/>
+            </list>
+          </field>
+          <p class="text-muted" invisible="not route_to_discuss">
+            A route matches when <b>every field you set</b> matches the
+            conversation's first message; blank fields are wildcards. The first
+            matching route (top to bottom) decides who attends. Use
+            <b>Sender = New</b> to send first-time contacts to a front-desk team
+            and <b>Sender = Existing</b> to send known ones to their account
+            manager.
+          </p>
+        </page>
+      </xpath>
+
+    </field>
+  </record>
+</odoo>

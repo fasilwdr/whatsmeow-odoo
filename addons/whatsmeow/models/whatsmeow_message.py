@@ -126,6 +126,12 @@ class WhatsmeowMessage(models.Model):
         string="Group Name", readonly=True,
         help="Subject of the group, as fetched by the gateway. Empty for private chats.",
     )
+    push_name = fields.Char(
+        string="Sender Name", readonly=True,
+        help="The display name the sender set in WhatsApp. Kept as a fallback "
+             "label when the sender resolves to no partner — e.g. to name an "
+             "auto-created contact for a Discuss conversation.",
+    )
     reply_to_id = fields.Many2one(
         "whatsmeow.message", string="In Reply To", ondelete="set null", index=True,
         help="Quote this message in WhatsApp. In a group, it is what tells "
@@ -489,12 +495,24 @@ class WhatsmeowMessage(models.Model):
                 "media_state": "fetched",
                 "error_message": False,
             })
-            rec._post_to_chatter()
+            rec._deliver_inbound()
             # Best-effort: the gateway garbage-collects anything we miss.
             try:
                 rec.session_id._gw("DELETE", f"/sessions/{code}/media/{rec.wa_message_id}")
             except Exception as exc:  # noqa: BLE001
                 _logger.info("whatsmeow: could not release media %s: %s", rec.wa_message_id, exc)
+
+    def _deliver_inbound(self):
+        """Deliver an accepted inbound message to wherever it should land.
+
+        A seam, deliberately overridable: core posts to the correspondent's
+        chatter (`_post_to_chatter`). The `whatsmeow_discuss` bridge overrides
+        this to route the message into a `discuss.channel` when its session opts
+        in, and falls back to `super()` otherwise — so no bridge symbol is ever
+        referenced from core; installing the bridge is what changes behaviour.
+        """
+        self.ensure_one()
+        self._post_to_chatter()
 
     def _post_to_chatter(self):
         """Post an inbound message onto the partner's chatter, with the media
@@ -511,6 +529,11 @@ class WhatsmeowMessage(models.Model):
                 "res_model": self._name,
                 "res_id": self.id,
             })
+            if self.is_voice_note:
+                # Flag a voice note so it plays inline (Discuss/chatter render a
+                # player) instead of showing as a download-only file. The metadata
+                # record is what Odoo's own voice recorder sets.
+                attachments._set_voice_metadata()
         # Name the group: posted on a partner's chatter, a group message would
         # otherwise read as though they had messaged us privately.
         if self.chat_type == "group":

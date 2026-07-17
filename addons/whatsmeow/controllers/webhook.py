@@ -7,7 +7,7 @@ from odoo import http
 from odoo.http import request
 
 from ..models.whatsmeow_message import chat_type_for_jid
-from ..models.whatsmeow_session_rule import _phone_tail
+from ..models.whatsmeow_match_mixin import _phone_tail
 
 _logger = logging.getLogger(__name__)
 
@@ -104,6 +104,7 @@ class WhatsmeowWebhook(http.Controller):
             "chat_type": chat_type_for_jid(data.get("chat_jid")),
             "message_type": (media.get("kind") or "document") if media else "text",
             "partner_id": partner.id or False,
+            "sender_state": "existing" if partner.id else "new",
             "chat_jid": data.get("chat_jid") or "",
             "phone_tail": _phone_tail(phone),
             "sender_lid": data.get("sender_lid") or "",
@@ -125,6 +126,7 @@ class WhatsmeowWebhook(http.Controller):
             "sender_jid": data.get("sender_jid") or False,
             "chat_jid": data.get("chat_jid") or False,
             "chat_name": data.get("chat_name") or False,
+            "push_name": data.get("push_name") or False,
             "direction": "in",
             "state": "received",
             "body": body,
@@ -147,8 +149,8 @@ class WhatsmeowWebhook(http.Controller):
             return self._merge_duplicate(existing, data) if existing else None
 
         if media:
-            return  # _post_to_chatter runs once the media has been fetched
-        msg._post_to_chatter()
+            return  # delivery runs once the media has been fetched
+        msg._deliver_inbound()
 
     def _merge_duplicate(self, existing, data):
         """Reconcile a second copy of a message we already have.
@@ -169,9 +171,9 @@ class WhatsmeowWebhook(http.Controller):
         _logger.info("whatsmeow: real copy of %s replaced its placeholder",
                      existing.wa_message_id)
         if not media:
-            # The placeholder never reached the chatter with anything useful;
-            # post the real text now.
-            existing._post_to_chatter()
+            # The placeholder never reached the chatter/channel with anything
+            # useful; deliver the real text now.
+            existing._deliver_inbound()
 
     def _on_receipt(self, env, data):
         state = "read" if data.get("receipt_type") == "read" else "delivered"

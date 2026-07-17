@@ -75,6 +75,7 @@
                   <field name="action"/>
                   <field name="chat_type"/>
                   <field name="message_type"/>
+                  <field name="sender_state" optional="hide"/>
                   <field name="partner_ids" widget="many2many_tags"
                          options="{'no_create': True}"/>
                   <field name="chat_jids"/>
