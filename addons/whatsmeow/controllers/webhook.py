@@ -1,8 +1,6 @@
 import json
 import logging
 
-from markupsafe import Markup
-
 from odoo import http
 from odoo.http import request
 
@@ -70,7 +68,8 @@ class WhatsmeowWebhook(http.Controller):
         partner = env["whatsmeow.message"]._find_partner(phone) if phone else \
             env["res.partner"]
         body = data.get("body") or ""
-        env["whatsmeow.message"].create({
+        media = data.get("media") or {}
+        vals = {
             "session_id": session.id,
             "partner_id": partner.id or False,
             "phone": phone,
@@ -79,17 +78,24 @@ class WhatsmeowWebhook(http.Controller):
             "state": "received",
             "body": body,
             "wa_message_id": wa_id,
-        })
-        if partner:
-            # Markup(...) % args escapes the args: inbound text is untrusted.
-            # env._() rather than _(): the bare alias sniffs the caller's frame
-            # for a language and blows up when there's no active request.
-            partner.message_post(
-                body=Markup("<p><b>%s</b><br/>%s</p>") % (
-                    env._("WhatsApp (%s)", session.name), body,
-                ),
-                message_type="comment",
-            )
+        }
+        if media:
+            # The bytes stay on the gateway; a cron collects them so a big file
+            # can't hold this webhook (and its transaction) open.
+            vals.update({
+                "message_type": media.get("kind") or "document",
+                "media_filename": media.get("filename") or False,
+                "media_mimetype": media.get("mimetype") or False,
+                "media_size": media.get("size") or 0,
+                "media_duration": media.get("seconds") or 0,
+                "is_voice_note": bool(media.get("ptt")),
+                "media_state": "pending",
+            })
+        msg = env["whatsmeow.message"].create(vals)
+
+        if media:
+            return  # _post_to_chatter runs once the media has been fetched
+        msg._post_to_chatter()
 
     def _on_receipt(self, env, data):
         state = "read" if data.get("receipt_type") == "read" else "delivered"

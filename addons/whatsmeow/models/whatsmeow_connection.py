@@ -8,6 +8,8 @@ from odoo.exceptions import UserError
 _logger = logging.getLogger(__name__)
 
 REQUEST_TIMEOUT = 20
+# Uploading/downloading media is slower than a status poll; give it room.
+MEDIA_TIMEOUT = 300
 
 
 class WhatsmeowConnection(models.Model):
@@ -46,10 +48,13 @@ class WhatsmeowConnection(models.Model):
             rec.session_count = len(rec.session_ids)
 
     # -- shared HTTP helper ---------------------------------------------------
-    def _request(self, method, path, payload=None):
-        """Call the gateway. Credentials are manager-only fields, so read them
-        through sudo: any user allowed to send a message may use the gateway
-        without ever being able to see the key."""
+    def _call(self, method, path, payload=None, timeout=REQUEST_TIMEOUT):
+        """Perform the HTTP call and raise on transport or gateway errors.
+
+        Credentials are manager-only fields, so they're read through sudo: any
+        user allowed to send a message may use the gateway without ever being
+        able to see the key.
+        """
         self.ensure_one()
         conn = self.sudo()
         base = (conn.base_url or "").rstrip("/")
@@ -58,19 +63,34 @@ class WhatsmeowConnection(models.Model):
         try:
             resp = requests.request(
                 method, f"{base}{path}", json=payload,
-                headers={"X-Api-Key": conn.api_key}, timeout=REQUEST_TIMEOUT,
+                headers={"X-Api-Key": conn.api_key}, timeout=timeout,
             )
         except requests.RequestException as exc:
             raise UserError(_("Gateway '%s' unreachable: %s", self.name, exc)) from exc
-        data = {}
-        try:
-            data = resp.json()
-        except ValueError:
-            pass
         if resp.status_code >= 400:
-            raise UserError(_("Gateway error (%s): %s",
-                              resp.status_code, data.get("error", resp.text)))
-        return data
+            # Errors are JSON even on the binary endpoints.
+            try:
+                detail = resp.json().get("error", resp.text)
+            except ValueError:
+                detail = resp.text
+            raise UserError(_("Gateway error (%s): %s", resp.status_code, detail))
+        return resp
+
+    def _request(self, method, path, payload=None, timeout=REQUEST_TIMEOUT):
+        """Call the gateway and decode a JSON reply."""
+        resp = self._call(method, path, payload, timeout)
+        try:
+            return resp.json()
+        except ValueError:
+            return {}
+
+    def _request_raw(self, method, path, payload=None):
+        """Call the gateway and return raw bytes + headers, for media downloads.
+
+        Media can be large, so this gets its own, longer timeout.
+        """
+        resp = self._call(method, path, payload, timeout=MEDIA_TIMEOUT)
+        return resp.content, resp.headers
 
     def action_test(self):
         # Hits an authed endpoint so it validates the API key, not just reachability.

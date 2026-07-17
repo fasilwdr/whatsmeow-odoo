@@ -1,8 +1,8 @@
 // whatsmeow-gateway: a minimal multi-session HTTP gateway around whatsmeow,
 // designed to be driven entirely from an Odoo 19 module.
 //
-//   Odoo  --HTTP-->  this gateway  --WebSocket-->  WhatsApp
-//   Odoo  <--webhook--  this gateway                (inbound messages/events)
+//	Odoo  --HTTP-->  this gateway  --WebSocket-->  WhatsApp
+//	Odoo  <--webhook--  this gateway                (inbound messages/events)
 //
 // NOTE: whatsmeow's API evolves. This file targets whatsmeow versions from
 // ~mid-2025 onward (context-aware sqlstore, waE2E proto package). If your
@@ -12,14 +12,18 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"mime"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -40,17 +44,34 @@ import (
 // ---------------------------------------------------------------------------
 
 var (
-	listenAddr      = envOr("WMG_LISTEN", "127.0.0.1:8080")
-	apiKey          = os.Getenv("WMG_API_KEY")            // required
-	odooWebhookURL  = os.Getenv("WMG_ODOO_WEBHOOK_URL")   // e.g. https://odoo.example.com/whatsmeow/webhook
-	webhookSecret   = os.Getenv("WMG_WEBHOOK_SECRET")     // shared secret sent to Odoo
-	dataDir         = envOr("WMG_DATA_DIR", "./data")     // one sqlite DB per session
-	nonDigits       = regexp.MustCompile(`\D`)
+	listenAddr     = envOr("WMG_LISTEN", "127.0.0.1:8080")
+	apiKey         = os.Getenv("WMG_API_KEY")          // required
+	odooWebhookURL = os.Getenv("WMG_ODOO_WEBHOOK_URL") // e.g. https://odoo.example.com/whatsmeow/webhook
+	webhookSecret  = os.Getenv("WMG_WEBHOOK_SECRET")   // shared secret sent to Odoo
+	dataDir        = envOr("WMG_DATA_DIR", "./data")   // one sqlite DB per session
+	nonDigits      = regexp.MustCompile(`\D`)
+
+	// Inbound media is downloaded to disk and fetched by Odoo over the API
+	// rather than inlined into the webhook: WhatsApp allows ~100MB files, and
+	// notifyOdoo retries, so a big payload would be re-sent several times.
+	mediaDir      = filepath.Join(dataDir, "media")
+	maxMediaBytes = int64(envIntOr("WMG_MAX_MEDIA_MB", 100)) << 20
+	mediaTTL      = time.Duration(envIntOr("WMG_MEDIA_TTL_HOURS", 24)) * time.Hour
 )
 
 func envOr(key, def string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
+	}
+	return def
+}
+
+func envIntOr(key string, def int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+		log.Printf("invalid %s=%q, using %d", key, v, def)
 	}
 	return def
 }
@@ -64,9 +85,9 @@ type Session struct {
 	Client    *whatsmeow.Client
 	container *sqlstore.Container
 
-	mu     sync.Mutex
-	Status string // starting | qr | connected | disconnected | logged_out | error
-	QRCode string // latest QR code string while Status == "qr"
+	mu      sync.Mutex
+	Status  string // starting | qr | connected | disconnected | logged_out | error
+	QRCode  string // latest QR code string while Status == "qr"
 	LastErr string
 }
 
@@ -220,8 +241,24 @@ func makeEventHandler(s *Session) func(interface{}) {
 				return // don't loop our own outbound back into Odoo
 			}
 			text := extractText(v.Message)
-			if text == "" {
-				// Non-text (media etc.) - still tell Odoo something arrived.
+			// Media is downloaded now, not on demand: WhatsApp expires it from
+			// its servers, so a later fetch would find nothing.
+			var media *mediaInfo
+			if info, ok := extractMedia(v.Message); ok {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+				err := s.downloadMedia(ctx, v.Info.ID, info)
+				cancel()
+				if err != nil {
+					log.Printf("[%s] media download failed for %s: %v", s.Name, v.Info.ID, err)
+					if text == "" {
+						text = "[" + info.Kind + " could not be downloaded: " + err.Error() + "]"
+					}
+				} else {
+					media = info
+				}
+			}
+			if text == "" && media == nil {
+				// Nothing we can render - still tell Odoo something arrived.
 				text = "[unsupported message type: " + describeMessage(v) + "]"
 			}
 			sender := v.Info.Sender.ToNonAD()
@@ -237,7 +274,7 @@ func makeEventHandler(s *Session) func(interface{}) {
 				log.Printf("[%s] could not resolve a phone number for sender %s (mode=%s)",
 					s.Name, sender, v.Info.AddressingMode)
 			}
-			notifyOdoo(s.Name, "message.received", map[string]any{
+			payload := map[string]any{
 				"wa_message_id":   v.Info.ID,
 				"sender_jid":      sender.String(),
 				"sender_phone":    senderPN.User, // "" when only a LID is known
@@ -246,9 +283,14 @@ func makeEventHandler(s *Session) func(interface{}) {
 				"push_name":       v.Info.PushName,
 				"is_group":        v.Info.IsGroup,
 				"chat_jid":        v.Info.Chat.String(),
-				"body":            text,
+				"body":            text, // caption, for media
 				"timestamp":       v.Info.Timestamp.UTC().Format(time.RFC3339),
-			})
+			}
+			if media != nil {
+				// Metadata only; Odoo pulls the bytes from /media/{id}.
+				payload["media"] = media
+			}
+			notifyOdoo(s.Name, "message.received", payload)
 
 		case *events.Receipt:
 			if v.Type == types.ReceiptTypeDelivered || v.Type == types.ReceiptTypeRead {
@@ -274,6 +316,143 @@ func makeEventHandler(s *Session) func(interface{}) {
 				"reason": v.Reason.String(),
 			})
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Media storage: downloaded once on receipt (WhatsApp drops media from its
+// servers after a while), served to Odoo on demand, and garbage-collected.
+// ---------------------------------------------------------------------------
+
+// mediaInfo is the metadata sent to Odoo in the webhook; Odoo then fetches the
+// bytes from GET /sessions/{name}/media/{id}.
+type mediaInfo struct {
+	Kind     string `json:"kind"` // image|video|audio|document|sticker
+	Mimetype string `json:"mimetype"`
+	Filename string `json:"filename"`
+	Size     int64  `json:"size"`
+	Seconds  uint32 `json:"seconds,omitempty"`
+	PTT      bool   `json:"ptt,omitempty"`
+
+	dl whatsmeow.DownloadableMessage `json:"-"`
+}
+
+// safeID only allows the characters WhatsApp actually uses in message IDs.
+// Message IDs arrive from the network and are used to build file paths, so
+// anything else must never reach the filesystem.
+var safeID = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,128}$`)
+
+func mediaPath(session, id string) (string, error) {
+	if !sessionNameRe.MatchString(session) || !safeID.MatchString(id) {
+		return "", fmt.Errorf("invalid session or message id")
+	}
+	// safeID permits dots, so "." and ".." still slip through the regex and
+	// would climb out of the session directory via filepath.Join.
+	if strings.Trim(id, ".") == "" {
+		return "", fmt.Errorf("invalid message id")
+	}
+	return filepath.Join(mediaDir, session, id), nil
+}
+
+// extractMedia returns the downloadable part of a message, if it has one.
+func extractMedia(msg *waE2E.Message) (*mediaInfo, bool) {
+	if msg == nil {
+		return nil, false
+	}
+	switch {
+	case msg.GetImageMessage() != nil:
+		m := msg.GetImageMessage()
+		return &mediaInfo{Kind: "image", Mimetype: m.GetMimetype(), dl: m}, true
+	case msg.GetVideoMessage() != nil:
+		m := msg.GetVideoMessage()
+		return &mediaInfo{Kind: "video", Mimetype: m.GetMimetype(), Seconds: m.GetSeconds(), dl: m}, true
+	case msg.GetAudioMessage() != nil:
+		m := msg.GetAudioMessage()
+		return &mediaInfo{Kind: "audio", Mimetype: m.GetMimetype(), Seconds: m.GetSeconds(),
+			PTT: m.GetPTT(), dl: m}, true
+	case msg.GetStickerMessage() != nil:
+		m := msg.GetStickerMessage()
+		return &mediaInfo{Kind: "sticker", Mimetype: m.GetMimetype(), dl: m}, true
+	case msg.GetDocumentMessage() != nil:
+		m := msg.GetDocumentMessage()
+		return &mediaInfo{Kind: "document", Mimetype: m.GetMimetype(),
+			Filename: m.GetFileName(), dl: m}, true
+	}
+	return nil, false
+}
+
+// filenameFor invents a reasonable filename when WhatsApp doesn't supply one
+// (only documents carry a real name).
+func filenameFor(info *mediaInfo, id string) string {
+	if info.Filename != "" {
+		return filepath.Base(info.Filename)
+	}
+	ext := ""
+	if exts, err := mime.ExtensionsByType(info.Mimetype); err == nil && len(exts) > 0 {
+		ext = exts[0]
+	}
+	if ext == "" {
+		switch info.Kind {
+		case "image":
+			ext = ".jpg"
+		case "video":
+			ext = ".mp4"
+		case "audio":
+			ext = ".ogg"
+		case "sticker":
+			ext = ".webp"
+		default:
+			ext = ".bin"
+		}
+	}
+	return info.Kind + "_" + id + ext
+}
+
+// downloadMedia fetches the media for a message and writes it next to a small
+// JSON sidecar holding its metadata.
+func (s *Session) downloadMedia(ctx context.Context, id string, info *mediaInfo) error {
+	path, err := mediaPath(s.Name, id)
+	if err != nil {
+		return err
+	}
+	data, err := s.Client.Download(ctx, info.dl)
+	if err != nil {
+		return fmt.Errorf("download: %w", err)
+	}
+	if int64(len(data)) > maxMediaBytes {
+		return fmt.Errorf("media is %d bytes, over the %d byte limit", len(data), maxMediaBytes)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	if err := os.WriteFile(path+".bin", data, 0o600); err != nil {
+		return err
+	}
+	info.Size = int64(len(data))
+	info.Filename = filenameFor(info, id)
+	meta, _ := json.Marshal(info)
+	if err := os.WriteFile(path+".json", meta, 0o600); err != nil {
+		return err
+	}
+	return nil
+}
+
+// mediaGC drops media Odoo never collected, so the disk can't grow forever.
+func mediaGC() {
+	for {
+		time.Sleep(time.Hour)
+		cutoff := time.Now().Add(-mediaTTL)
+		_ = filepath.Walk(mediaDir, func(path string, fi os.FileInfo, err error) error {
+			if err != nil || fi.IsDir() {
+				return nil //nolint:nilerr // a vanished file is not an error worth stopping for
+			}
+			if fi.ModTime().Before(cutoff) {
+				if err := os.Remove(path); err == nil {
+					log.Printf("media gc: removed %s", filepath.Base(path))
+				}
+			}
+			return nil
+		})
 	}
 }
 
@@ -516,6 +695,196 @@ func handleSend(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleGetMedia streams a previously downloaded file to Odoo.
+func handleGetMedia(w http.ResponseWriter, r *http.Request) {
+	s := requireSession(w, r)
+	if s == nil {
+		return
+	}
+	path, err := mediaPath(s.Name, r.PathValue("id"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	meta := &mediaInfo{}
+	if raw, err := os.ReadFile(path + ".json"); err == nil {
+		_ = json.Unmarshal(raw, meta)
+	}
+	f, err := os.Open(path + ".bin")
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{
+			"error": "media not found (already collected, expired, or never downloaded)"})
+		return
+	}
+	defer f.Close()
+
+	if meta.Mimetype != "" {
+		w.Header().Set("Content-Type", meta.Mimetype)
+	} else {
+		w.Header().Set("Content-Type", "application/octet-stream")
+	}
+	if meta.Filename != "" {
+		w.Header().Set("Content-Disposition",
+			fmt.Sprintf("attachment; filename=%q", filepath.Base(meta.Filename)))
+	}
+	if fi, err := f.Stat(); err == nil {
+		w.Header().Set("Content-Length", strconv.FormatInt(fi.Size(), 10))
+	}
+	_, _ = io.Copy(w, f)
+}
+
+// handleDeleteMedia lets Odoo release a file once it has stored it.
+func handleDeleteMedia(w http.ResponseWriter, r *http.Request) {
+	s := requireSession(w, r)
+	if s == nil {
+		return
+	}
+	path, err := mediaPath(s.Name, r.PathValue("id"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	_ = os.Remove(path + ".bin")
+	_ = os.Remove(path + ".json")
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
+type sendMediaRequest struct {
+	Phone    string `json:"phone"`
+	Caption  string `json:"caption"`
+	Filename string `json:"filename"`
+	Mimetype string `json:"mimetype"`
+	Kind     string `json:"kind"` // optional; inferred from mimetype
+	PTT      bool   `json:"ptt"`  // send an audio file as a voice note
+	Data     string `json:"data"` // base64
+}
+
+// kindFor maps a mimetype onto how WhatsApp should present the file.
+func kindFor(mimetype string) string {
+	switch {
+	case strings.HasPrefix(mimetype, "image/webp"):
+		return "sticker"
+	case strings.HasPrefix(mimetype, "image/"):
+		return "image"
+	case strings.HasPrefix(mimetype, "video/"):
+		return "video"
+	case strings.HasPrefix(mimetype, "audio/"):
+		return "audio"
+	default:
+		return "document"
+	}
+}
+
+var uploadMediaType = map[string]whatsmeow.MediaType{
+	"image":    whatsmeow.MediaImage,
+	"video":    whatsmeow.MediaVideo,
+	"audio":    whatsmeow.MediaAudio,
+	"document": whatsmeow.MediaDocument,
+	"sticker":  whatsmeow.MediaImage, // stickers upload as images
+}
+
+func buildMediaMessage(kind string, req sendMediaRequest, up whatsmeow.UploadResponse) (*waE2E.Message, error) {
+	switch kind {
+	case "image":
+		return &waE2E.Message{ImageMessage: &waE2E.ImageMessage{
+			Caption: proto.String(req.Caption), Mimetype: proto.String(req.Mimetype),
+			URL: &up.URL, DirectPath: &up.DirectPath, MediaKey: up.MediaKey,
+			FileEncSHA256: up.FileEncSHA256, FileSHA256: up.FileSHA256, FileLength: &up.FileLength,
+		}}, nil
+	case "video":
+		return &waE2E.Message{VideoMessage: &waE2E.VideoMessage{
+			Caption: proto.String(req.Caption), Mimetype: proto.String(req.Mimetype),
+			URL: &up.URL, DirectPath: &up.DirectPath, MediaKey: up.MediaKey,
+			FileEncSHA256: up.FileEncSHA256, FileSHA256: up.FileSHA256, FileLength: &up.FileLength,
+		}}, nil
+	case "audio":
+		return &waE2E.Message{AudioMessage: &waE2E.AudioMessage{
+			Mimetype: proto.String(req.Mimetype), PTT: proto.Bool(req.PTT),
+			URL: &up.URL, DirectPath: &up.DirectPath, MediaKey: up.MediaKey,
+			FileEncSHA256: up.FileEncSHA256, FileSHA256: up.FileSHA256, FileLength: &up.FileLength,
+		}}, nil
+	case "sticker":
+		return &waE2E.Message{StickerMessage: &waE2E.StickerMessage{
+			Mimetype: proto.String(req.Mimetype),
+			URL:      &up.URL, DirectPath: &up.DirectPath, MediaKey: up.MediaKey,
+			FileEncSHA256: up.FileEncSHA256, FileSHA256: up.FileSHA256, FileLength: &up.FileLength,
+		}}, nil
+	case "document":
+		return &waE2E.Message{DocumentMessage: &waE2E.DocumentMessage{
+			Caption: proto.String(req.Caption), Mimetype: proto.String(req.Mimetype),
+			FileName: proto.String(req.Filename), Title: proto.String(req.Filename),
+			URL: &up.URL, DirectPath: &up.DirectPath, MediaKey: up.MediaKey,
+			FileEncSHA256: up.FileEncSHA256, FileSHA256: up.FileSHA256, FileLength: &up.FileLength,
+		}}, nil
+	}
+	return nil, fmt.Errorf("unsupported media kind %q", kind)
+}
+
+func handleSendMedia(w http.ResponseWriter, r *http.Request) {
+	s := requireSession(w, r)
+	if s == nil {
+		return
+	}
+	var req sendMediaRequest
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxMediaBytes*2)).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bad request: " + err.Error()})
+		return
+	}
+	if strings.TrimSpace(req.Phone) == "" || strings.TrimSpace(req.Data) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "'phone' and 'data' are required"})
+		return
+	}
+	data, err := base64.StdEncoding.DecodeString(req.Data)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "'data' is not valid base64"})
+		return
+	}
+	if int64(len(data)) > maxMediaBytes {
+		writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{
+			"error": fmt.Sprintf("media is %d bytes, over the %d byte limit", len(data), maxMediaBytes)})
+		return
+	}
+	if status, _, _, _ := s.snapshot(); status != "connected" {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "session not connected (status: " + status + ")"})
+		return
+	}
+
+	if req.Mimetype == "" {
+		req.Mimetype = http.DetectContentType(data)
+	}
+	kind := req.Kind
+	if kind == "" {
+		kind = kindFor(req.Mimetype)
+	}
+	mediaType, ok := uploadMediaType[kind]
+	if !ok {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unsupported media kind: " + kind})
+		return
+	}
+
+	up, err := s.Client.Upload(r.Context(), data, mediaType)
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "upload failed: " + err.Error()})
+		return
+	}
+	msg, err := buildMediaMessage(kind, req, up)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	jid := types.NewJID(nonDigits.ReplaceAllString(req.Phone, ""), types.DefaultUserServer)
+	resp, err := s.Client.SendMessage(r.Context(), jid, msg)
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "send failed: " + err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status": "sent", "kind": kind, "wa_message_id": resp.ID,
+		"timestamp": resp.Timestamp.UTC().Format(time.RFC3339),
+	})
+}
+
 func handleLogout(w http.ResponseWriter, r *http.Request) {
 	s := requireSession(w, r)
 	if s == nil {
@@ -569,8 +938,12 @@ func main() {
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
 		log.Fatalf("cannot create data dir: %v", err)
 	}
+	if err := os.MkdirAll(mediaDir, 0o700); err != nil {
+		log.Fatalf("cannot create media dir: %v", err)
+	}
 
 	manager.restoreExisting()
+	go mediaGC()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
@@ -581,6 +954,9 @@ func main() {
 	mux.HandleFunc("GET /sessions/{name}/status", handleStatus)
 	mux.HandleFunc("GET /sessions/{name}/qr", handleQR)
 	mux.HandleFunc("POST /sessions/{name}/send", handleSend)
+	mux.HandleFunc("POST /sessions/{name}/send-media", handleSendMedia)
+	mux.HandleFunc("GET /sessions/{name}/media/{id}", handleGetMedia)
+	mux.HandleFunc("DELETE /sessions/{name}/media/{id}", handleDeleteMedia)
 	mux.HandleFunc("POST /sessions/{name}/logout", handleLogout)
 
 	srv := &http.Server{

@@ -10,6 +10,16 @@
     <field name="active" eval="True"/>
   </record>
 
+  <record id="cron_whatsmeow_fetch_media" model="ir.cron">
+    <field name="name">Whatsmeow: download inbound media</field>
+    <field name="model_id" ref="model_whatsmeow_message"/>
+    <field name="state">code</field>
+    <field name="code">model.cron_fetch_media()</field>
+    <field name="interval_number">1</field>
+    <field name="interval_type">minutes</field>
+    <field name="active" eval="True"/>
+  </record>
+
   <record id="cron_whatsmeow_refresh_sessions" model="ir.cron">
     <field name="name">Whatsmeow: refresh session status</field>
     <field name="model_id" ref="model_whatsmeow_session"/>

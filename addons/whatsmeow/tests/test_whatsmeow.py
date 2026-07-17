@@ -1,4 +1,4 @@
-import json
+import base64
 from unittest.mock import patch
 
 from psycopg2 import IntegrityError
@@ -174,6 +174,144 @@ class TestMessage(WhatsmeowCommon):
 
 
 @tagged("post_install", "-at_install")
+class TestMedia(WhatsmeowCommon):
+
+    PNG = base64.b64encode(
+        b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
+    )
+
+    def test_kind_inferred_from_mimetype(self):
+        msg = self.env["whatsmeow.message"]
+        cases = {
+            "image/jpeg": "image",
+            "image/webp": "sticker",   # webp is how WhatsApp does stickers
+            "video/mp4": "video",
+            "audio/ogg; codecs=opus": "audio",
+            "application/pdf": "document",
+            "": "document",
+        }
+        for mimetype, kind in cases.items():
+            self.assertEqual(msg._kind_for_mimetype(mimetype), kind, f"for {mimetype!r}")
+
+    def test_outgoing_media_needs_a_file(self):
+        with self.assertRaises(ValidationError):
+            self.env["whatsmeow.message"].create({
+                "session_id": self.session.id, "phone": "447700900123",
+                "direction": "out", "message_type": "image", "body": "caption only",
+            })
+
+    def test_outgoing_text_needs_a_body(self):
+        with self.assertRaises(ValidationError):
+            self.env["whatsmeow.message"].create({
+                "session_id": self.session.id, "phone": "447700900123",
+                "direction": "out", "message_type": "text",
+            })
+
+    def test_media_message_needs_no_body(self):
+        """A photo with no caption is perfectly normal."""
+        msg = self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "phone": "447700900123",
+            "direction": "out", "message_type": "image",
+            "media_data": self.PNG, "media_filename": "x.png",
+        })
+        self.assertFalse(msg.body)
+
+    def test_send_payload_routes_text_and_media_differently(self):
+        text = self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "phone": "447700900123",
+            "direction": "out", "body": "hi",
+        })
+        path, payload = text._send_payload()
+        self.assertEqual(path, "/sessions/client_acme/send")
+        self.assertEqual(payload["message"], "hi")
+        self.assertNotIn("data", payload)
+
+        media = self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "phone": "447700900123",
+            "direction": "out", "message_type": "document", "body": "the invoice",
+            "media_data": self.PNG, "media_filename": "invoice.pdf",
+            "media_mimetype": "application/pdf",
+        })
+        path, payload = media._send_payload()
+        self.assertEqual(path, "/sessions/client_acme/send-media")
+        self.assertEqual(payload["kind"], "document")
+        self.assertEqual(payload["caption"], "the invoice")
+        self.assertEqual(payload["filename"], "invoice.pdf")
+        # data must be base64 the gateway can decode straight back to bytes
+        self.assertTrue(base64.b64decode(payload["data"]).startswith(b"\x89PNG"))
+
+    def test_send_media_uses_the_media_endpoint(self):
+        msg = self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "phone": "447700900123",
+            "direction": "out", "message_type": "image",
+            "media_data": self.PNG, "media_filename": "x.png",
+            "media_mimetype": "image/png",
+        })
+        with patch.object(type(self.session), "_gw", return_value={"wa_message_id": "M1"}) as gw:
+            msg.action_send()
+        self.assertEqual(msg.state, "sent")
+        self.assertIn("/send-media", gw.call_args.args[1])
+
+    def test_fetch_media_stores_bytes_and_releases_the_gateway(self):
+        msg = self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "phone": "447700900123",
+            "direction": "in", "state": "received", "message_type": "image",
+            "media_filename": "photo.jpg", "media_mimetype": "image/jpeg",
+            "media_state": "pending", "wa_message_id": "IN-MEDIA-1",
+        })
+        raw = base64.b64decode(self.PNG)
+        with patch.object(type(self.connection), "_request_raw",
+                          return_value=(raw, {})) as fetch, \
+                patch.object(type(self.session), "_gw", return_value={}) as gw:
+            msg.action_fetch_media()
+
+        self.assertEqual(msg.media_state, "fetched")
+        self.assertEqual(base64.b64decode(msg.media_data), raw)
+        self.assertEqual(msg.media_size, len(raw))
+        self.assertIn("/media/IN-MEDIA-1", fetch.call_args.args[1])
+        # the gateway should be told it can drop the file
+        self.assertEqual(gw.call_args.args[0], "DELETE")
+
+    def test_fetch_media_failure_is_recorded_not_raised(self):
+        msg = self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "phone": "447700900123",
+            "direction": "in", "state": "received", "message_type": "image",
+            "media_state": "pending", "wa_message_id": "IN-MEDIA-2",
+        })
+        with patch.object(type(self.connection), "_request_raw",
+                          side_effect=UserError("gone")), \
+                mute_logger("odoo.addons.whatsmeow.models.whatsmeow_message"):
+            msg.action_fetch_media()
+        self.assertEqual(msg.media_state, "error")
+        self.assertIn("gone", msg.error_message)
+
+    def test_inbound_media_posts_to_chatter_with_attachment(self):
+        partner = self.env["res.partner"].create({
+            "name": "Media Contact", "phone": "+966 55 019 9013",
+        })
+        msg = self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "phone": "966550199013",
+            "partner_id": partner.id,
+            "direction": "in", "state": "received", "message_type": "image",
+            "media_filename": "photo.jpg", "media_mimetype": "image/jpeg",
+            "media_state": "pending", "wa_message_id": "IN-MEDIA-3",
+            "body": "look at this",
+        })
+        raw = base64.b64decode(self.PNG)
+        with patch.object(type(self.connection), "_request_raw", return_value=(raw, {})), \
+                patch.object(type(self.session), "_gw", return_value={}):
+            msg.action_fetch_media()
+
+        post = self.env["mail.message"].search(
+            [("model", "=", "res.partner"), ("res_id", "=", partner.id)],
+            order="id desc", limit=1)
+        self.assertIn("look at this", post.body)
+        self.assertEqual(len(post.attachment_ids), 1)
+        self.assertEqual(post.attachment_ids.name, "photo.jpg")
+        self.assertEqual(post.attachment_ids.mimetype, "image/jpeg")
+
+
+@tagged("post_install", "-at_install")
 class TestSecurity(WhatsmeowCommon):
 
     def setUp(self):
@@ -251,6 +389,30 @@ class TestWebhookRouting(WhatsmeowCommon):
         self.assertEqual(msg.phone, "966550199012")
         self.assertEqual(msg.sender_lid, "126864760766535")
         self.assertEqual(msg.partner_id, partner)
+
+    def test_inbound_media_is_queued_not_downloaded_inline(self):
+        """The webhook must stay fast: it records metadata and lets the cron
+        fetch the bytes, otherwise a big file stalls it past the gateway's
+        timeout and the gateway just retries."""
+        from odoo.addons.whatsmeow.controllers.webhook import WhatsmeowWebhook
+        WhatsmeowWebhook()._on_message(self.env, self.session, {
+            "wa_message_id": "IN-VOICE-1",
+            "sender_phone": "447700900123",
+            "body": "",
+            "media": {
+                "kind": "audio", "mimetype": "audio/ogg; codecs=opus",
+                "filename": "audio_IN-VOICE-1.ogg", "size": 4096,
+                "seconds": 7, "ptt": True,
+            },
+        })
+        msg = self.env["whatsmeow.message"].search([("wa_message_id", "=", "IN-VOICE-1")])
+        self.assertEqual(len(msg), 1)
+        self.assertEqual(msg.message_type, "audio")
+        self.assertEqual(msg.media_state, "pending")
+        self.assertTrue(msg.is_voice_note)
+        self.assertEqual(msg.media_duration, 7)
+        self.assertEqual(msg.media_filename, "audio_IN-VOICE-1.ogg")
+        self.assertFalse(msg.media_data, "the webhook must not fetch the bytes itself")
 
     def test_receipt_updates_outgoing_state(self):
         msg = self.env["whatsmeow.message"].create({

@@ -60,9 +60,11 @@ class WhatsmeowSession(models.Model):
                     rec.code,
                 ))
 
-    def _gw(self, method, path, payload=None):
+    def _gw(self, method, path, payload=None, timeout=None):
         self.ensure_one()
-        return self.connection_id._request(method, path, payload)
+        if timeout is None:
+            return self.connection_id._request(method, path, payload)
+        return self.connection_id._request(method, path, payload, timeout=timeout)
 
     def _apply_state(self, data):
         """Write back a gateway status payload, rendering the QR string to a PNG."""

@@ -1,11 +1,13 @@
 package main
 
 import (
+	"path/filepath"
+	"strings"
 	"testing"
 
+	waE2E "go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
-	waE2E "go.mau.fi/whatsmeow/proto/waE2E"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -93,6 +95,129 @@ func TestExtractText(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := extractText(tt.msg); got != tt.want {
 				t.Errorf("extractText() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// Message IDs arrive from the network and are used to build file paths.
+func TestMediaPathRejectsTraversal(t *testing.T) {
+	for _, id := range []string{
+		"../../../../etc/passwd", "..", "a/b", "a\\b", "", "id with space",
+		strings.Repeat("x", 129),
+	} {
+		if _, err := mediaPath("sess", id); err == nil {
+			t.Errorf("mediaPath accepted dangerous id %q", id)
+		}
+	}
+	for _, name := range []string{"../evil", "UPPER", "has/slash"} {
+		if _, err := mediaPath(name, "3EB0ABC"); err == nil {
+			t.Errorf("mediaPath accepted dangerous session %q", name)
+		}
+	}
+	p, err := mediaPath("client_acme", "3EB0F4A2C1")
+	if err != nil {
+		t.Fatalf("mediaPath rejected a legitimate id: %v", err)
+	}
+	if !strings.HasSuffix(p, filepath.Join("media", "client_acme", "3EB0F4A2C1")) {
+		t.Errorf("unexpected media path %q", p)
+	}
+}
+
+func TestKindFor(t *testing.T) {
+	tests := []struct{ mimetype, want string }{
+		{"image/jpeg", "image"},
+		{"image/png", "image"},
+		{"image/webp", "sticker"}, // webp is how WhatsApp does stickers
+		{"video/mp4", "video"},
+		{"audio/ogg; codecs=opus", "audio"},
+		{"application/pdf", "document"},
+		{"text/plain", "document"},
+		{"", "document"},
+	}
+	for _, tt := range tests {
+		if got := kindFor(tt.mimetype); got != tt.want {
+			t.Errorf("kindFor(%q) = %q, want %q", tt.mimetype, got, tt.want)
+		}
+	}
+}
+
+func TestExtractMedia(t *testing.T) {
+	tests := []struct {
+		name     string
+		msg      *waE2E.Message
+		wantKind string
+		wantOK   bool
+	}{
+		{"text has no media", &waE2E.Message{Conversation: proto.String("hi")}, "", false},
+		{"nil", nil, "", false},
+		{
+			"image",
+			&waE2E.Message{ImageMessage: &waE2E.ImageMessage{Mimetype: proto.String("image/jpeg")}},
+			"image", true,
+		},
+		{
+			"voice note",
+			&waE2E.Message{AudioMessage: &waE2E.AudioMessage{
+				Mimetype: proto.String("audio/ogg"), PTT: proto.Bool(true), Seconds: proto.Uint32(5)}},
+			"audio", true,
+		},
+		{
+			"document keeps its filename",
+			&waE2E.Message{DocumentMessage: &waE2E.DocumentMessage{
+				Mimetype: proto.String("application/pdf"), FileName: proto.String("invoice.pdf")}},
+			"document", true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := extractMedia(tt.msg)
+			if ok != tt.wantOK {
+				t.Fatalf("extractMedia() ok = %v, want %v", ok, tt.wantOK)
+			}
+			if ok && got.Kind != tt.wantKind {
+				t.Errorf("kind = %q, want %q", got.Kind, tt.wantKind)
+			}
+		})
+	}
+
+	// A voice note must survive as one, and a document must keep its name.
+	if m, _ := extractMedia(&waE2E.Message{AudioMessage: &waE2E.AudioMessage{
+		Mimetype: proto.String("audio/ogg"), PTT: proto.Bool(true), Seconds: proto.Uint32(5)}}); !m.PTT || m.Seconds != 5 {
+		t.Errorf("voice note lost PTT/Seconds: %+v", m)
+	}
+	if m, _ := extractMedia(&waE2E.Message{DocumentMessage: &waE2E.DocumentMessage{
+		FileName: proto.String("invoice.pdf")}}); m.Filename != "invoice.pdf" {
+		t.Errorf("document filename = %q", m.Filename)
+	}
+}
+
+func TestFilenameFor(t *testing.T) {
+	tests := []struct {
+		name string
+		info *mediaInfo
+		want string
+	}{
+		{"document keeps its name", &mediaInfo{Kind: "document", Filename: "invoice.pdf"}, "invoice.pdf"},
+		{
+			"a filename with a path is stripped to its base",
+			&mediaInfo{Kind: "document", Filename: "../../etc/passwd"}, "passwd",
+		},
+		{"image gets an extension", &mediaInfo{Kind: "image", Mimetype: "image/jpeg"}, "image_ID1.jpeg"},
+		{"unknown mimetype falls back per kind", &mediaInfo{Kind: "audio", Mimetype: "bogus/x"}, "audio_ID1.ogg"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := filenameFor(tt.info, "ID1")
+			if tt.info.Kind == "image" {
+				// mime.ExtensionsByType ordering varies by system; just require a sane name.
+				if !strings.HasPrefix(got, "image_ID1.") {
+					t.Errorf("filenameFor() = %q, want image_ID1.*", got)
+				}
+				return
+			}
+			if got != tt.want {
+				t.Errorf("filenameFor() = %q, want %q", got, tt.want)
 			}
 		})
 	}
