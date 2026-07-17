@@ -392,7 +392,37 @@ func mediaPath(session, id string) (string, error) {
 }
 
 // extractMedia returns the downloadable part of a message, if it has one.
+// unwrap peels the container messages WhatsApp uses to carry a real payload:
+// view-once photos/videos/voice notes, disappearing (ephemeral) messages,
+// documents-with-caption and our own device-synced sends. The actual content
+// sits one (occasionally more) levels down, so without unwrapping, extractText
+// and extractMedia see an empty shell and fall back to the "unsupported message
+// type" placeholder — which is exactly what a view-once message hit.
+func unwrap(msg *waE2E.Message) *waE2E.Message {
+	// Bounded so a malformed self-referential message can't spin here.
+	for i := 0; msg != nil && i < 8; i++ {
+		switch {
+		case msg.GetViewOnceMessage().GetMessage() != nil:
+			msg = msg.GetViewOnceMessage().GetMessage()
+		case msg.GetViewOnceMessageV2().GetMessage() != nil:
+			msg = msg.GetViewOnceMessageV2().GetMessage()
+		case msg.GetViewOnceMessageV2Extension().GetMessage() != nil:
+			msg = msg.GetViewOnceMessageV2Extension().GetMessage()
+		case msg.GetEphemeralMessage().GetMessage() != nil:
+			msg = msg.GetEphemeralMessage().GetMessage()
+		case msg.GetDocumentWithCaptionMessage().GetMessage() != nil:
+			msg = msg.GetDocumentWithCaptionMessage().GetMessage()
+		case msg.GetDeviceSentMessage().GetMessage() != nil:
+			msg = msg.GetDeviceSentMessage().GetMessage()
+		default:
+			return msg
+		}
+	}
+	return msg
+}
+
 func extractMedia(msg *waE2E.Message) (*mediaInfo, bool) {
+	msg = unwrap(msg)
 	if msg == nil {
 		return nil, false
 	}
@@ -574,7 +604,7 @@ func (g *groupNames) forget(chat types.JID) {
 // describeMessage names the concrete payload we could not turn into text, so the
 // Odoo log says "audio" rather than the server's generic "text" label.
 func describeMessage(v *events.Message) string {
-	msg := v.Message
+	msg := unwrap(v.Message)
 	switch {
 	case msg == nil:
 		return v.Info.Type
@@ -604,6 +634,7 @@ func describeMessage(v *events.Message) string {
 }
 
 func extractText(msg *waE2E.Message) string {
+	msg = unwrap(msg)
 	if msg == nil {
 		return ""
 	}
