@@ -2,6 +2,11 @@
 PLAN.md
 CLAUDE.md
 odoo.conf
+
+# Compiled gateway binary and its runtime secrets/state
+gateway/whatsmeow-gateway
+gateway/gateway.env
+gateway/data/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
