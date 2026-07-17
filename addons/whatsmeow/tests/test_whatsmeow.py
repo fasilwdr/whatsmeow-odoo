@@ -1,8 +1,10 @@
 import base64
+from datetime import timedelta
 from unittest.mock import patch
 
 from psycopg2 import IntegrityError
 
+from odoo import fields
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests import TransactionCase, tagged
 from odoo.tools import mute_logger
@@ -491,6 +493,76 @@ class TestReply(WhatsmeowCommon):
             order="id desc", limit=1)
         self.assertIn("Site Team", post.body)
         self.assertIn("morning all", post.body)
+
+
+@tagged("post_install", "-at_install")
+class TestThrottle(WhatsmeowCommon):
+    """Bursting gets numbers banned, so the queue paces itself per session."""
+
+    def _queue(self, session, body="hi", phone="447700900123"):
+        return self.env["whatsmeow.message"].create({
+            "session_id": session.id, "phone": phone,
+            "direction": "out", "body": body,
+        })
+
+    def test_delays_must_be_a_sane_range(self):
+        with self.assertRaises(ValidationError):
+            self.session.send_delay_min = 30  # default max is 10
+        with self.assertRaises(ValidationError):
+            self.session.write({"send_delay_min": -1, "send_delay_max": 5})
+
+    def test_queue_closes_the_window_after_a_send(self):
+        self.session.write({"send_delay_min": 3, "send_delay_max": 10})
+        msg = self._queue(self.session)
+        before = fields.Datetime.now()
+        with patch.object(type(self.session), "_gw", return_value={"wa_message_id": "A"}):
+            self.env["whatsmeow.message"].cron_process_outgoing()
+        self.assertEqual(msg.state, "sent")
+        self.assertTrue(self.session.next_send_at > before)
+        self.assertLessEqual(
+            (self.session.next_send_at - before).total_seconds(), 10,
+            "the window must not close for longer than send_delay_max",
+        )
+
+    def test_queue_waits_for_a_closed_window(self):
+        """A number that just sent is left alone until its window reopens."""
+        self.session.next_send_at = fields.Datetime.now() + timedelta(minutes=5)
+        msg = self._queue(self.session)
+        with patch.object(type(self.session), "_gw") as gw:
+            self.env["whatsmeow.message"].cron_process_outgoing()
+        self.assertEqual(gw.call_count, 0)
+        self.assertEqual(msg.state, "outgoing", "the message stays queued for a later run")
+
+    def test_a_throttled_session_does_not_stall_the_others(self):
+        """The risk is per number, so one paused number must not hold up another."""
+        other = self.env["whatsmeow.session"].create({
+            "name": "Client Beta", "code": "client_beta",
+            "connection_id": self.connection.id,
+            "send_delay_min": 0, "send_delay_max": 0,
+        })
+        self.session.next_send_at = fields.Datetime.now() + timedelta(minutes=5)
+        stalled = self._queue(self.session)
+        free = self._queue(other)
+        with patch.object(type(self.session), "_gw", return_value={"wa_message_id": "B"}):
+            self.env["whatsmeow.message"].cron_process_outgoing()
+        self.assertEqual(free.state, "sent")
+        self.assertEqual(stalled.state, "outgoing")
+
+    def test_queue_drains_a_backlog_once_paced(self):
+        self.session.write({"send_delay_min": 0, "send_delay_max": 0})
+        msgs = [self._queue(self.session, body=f"m{i}") for i in range(3)]
+        with patch.object(type(self.session), "_gw", return_value={"wa_message_id": "C"}):
+            self.env["whatsmeow.message"].cron_process_outgoing()
+        self.assertEqual([m.state for m in msgs], ["sent"] * 3)
+
+    def test_a_hand_sent_message_ignores_the_throttle(self):
+        """Sending from the form is a human act at human speed; making the user
+        wait would confuse without lowering the risk."""
+        self.session.next_send_at = fields.Datetime.now() + timedelta(minutes=5)
+        msg = self._queue(self.session)
+        with patch.object(type(self.session), "_gw", return_value={"wa_message_id": "D"}):
+            msg.action_send()
+        self.assertEqual(msg.state, "sent")
 
 
 @tagged("post_install", "-at_install")

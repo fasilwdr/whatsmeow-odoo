@@ -1,7 +1,9 @@
 import base64
 import io
 import logging
+import random
 import re
+from datetime import timedelta
 
 import qrcode
 
@@ -45,6 +47,21 @@ class WhatsmeowSession(models.Model):
     last_error = fields.Char(readonly=True)
     message_ids = fields.One2many("whatsmeow.message", "session_id")
 
+    send_delay_min = fields.Integer(
+        string="Min Delay (s)", default=3, required=True,
+        help="Shortest pause the queue leaves between two sends from this number.",
+    )
+    send_delay_max = fields.Integer(
+        string="Max Delay (s)", default=10, required=True,
+        help="Longest pause between two sends. The queue waits a random time "
+             "between the two bounds, so the traffic does not look metronomic.",
+    )
+    next_send_at = fields.Datetime(
+        string="Next Send Allowed", readonly=True, copy=False,
+        help="Set by the queue after each send. Until this moment passes, the "
+             "queue leaves this number alone.",
+    )
+
     _code_conn_uniq = models.Constraint(
         "UNIQUE (code, connection_id)",
         "Session key must be unique per gateway connection.",
@@ -59,6 +76,42 @@ class WhatsmeowSession(models.Model):
                     "0-9, '-' or '_'. The gateway rejects anything else.",
                     rec.code,
                 ))
+
+    @api.constrains("send_delay_min", "send_delay_max")
+    def _check_send_delays(self):
+        for rec in self:
+            if rec.send_delay_min < 0 or rec.send_delay_max < 0:
+                raise ValidationError(_("Send delays cannot be negative."))
+            if rec.send_delay_min > rec.send_delay_max:
+                raise ValidationError(_(
+                    "The minimum send delay (%(min)s s) cannot exceed the maximum "
+                    "(%(max)s s).",
+                    min=rec.send_delay_min, max=rec.send_delay_max,
+                ))
+
+    # -- send throttling ------------------------------------------------------
+    # Bursting is the main ban lever on the unofficial protocol, so the queue
+    # paces sends. The pacing is per session because the risk is per number:
+    # one busy number must not hold up another, and two numbers sharing a
+    # gateway are still two independent reputations.
+    def _seconds_until_sendable(self):
+        """How long the queue must wait before this number may send again."""
+        self.ensure_one()
+        if not self.next_send_at:
+            return 0.0
+        delta = (self.next_send_at - fields.Datetime.now()).total_seconds()
+        return max(0.0, delta)
+
+    def _schedule_next_send(self):
+        """Close this number's send window for a random spell.
+
+        Only the queue calls this: a hand-sent message from the form is a
+        human act at human speed, and making the user wait for it would be
+        confusing without lowering the risk.
+        """
+        self.ensure_one()
+        delay = random.uniform(self.send_delay_min, self.send_delay_max)
+        self.next_send_at = fields.Datetime.now() + timedelta(seconds=delay)
 
     def _gw(self, method, path, payload=None, timeout=None):
         self.ensure_one()

@@ -2,10 +2,11 @@ import base64
 import logging
 import mimetypes
 import re
+import time
 
 from markupsafe import Markup
 
-from odoo import api, fields, models
+from odoo import api, fields, models, modules
 from odoo.exceptions import UserError, ValidationError
 from odoo.tools import SQL
 
@@ -32,6 +33,15 @@ STATUS_JID = "status@broadcast"
 # Chat kinds the gateway can actually send to; the rest have their own send
 # paths in WhatsApp and are receive-only here.
 REPLYABLE_CHAT_TYPES = ("private", "group")
+
+# The queue cron runs every minute and paces its sends, so it must hand the
+# worker back before the next run is due. The rest of the minute is slack for
+# a slow final send.
+CRON_BUDGET_SECONDS = 50
+# Ceiling on how many messages one run will even consider. With a 3-10s pace a
+# run places far fewer than this; the limit just stops a huge backlog from
+# being read into memory at once.
+CRON_MAX_MESSAGES = 200
 
 
 class WhatsmeowMessage(models.Model):
@@ -345,11 +355,60 @@ class WhatsmeowMessage(models.Model):
 
     @api.model
     def cron_process_outgoing(self):
-        # Small batches + gaps between runs = lower ban risk.
-        self.search(
+        """Drain the outgoing queue, pacing each session's sends apart.
+
+        Firing a batch back to back is what gets a number banned, so each
+        session may only send once its own window has opened (see
+        `whatsmeow.session._schedule_next_send`). Sessions take turns, so a
+        backlog on one number does not stall the others, and the run gives the
+        cron worker back within its interval — whatever is left waits for the
+        next run, which is exactly the throttle doing its job.
+        """
+        deadline = time.monotonic() + CRON_BUDGET_SECONDS
+        messages = self.search(
             [("direction", "=", "out"), ("state", "=", "outgoing")],
-            limit=10, order="create_date asc",
-        ).action_send()
+            limit=CRON_MAX_MESSAGES, order="create_date asc",
+        )
+        # Oldest first within each session; sessions round-robin between sends.
+        queues = {}
+        for msg in messages:
+            queues.setdefault(msg.session_id, []).append(msg)
+
+        while queues and time.monotonic() < deadline:
+            due = [s for s in queues if not s._seconds_until_sendable()]
+            if not due:
+                wait = min(s._seconds_until_sendable() for s in queues)
+                if time.monotonic() + wait >= deadline:
+                    break  # the next window opens after this run; leave it queued
+                time.sleep(wait)
+                continue
+            for session in due:
+                msg = queues[session].pop(0)
+                if not queues[session]:
+                    del queues[session]
+                try:
+                    # action_send() records its own failures on the record, so
+                    # the savepoint is for anything else unforeseen: one bad
+                    # send must not poison the whole run's transaction.
+                    with self.env.cr.savepoint():
+                        msg.action_send()
+                        session._schedule_next_send()
+                except Exception as exc:  # noqa: BLE001 - one bad send must not stop the queue
+                    _logger.warning(
+                        "whatsmeow.message %s queue send failed: %s", msg.id, exc)
+                    continue
+                self._commit_progress()
+
+    def _commit_progress(self):
+        """Make each send durable before pacing on to the next.
+
+        A paced run lasts most of a minute, and its sends are independent: a
+        crash near the end must not roll back messages that have already left
+        for WhatsApp, which would send them twice. Tests run inside one
+        rolled-back transaction and forbid a real commit.
+        """
+        if not modules.module.current_test:
+            self.env.cr.commit()
 
     # -- inbound media --------------------------------------------------------
     def action_fetch_media(self):

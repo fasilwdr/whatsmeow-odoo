@@ -29,6 +29,17 @@
               <field name="jid"/>
               <field name="last_error" invisible="not last_error" class="text-danger"/>
             </group>
+            <group string="Send Throttle" name="throttle">
+              <field name="send_delay_min"/>
+              <field name="send_delay_max"/>
+              <field name="next_send_at"/>
+              <div colspan="2" class="text-muted">
+                The queue waits a random pause between these bounds after every
+                message this number sends. Sending in bursts is the quickest way
+                to get a number banned; on a new number, raise them and let it
+                warm up slowly.
+              </div>
+            </group>
             <group>
               <field name="qr_image" widget="image" nolabel="1" invisible="status != 'qr'"/>
               <div invisible="status != 'qr'" class="text-muted">
