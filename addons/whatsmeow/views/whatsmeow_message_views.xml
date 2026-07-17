@@ -20,6 +20,12 @@
               <field name="partner_id" readonly="state != 'outgoing'"/>
               <field name="phone" readonly="state != 'outgoing'"
                      placeholder="447700900123"/>
+              <field name="sender_lid" invisible="not sender_lid"/>
+              <div colspan="2" class="text-muted"
+                   invisible="direction != 'in' or phone or not sender_lid">
+                WhatsApp identified this sender only by LID and did not reveal a
+                phone number, so no contact could be matched.
+              </div>
             </group>
             <group>
               <field name="wa_message_id"/>
@@ -61,9 +67,13 @@
     <field name="arch" type="xml">
       <search>
         <field name="phone"/>
+        <field name="sender_lid"/>
         <field name="body"/>
         <field name="partner_id"/>
         <field name="session_id"/>
+        <filter name="unmatched" string="No Contact Matched"
+                domain="[('direction','=','in'), ('partner_id','=',False)]"/>
+        <separator/>
         <filter name="incoming" string="Incoming" domain="[('direction','=','in')]"/>
         <filter name="outgoing" string="Outgoing" domain="[('direction','=','out')]"/>
         <separator/>

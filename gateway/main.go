@@ -222,17 +222,32 @@ func makeEventHandler(s *Session) func(interface{}) {
 			text := extractText(v.Message)
 			if text == "" {
 				// Non-text (media etc.) - still tell Odoo something arrived.
-				text = "[unsupported message type: " + v.Info.Type + "]"
+				text = "[unsupported message type: " + describeMessage(v) + "]"
+			}
+			sender := v.Info.Sender.ToNonAD()
+			senderPN := resolvePN(s.Client, sender, v.Info.SenderAlt)
+			lid := ""
+			if sender.Server == types.HiddenUserServer {
+				lid = sender.User
+			} else if v.Info.SenderAlt.Server == types.HiddenUserServer {
+				lid = v.Info.SenderAlt.User
+			}
+			if senderPN.IsEmpty() {
+				// Better an empty phone Odoo can flag than a LID masquerading as one.
+				log.Printf("[%s] could not resolve a phone number for sender %s (mode=%s)",
+					s.Name, sender, v.Info.AddressingMode)
 			}
 			notifyOdoo(s.Name, "message.received", map[string]any{
-				"wa_message_id": v.Info.ID,
-				"sender_jid":    v.Info.Sender.ToNonAD().String(),
-				"sender_phone":  v.Info.Sender.User,
-				"push_name":     v.Info.PushName,
-				"is_group":      v.Info.IsGroup,
-				"chat_jid":      v.Info.Chat.String(),
-				"body":          text,
-				"timestamp":     v.Info.Timestamp.UTC().Format(time.RFC3339),
+				"wa_message_id":   v.Info.ID,
+				"sender_jid":      sender.String(),
+				"sender_phone":    senderPN.User, // "" when only a LID is known
+				"sender_lid":      lid,
+				"addressing_mode": string(v.Info.AddressingMode),
+				"push_name":       v.Info.PushName,
+				"is_group":        v.Info.IsGroup,
+				"chat_jid":        v.Info.Chat.String(),
+				"body":            text,
+				"timestamp":       v.Info.Timestamp.UTC().Format(time.RFC3339),
 			})
 
 		case *events.Receipt:
@@ -262,6 +277,63 @@ func makeEventHandler(s *Session) func(interface{}) {
 	}
 }
 
+// resolvePN returns the phone-number JID for a user, which is NOT simply
+// sender.User: WhatsApp addresses users by LID (a privacy-preserving random id,
+// e.g. 126864760766535@lid) and then sender.User is that id, not a phone number.
+//
+// Order: the JID itself if it is already a phone number, else the alternative
+// address the server sent alongside it, else the client's LID<->PN mapping.
+// Returns an empty JID when the phone number genuinely isn't known.
+func resolvePN(cli *whatsmeow.Client, sender, senderAlt types.JID) types.JID {
+	if sender.Server == types.DefaultUserServer {
+		return sender.ToNonAD()
+	}
+	if senderAlt.Server == types.DefaultUserServer {
+		return senderAlt.ToNonAD()
+	}
+	if sender.Server == types.HiddenUserServer && cli != nil && cli.Store != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if pn, err := cli.Store.GetAltJID(ctx, sender.ToNonAD()); err == nil &&
+			pn.Server == types.DefaultUserServer {
+			return pn.ToNonAD()
+		}
+	}
+	return types.EmptyJID
+}
+
+// describeMessage names the concrete payload we could not turn into text, so the
+// Odoo log says "audio" rather than the server's generic "text" label.
+func describeMessage(v *events.Message) string {
+	msg := v.Message
+	switch {
+	case msg == nil:
+		return v.Info.Type
+	case msg.GetAudioMessage() != nil:
+		return "audio"
+	case msg.GetVideoMessage() != nil:
+		return "video"
+	case msg.GetStickerMessage() != nil:
+		return "sticker"
+	case msg.GetImageMessage() != nil:
+		return "image"
+	case msg.GetLocationMessage() != nil, msg.GetLiveLocationMessage() != nil:
+		return "location"
+	case msg.GetContactMessage() != nil, msg.GetContactsArrayMessage() != nil:
+		return "contact"
+	case msg.GetPollCreationMessageV3() != nil:
+		return "poll"
+	case msg.GetPollUpdateMessage() != nil:
+		return "poll vote"
+	case msg.GetReactionMessage() != nil:
+		return "reaction"
+	case msg.GetProtocolMessage() != nil:
+		return "protocol/" + msg.GetProtocolMessage().GetType().String()
+	default:
+		return v.Info.Type
+	}
+}
+
 func extractText(msg *waE2E.Message) string {
 	if msg == nil {
 		return ""
@@ -269,14 +341,37 @@ func extractText(msg *waE2E.Message) string {
 	if t := msg.GetConversation(); t != "" {
 		return t
 	}
-	if ext := msg.GetExtendedTextMessage(); ext != nil {
+	if ext := msg.GetExtendedTextMessage(); ext != nil && ext.GetText() != "" {
 		return ext.GetText()
+	}
+	// An edit arrives as a ProtocolMessage wrapping the replacement message.
+	if pm := msg.GetProtocolMessage(); pm != nil {
+		if edited := pm.GetEditedMessage(); edited != nil {
+			if t := extractText(edited); t != "" {
+				return "[edited] " + t
+			}
+		}
+	}
+	if r := msg.GetReactionMessage(); r != nil && r.GetText() != "" {
+		return "[reaction] " + r.GetText()
 	}
 	if img := msg.GetImageMessage(); img != nil && img.GetCaption() != "" {
 		return "[image] " + img.GetCaption()
 	}
+	if vid := msg.GetVideoMessage(); vid != nil && vid.GetCaption() != "" {
+		return "[video] " + vid.GetCaption()
+	}
 	if doc := msg.GetDocumentMessage(); doc != nil {
+		if cap := doc.GetCaption(); cap != "" {
+			return "[document] " + doc.GetFileName() + ": " + cap
+		}
 		return "[document] " + doc.GetFileName()
+	}
+	if btn := msg.GetButtonsResponseMessage(); btn != nil {
+		return btn.GetSelectedDisplayText()
+	}
+	if lst := msg.GetListResponseMessage(); lst != nil {
+		return lst.GetTitle()
 	}
 	return ""
 }

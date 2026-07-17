@@ -146,6 +146,22 @@ class TestMessage(WhatsmeowCommon):
         self.assertEqual(msg2.state, "error")
         self.assertIn("boom", msg2.error_message)
 
+    def test_outgoing_requires_a_phone(self):
+        with self.assertRaises(ValidationError):
+            self.env["whatsmeow.message"].create({
+                "session_id": self.session.id, "direction": "out", "body": "hi",
+            })
+
+    def test_incoming_may_have_no_phone(self):
+        """WhatsApp does not always reveal the phone behind a LID; such a message
+        must still be logged rather than rejected."""
+        msg = self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "direction": "in", "state": "received",
+            "body": "hi", "sender_lid": "126864760766535",
+        })
+        self.assertFalse(msg.phone)
+        self.assertEqual(msg.sender_lid, "126864760766535")
+
     def test_cron_only_picks_queued_outgoing(self):
         sent = self.env["whatsmeow.message"].create({
             "session_id": self.session.id, "phone": "447700900123",
@@ -197,6 +213,44 @@ class TestSecurity(WhatsmeowCommon):
 
 @tagged("post_install", "-at_install")
 class TestWebhookRouting(WhatsmeowCommon):
+
+    def test_lid_only_sender_is_not_stored_as_a_phone(self):
+        """Regression: the gateway used to send Sender.User, which for LID
+        addressing is a random 15-digit id, not a phone number. It landed in
+        `phone` and looked like a real number."""
+        from odoo.addons.whatsmeow.controllers.webhook import WhatsmeowWebhook
+        WhatsmeowWebhook()._on_message(self.env, self.session, {
+            "wa_message_id": "LID-ONLY-1",
+            "sender_phone": "",                     # gateway could not resolve one
+            "sender_lid": "126864760766535",
+            "addressing_mode": "lid",
+            "body": "hello",
+        })
+        msg = self.env["whatsmeow.message"].search([("wa_message_id", "=", "LID-ONLY-1")])
+        self.assertEqual(len(msg), 1)
+        self.assertFalse(msg.phone, "a LID must never be stored as a phone number")
+        self.assertEqual(msg.sender_lid, "126864760766535")
+        self.assertFalse(msg.partner_id)
+
+    def test_resolved_phone_still_matches_partner(self):
+        """When the gateway does resolve the LID to a phone, matching works.
+        Uses a reserved-range number so a real contact in a dev database can't
+        collide with it."""
+        from odoo.addons.whatsmeow.controllers.webhook import WhatsmeowWebhook
+        partner = self.env["res.partner"].create({
+            "name": "LID Test Contact", "phone": "+966 55 019 9012",
+        })
+        WhatsmeowWebhook()._on_message(self.env, self.session, {
+            "wa_message_id": "LID-RESOLVED-1",
+            "sender_phone": "966550199012",
+            "sender_lid": "126864760766535",
+            "addressing_mode": "lid",
+            "body": "hello",
+        })
+        msg = self.env["whatsmeow.message"].search([("wa_message_id", "=", "LID-RESOLVED-1")])
+        self.assertEqual(msg.phone, "966550199012")
+        self.assertEqual(msg.sender_lid, "126864760766535")
+        self.assertEqual(msg.partner_id, partner)
 
     def test_receipt_updates_outgoing_state(self):
         msg = self.env["whatsmeow.message"].create({

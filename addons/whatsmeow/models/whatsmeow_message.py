@@ -2,6 +2,7 @@ import logging
 import re
 
 from odoo import api, fields, models
+from odoo.exceptions import ValidationError
 from odoo.tools import SQL
 
 _logger = logging.getLogger(__name__)
@@ -25,7 +26,16 @@ class WhatsmeowMessage(models.Model):
         related="session_id.connection_id", store=True, index=True,
     )
     partner_id = fields.Many2one("res.partner", index=True)
-    phone = fields.Char(required=True, help="Digits with country code, e.g. 447700900123")
+    phone = fields.Char(
+        help="Digits with country code, e.g. 447700900123. Empty on an inbound "
+             "message whose sender is only known by LID.",
+    )
+    sender_lid = fields.Char(
+        string="Sender LID", readonly=True, index=True,
+        help="WhatsApp's privacy-preserving id for the sender. WhatsApp does not "
+             "always reveal the phone number behind it, so this may be the only "
+             "identity we have.",
+    )
     direction = fields.Selection(
         [("out", "Outgoing"), ("in", "Incoming")], required=True, default="out",
     )
@@ -43,6 +53,16 @@ class WhatsmeowMessage(models.Model):
         default="outgoing", required=True,
     )
     error_message = fields.Char(readonly=True)
+
+    @api.constrains("direction", "phone")
+    def _check_phone_for_outgoing(self):
+        # Inbound may legitimately have no phone (LID-only sender); outbound
+        # cannot be sent anywhere without one.
+        for rec in self:
+            if rec.direction == "out" and not (rec.phone or "").strip():
+                raise ValidationError(self.env._(
+                    "A phone number is required to send a WhatsApp message."
+                ))
 
     @api.model
     def _find_partner(self, phone):

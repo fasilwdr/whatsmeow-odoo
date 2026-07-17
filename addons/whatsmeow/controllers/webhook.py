@@ -64,12 +64,17 @@ class WhatsmeowWebhook(http.Controller):
             [("wa_message_id", "=", wa_id), ("direction", "=", "in")], limit=1
         ):
             return  # webhook retries -> stay idempotent
-        partner = env["whatsmeow.message"]._find_partner(data.get("sender_phone"))
+        # sender_phone is empty when WhatsApp only gave us a LID; don't try to
+        # match a partner on it, and never store the LID as if it were a phone.
+        phone = (data.get("sender_phone") or "").strip()
+        partner = env["whatsmeow.message"]._find_partner(phone) if phone else \
+            env["res.partner"]
         body = data.get("body") or ""
         env["whatsmeow.message"].create({
             "session_id": session.id,
             "partner_id": partner.id or False,
-            "phone": data.get("sender_phone") or "",
+            "phone": phone,
+            "sender_lid": data.get("sender_lid") or False,
             "direction": "in",
             "state": "received",
             "body": body,
