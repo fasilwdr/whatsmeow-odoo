@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <menuitem id="menu_whatsmeow_root" name="WhatsApp"
+            web_icon="whatsmeow,static/description/icon.png"
+            groups="whatsmeow.group_whatsmeow_user" sequence="60"/>
+
+  <menuitem id="menu_whatsmeow_messages" name="Messages" parent="menu_whatsmeow_root"
+            action="whatsmeow_message_action"
+            groups="whatsmeow.group_whatsmeow_user" sequence="10"/>
+
+  <menuitem id="menu_whatsmeow_config" name="Configuration" parent="menu_whatsmeow_root"
+            groups="whatsmeow.group_whatsmeow_manager" sequence="90"/>
+
+  <menuitem id="menu_whatsmeow_connections" name="Gateways" parent="menu_whatsmeow_config"
+            action="whatsmeow_connection_action" sequence="10"/>
+
+  <menuitem id="menu_whatsmeow_sessions" name="Sessions" parent="menu_whatsmeow_config"
+            action="whatsmeow_session_action" sequence="20"/>
+</odoo>

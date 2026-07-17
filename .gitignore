@@ -1,3 +1,7 @@
+# Extras
+PLAN.md
+CLAUDE.md
+odoo.conf
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

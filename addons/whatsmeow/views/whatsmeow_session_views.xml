@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="whatsmeow_session_view_form" model="ir.ui.view">
+    <field name="name">whatsmeow.session.form</field>
+    <field name="model">whatsmeow.session</field>
+    <field name="arch" type="xml">
+      <form>
+        <header>
+          <button name="action_start" type="object" string="Start / Pair" class="btn-primary"
+                  invisible="status in ('connected',)"/>
+          <button name="action_refresh" type="object" string="Refresh Status"
+                  invisible="status == 'draft'"/>
+          <button name="action_logout" type="object" string="Logout"
+                  invisible="status not in ('connected', 'qr', 'disconnected')"
+                  confirm="Unpair this WhatsApp number? It will need a new QR scan."/>
+          <field name="status" widget="statusbar"
+                 statusbar_visible="draft,qr,connected"/>
+        </header>
+        <sheet>
+          <div class="oe_title">
+            <label for="name"/>
+            <h1><field name="name" placeholder="e.g. Client ACME"/></h1>
+          </div>
+          <group>
+            <group>
+              <field name="code" readonly="status != 'draft'" placeholder="client_acme"/>
+              <field name="connection_id" readonly="status != 'draft'"
+                     options="{'no_create': True}"/>
+              <field name="jid"/>
+              <field name="last_error" invisible="not last_error" class="text-danger"/>
+            </group>
+            <group>
+              <field name="qr_image" widget="image" nolabel="1" invisible="status != 'qr'"/>
+              <div invisible="status != 'qr'" class="text-muted">
+                Open WhatsApp on the phone: Linked Devices &#8594; Link a Device &#8594; scan this code.
+              </div>
+            </group>
+          </group>
+          <notebook>
+            <page string="Messages" name="messages">
+              <field name="message_ids" readonly="1">
+                <list>
+                  <field name="create_date" string="Date"/>
+                  <field name="direction"/>
+                  <field name="partner_id"/>
+                  <field name="phone"/>
+                  <field name="body"/>
+                  <field name="state" widget="badge"/>
+                </list>
+              </field>
+            </page>
+          </notebook>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="whatsmeow_session_view_list" model="ir.ui.view">
+    <field name="name">whatsmeow.session.list</field>
+    <field name="model">whatsmeow.session</field>
+    <field name="arch" type="xml">
+      <list decoration-success="status == 'connected'"
+            decoration-danger="status in ('error', 'logged_out')"
+            decoration-muted="status == 'draft'">
+        <field name="name"/>
+        <field name="code"/>
+        <field name="connection_id"/>
+        <field name="jid"/>
+        <field name="status" widget="badge"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="whatsmeow_session_view_search" model="ir.ui.view">
+    <field name="name">whatsmeow.session.search</field>
+    <field name="model">whatsmeow.session</field>
+    <field name="arch" type="xml">
+      <search>
+        <field name="name"/>
+        <field name="code"/>
+        <field name="connection_id"/>
+        <filter name="connected" string="Connected" domain="[('status','=','connected')]"/>
+        <filter name="needs_attention" string="Needs Attention"
+                domain="[('status','in',('error','logged_out','disconnected'))]"/>
+        <group name="group_by">
+          <filter name="group_connection" string="Gateway" domain="[]" context="{'group_by': 'connection_id'}"/>
+          <filter name="group_status" string="Status" domain="[]" context="{'group_by': 'status'}"/>
+        </group>
+      </search>
+    </field>
+  </record>
+
+  <record id="whatsmeow_session_action" model="ir.actions.act_window">
+    <field name="name">Sessions</field>
+    <field name="res_model">whatsmeow.session</field>
+    <field name="view_mode">list,form</field>
+    <field name="help" type="html">
+      <p class="o_view_nocontent_smiling_face">Pair your first WhatsApp number</p>
+      <p>Create a session, pick its gateway, then Start / Pair and scan the QR.</p>
+    </field>
+  </record>
+</odoo>

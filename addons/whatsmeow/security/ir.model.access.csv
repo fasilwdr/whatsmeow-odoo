@@ -1,0 +1,7 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_whatsmeow_connection_user,whatsmeow.connection user,model_whatsmeow_connection,whatsmeow.group_whatsmeow_user,1,0,0,0
+access_whatsmeow_connection_manager,whatsmeow.connection manager,model_whatsmeow_connection,whatsmeow.group_whatsmeow_manager,1,1,1,1
+access_whatsmeow_session_user,whatsmeow.session user,model_whatsmeow_session,whatsmeow.group_whatsmeow_user,1,0,0,0
+access_whatsmeow_session_manager,whatsmeow.session manager,model_whatsmeow_session,whatsmeow.group_whatsmeow_manager,1,1,1,1
+access_whatsmeow_message_user,whatsmeow.message user,model_whatsmeow_message,whatsmeow.group_whatsmeow_user,1,1,1,0
+access_whatsmeow_message_manager,whatsmeow.message manager,model_whatsmeow_message,whatsmeow.group_whatsmeow_manager,1,1,1,1

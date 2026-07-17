@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="whatsmeow_connection_view_form" model="ir.ui.view">
+    <field name="name">whatsmeow.connection.form</field>
+    <field name="model">whatsmeow.connection</field>
+    <field name="arch" type="xml">
+      <form>
+        <header>
+          <button name="action_test" type="object" string="Test Connection" class="btn-primary"/>
+        </header>
+        <sheet>
+          <div class="oe_button_box" name="button_box">
+            <button name="action_view_sessions" type="object" class="oe_stat_button" icon="fa-whatsapp">
+              <field name="session_count" widget="statinfo" string="Sessions"/>
+            </button>
+          </div>
+          <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active"/>
+          <div class="oe_title">
+            <label for="name"/>
+            <h1><field name="name" placeholder="e.g. Main Gateway"/></h1>
+          </div>
+          <group>
+            <group string="Gateway">
+              <field name="base_url" widget="url"/>
+              <field name="active" invisible="1"/>
+            </group>
+            <group string="Credentials" groups="whatsmeow.group_whatsmeow_manager">
+              <field name="api_key" password="True"/>
+              <field name="webhook_secret" password="True"/>
+            </group>
+          </group>
+          <div class="text-muted">
+            These must match <code>WMG_API_KEY</code> and <code>WMG_WEBHOOK_SECRET</code>
+            in the gateway's <code>gateway.env</code>.
+          </div>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="whatsmeow_connection_view_list" model="ir.ui.view">
+    <field name="name">whatsmeow.connection.list</field>
+    <field name="model">whatsmeow.connection</field>
+    <field name="arch" type="xml">
+      <list>
+        <field name="name"/>
+        <field name="base_url"/>
+        <field name="session_count"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="whatsmeow_connection_view_search" model="ir.ui.view">
+    <field name="name">whatsmeow.connection.search</field>
+    <field name="model">whatsmeow.connection</field>
+    <field name="arch" type="xml">
+      <search>
+        <field name="name"/>
+        <field name="base_url"/>
+        <filter name="inactive" string="Archived" domain="[('active','=',False)]"/>
+      </search>
+    </field>
+  </record>
+
+  <record id="whatsmeow_connection_action" model="ir.actions.act_window">
+    <field name="name">Gateways</field>
+    <field name="res_model">whatsmeow.connection</field>
+    <field name="view_mode">list,form</field>
+    <field name="help" type="html">
+      <p class="o_view_nocontent_smiling_face">Add your first gateway</p>
+      <p>Paste the Gateway URL, API Key and Webhook Secret printed by
+         <code>ubuntu_install.sh</code>, then hit Test Connection.</p>
+    </field>
+  </record>
+</odoo>

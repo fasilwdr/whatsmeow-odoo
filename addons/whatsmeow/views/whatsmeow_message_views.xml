@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="whatsmeow_message_view_form" model="ir.ui.view">
+    <field name="name">whatsmeow.message.form</field>
+    <field name="model">whatsmeow.message</field>
+    <field name="arch" type="xml">
+      <form>
+        <header>
+          <button name="action_send" type="object" string="Send" class="btn-primary"
+                  invisible="direction != 'out' or state not in ('outgoing', 'error')"/>
+          <field name="state" widget="statusbar"
+                 statusbar_visible="outgoing,sent,delivered,read"/>
+        </header>
+        <sheet>
+          <group>
+            <group>
+              <field name="session_id" options="{'no_create': True}"
+                     readonly="state != 'outgoing'"/>
+              <field name="direction" readonly="state != 'outgoing'"/>
+              <field name="partner_id" readonly="state != 'outgoing'"/>
+              <field name="phone" readonly="state != 'outgoing'"
+                     placeholder="447700900123"/>
+            </group>
+            <group>
+              <field name="wa_message_id"/>
+              <field name="error_message" invisible="state != 'error'" class="text-danger"/>
+            </group>
+          </group>
+          <group string="Message">
+            <field name="body" nolabel="1" readonly="state != 'outgoing'"
+                   placeholder="Message text..."/>
+          </group>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="whatsmeow_message_view_list" model="ir.ui.view">
+    <field name="name">whatsmeow.message.list</field>
+    <field name="model">whatsmeow.message</field>
+    <field name="arch" type="xml">
+      <list decoration-danger="state == 'error'" decoration-muted="state == 'outgoing'">
+        <field name="create_date" string="Date"/>
+        <field name="session_id"/>
+        <field name="direction"/>
+        <field name="partner_id"/>
+        <field name="phone"/>
+        <field name="body"/>
+        <field name="state" widget="badge"
+               decoration-success="state in ('delivered', 'read')"
+               decoration-danger="state == 'error'"/>
+        <button name="action_send" type="object" string="Send" icon="fa-paper-plane"
+                invisible="direction != 'out' or state not in ('outgoing', 'error')"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="whatsmeow_message_view_search" model="ir.ui.view">
+    <field name="name">whatsmeow.message.search</field>
+    <field name="model">whatsmeow.message</field>
+    <field name="arch" type="xml">
+      <search>
+        <field name="phone"/>
+        <field name="body"/>
+        <field name="partner_id"/>
+        <field name="session_id"/>
+        <filter name="incoming" string="Incoming" domain="[('direction','=','in')]"/>
+        <filter name="outgoing" string="Outgoing" domain="[('direction','=','out')]"/>
+        <separator/>
+        <filter name="failed" string="Failed" domain="[('state','=','error')]"/>
+        <filter name="queued" string="Queued" domain="[('state','=','outgoing')]"/>
+        <group name="group_by">
+          <filter name="group_session" string="Session" domain="[]" context="{'group_by': 'session_id'}"/>
+          <filter name="group_partner" string="Contact" domain="[]" context="{'group_by': 'partner_id'}"/>
+          <filter name="group_state" string="Status" domain="[]" context="{'group_by': 'state'}"/>
+        </group>
+      </search>
+    </field>
+  </record>
+
+  <record id="whatsmeow_message_action" model="ir.actions.act_window">
+    <field name="name">Messages</field>
+    <field name="res_model">whatsmeow.message</field>
+    <field name="view_mode">list,form</field>
+    <field name="help" type="html">
+      <p class="o_view_nocontent_smiling_face">No messages yet</p>
+      <p>Outgoing messages are queued and sent by a scheduled action, or immediately with Send.</p>
+    </field>
+  </record>
+</odoo>
