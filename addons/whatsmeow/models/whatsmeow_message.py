@@ -6,7 +6,7 @@ import re
 from markupsafe import Markup
 
 from odoo import api, fields, models
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 from odoo.tools import SQL
 
 from .whatsmeow_connection import MEDIA_TIMEOUT
@@ -17,6 +17,21 @@ DIGITS = re.compile(r"\D")
 # Odoo 19's res.partner has no `mobile` field (it was merged into `phone`), but
 # localisation/OCA modules may add one back. Probe the model instead of assuming.
 PHONE_FIELDS = ("phone", "mobile")
+
+# A JID's server says what kind of chat it is. Mirrors the constants in
+# whatsmeow's types/jid.go.
+CHAT_TYPE_BY_SERVER = {
+    "s.whatsapp.net": "private",
+    "lid": "private",  # a contact WhatsApp only identifies by LID
+    "g.us": "group",
+    "broadcast": "broadcast",
+    "newsletter": "newsletter",
+}
+STATUS_JID = "status@broadcast"
+
+# Chat kinds the gateway can actually send to; the rest have their own send
+# paths in WhatsApp and are receive-only here.
+REPLYABLE_CHAT_TYPES = ("private", "group")
 
 
 class WhatsmeowMessage(models.Model):
@@ -42,6 +57,39 @@ class WhatsmeowMessage(models.Model):
              "always reveal the phone number behind it, so this may be the only "
              "identity we have.",
     )
+    sender_jid = fields.Char(
+        string="Sender JID", readonly=True,
+        help="Full address of whoever wrote the message. In a group this is the "
+             "participant, not the group; quoting a message needs it.",
+    )
+    chat_jid = fields.Char(
+        string="Chat JID", index=True,
+        help="The conversation this message belongs to: the group's JID for a "
+             "group, the contact's own JID for a private chat. This is what a "
+             "reply is addressed to — a phone number can only reach a private chat.",
+    )
+    chat_type = fields.Selection(
+        [
+            ("private", "Private"),
+            ("group", "Group"),
+            ("broadcast", "Broadcast"),
+            ("status", "Status Update"),
+            ("newsletter", "Channel"),
+            ("unknown", "Unknown"),
+        ],
+        compute="_compute_chat_type", store=True, index=True,
+        help="Derived from the chat JID's server.",
+    )
+    chat_name = fields.Char(
+        string="Group Name", readonly=True,
+        help="Subject of the group, as fetched by the gateway. Empty for private chats.",
+    )
+    reply_to_id = fields.Many2one(
+        "whatsmeow.message", string="In Reply To", ondelete="set null", index=True,
+        help="Quote this message in WhatsApp. In a group, it is what tells "
+             "everyone which message is being answered.",
+    )
+    can_reply = fields.Boolean(compute="_compute_can_reply")
     direction = fields.Selection(
         [("out", "Outgoing"), ("in", "Incoming")], required=True, default="out",
     )
@@ -93,14 +141,47 @@ class WhatsmeowMessage(models.Model):
     )
     error_message = fields.Char(readonly=True)
 
-    @api.constrains("direction", "phone")
-    def _check_phone_for_outgoing(self):
-        # Inbound may legitimately have no phone (LID-only sender); outbound
-        # cannot be sent anywhere without one.
+    @api.depends("chat_jid")
+    def _compute_chat_type(self):
         for rec in self:
-            if rec.direction == "out" and not (rec.phone or "").strip():
+            jid = (rec.chat_jid or "").strip().lower()
+            if not jid:
+                # No JID means the message is addressed by phone number, which
+                # can only ever be a private chat.
+                rec.chat_type = "private"
+            elif jid == STATUS_JID:
+                rec.chat_type = "status"
+            else:
+                server = jid.rpartition("@")[2]
+                rec.chat_type = CHAT_TYPE_BY_SERVER.get(server, "unknown")
+
+    @api.depends("direction", "chat_type", "chat_jid", "phone")
+    def _compute_can_reply(self):
+        for rec in self:
+            rec.can_reply = bool(
+                rec.direction == "in"
+                and rec.chat_type in REPLYABLE_CHAT_TYPES
+                and (rec.chat_jid or rec.phone)
+            )
+
+    @api.constrains("direction", "phone", "chat_jid")
+    def _check_target_for_outgoing(self):
+        # Inbound may legitimately have neither (a LID-only sender has no phone);
+        # outbound cannot be sent anywhere without an address of some kind.
+        for rec in self:
+            if rec.direction == "out" and not (rec.phone or "").strip() \
+                    and not (rec.chat_jid or "").strip():
                 raise ValidationError(self.env._(
-                    "A phone number is required to send a WhatsApp message."
+                    "A phone number or a chat is required to send a WhatsApp message."
+                ))
+
+    @api.constrains("direction", "chat_type")
+    def _check_chat_is_sendable(self):
+        for rec in self:
+            if rec.direction == "out" and rec.chat_type not in REPLYABLE_CHAT_TYPES:
+                raise ValidationError(self.env._(
+                    "WhatsApp messages can only be sent to a private or group chat, "
+                    "not to a %s.", rec.chat_type,
                 ))
 
     @api.constrains("direction", "message_type", "body", "media_data")
@@ -170,17 +251,42 @@ class WhatsmeowMessage(models.Model):
         row = self.env.cr.fetchone()
         return partner.browse(row[0]) if row else partner
 
+    def _target_payload(self):
+        """Where the gateway should send this. A JID addresses the chat itself,
+        which is the only way to reach a group or a LID-only contact; the phone
+        number stays as the fallback for messages composed by hand."""
+        self.ensure_one()
+        payload = {"phone": self.phone or ""}
+        if self.chat_jid:
+            payload["jid"] = self.chat_jid
+        return payload
+
+    def _quote_payload(self):
+        """Ask the gateway to quote the message this one replies to."""
+        self.ensure_one()
+        source = self.reply_to_id
+        if not source or not source.wa_message_id:
+            return {}
+        payload = {"quoted_id": source.wa_message_id}
+        if source.sender_jid:
+            payload["quoted_participant"] = source.sender_jid
+        # WhatsApp renders the quote from the copy we send it. Media has no body
+        # of its own, so fall back to the filename rather than quoting nothing.
+        text = (source.body or "").strip() or (source.media_filename or "")
+        if text:
+            payload["quoted_text"] = text
+        return payload
+
     def _send_payload(self):
         """Build the gateway call for this message: text and media use
         different endpoints and payloads."""
         self.ensure_one()
         code = self.session_id.code
+        common = {**self._target_payload(), **self._quote_payload()}
         if self.message_type == "text":
-            return f"/sessions/{code}/send", {
-                "phone": self.phone, "message": self.body or "",
-            }
+            return f"/sessions/{code}/send", {**common, "message": self.body or ""}
         return f"/sessions/{code}/send-media", {
-            "phone": self.phone,
+            **common,
             "caption": self.body or "",
             "filename": self.media_filename or "",
             "mimetype": self.media_mimetype or "",
@@ -188,6 +294,35 @@ class WhatsmeowMessage(models.Model):
             "ptt": self.is_voice_note,
             # media_data is already base64 in Odoo; decode/re-encode would be waste.
             "data": (self.media_data or b"").decode(),
+        }
+
+    def action_reply(self):
+        """Open a new outgoing message addressed back to this one's chat."""
+        self.ensure_one()
+        if not self.can_reply:
+            raise UserError(self.env._(
+                "This message cannot be replied to: there is no chat to answer in."
+            ))
+        is_group = self.chat_type == "group"
+        return {
+            "type": "ir.actions.act_window",
+            "name": self.env._("Reply"),
+            "res_model": self._name,
+            "view_mode": "form",
+            "views": [(False, "form")],
+            "target": "new",
+            "context": {
+                "default_session_id": self.session_id.id,
+                "default_direction": "out",
+                "default_message_type": "text",
+                "default_reply_to_id": self.id,
+                "default_chat_jid": self.chat_jid or False,
+                # A group reply belongs to the group, not to the participant who
+                # happened to write: addressing it to them would send a private
+                # message instead, and pin the log on the wrong contact.
+                "default_phone": "" if is_group else (self.phone or ""),
+                "default_partner_id": False if is_group else self.partner_id.id,
+            },
         }
 
     def action_send(self):
@@ -262,7 +397,16 @@ class WhatsmeowMessage(models.Model):
                 "res_model": self._name,
                 "res_id": self.id,
             })
-        label = self.env._("WhatsApp (%s)", self.session_id.name)
+        # Name the group: posted on a partner's chatter, a group message would
+        # otherwise read as though they had messaged us privately.
+        if self.chat_type == "group":
+            label = self.env._(
+                "WhatsApp group %(group)s (%(session)s)",
+                group=self.chat_name or self.chat_jid,
+                session=self.session_id.name,
+            )
+        else:
+            label = self.env._("WhatsApp (%s)", self.session_id.name)
         body = self.body or ""
         if not body and self.message_type != "text":
             body = self.env._("sent %s", self.message_type)

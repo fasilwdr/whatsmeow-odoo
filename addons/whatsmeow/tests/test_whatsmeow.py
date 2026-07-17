@@ -312,6 +312,188 @@ class TestMedia(WhatsmeowCommon):
 
 
 @tagged("post_install", "-at_install")
+class TestReply(WhatsmeowCommon):
+    """Replying has to be addressed to the *chat*. A phone number only ever
+    reaches a private chat, so it cannot answer a group, and a LID-only sender
+    has no phone at all."""
+
+    GROUP_JID = "120363000000000000@g.us"
+
+    def _incoming_group_message(self):
+        return self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "direction": "in", "state": "received",
+            "phone": "447700900123",
+            "sender_jid": "447700900123@s.whatsapp.net",
+            "chat_jid": self.GROUP_JID, "chat_name": "Site Team",
+            "body": "who is bringing the keys?", "wa_message_id": "GRP-1",
+        })
+
+    def test_chat_type_is_derived_from_the_jid_server(self):
+        cases = [
+            ("447700900123@s.whatsapp.net", "private"),
+            ("35274583240901@lid", "private"),
+            (self.GROUP_JID, "group"),
+            ("status@broadcast", "status"),
+            ("1234@broadcast", "broadcast"),
+            ("120363000000000000@newsletter", "newsletter"),
+            ("nonsense@example.org", "unknown"),
+            ("", "private"),  # addressed by phone: can only be a private chat
+        ]
+        for jid, expected in cases:
+            msg = self.env["whatsmeow.message"].create({
+                "session_id": self.session.id, "direction": "in",
+                "state": "received", "chat_jid": jid, "body": "x",
+            })
+            self.assertEqual(msg.chat_type, expected, f"chat_jid {jid!r}")
+
+    def test_group_reply_goes_to_the_group_not_the_participant(self):
+        """The regression this guards: addressing the reply to the participant's
+        phone would quietly send a private message instead."""
+        source = self._incoming_group_message()
+        self.assertTrue(source.can_reply)
+        action = source.action_reply()
+        ctx = action["context"]
+        self.assertEqual(ctx["default_chat_jid"], self.GROUP_JID)
+        self.assertEqual(ctx["default_phone"], "")
+        self.assertFalse(ctx["default_partner_id"])
+        self.assertEqual(ctx["default_reply_to_id"], source.id)
+
+        reply = self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "direction": "out",
+            "chat_jid": ctx["default_chat_jid"], "phone": ctx["default_phone"],
+            "reply_to_id": ctx["default_reply_to_id"], "body": "I have them",
+        })
+        _path, payload = reply._send_payload()
+        self.assertEqual(payload["jid"], self.GROUP_JID)
+        self.assertEqual(payload["quoted_id"], "GRP-1")
+        self.assertEqual(payload["quoted_participant"], "447700900123@s.whatsapp.net")
+        self.assertEqual(payload["quoted_text"], "who is bringing the keys?")
+
+    def test_reply_to_a_lid_only_sender_needs_no_phone(self):
+        source = self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "direction": "in", "state": "received",
+            "phone": "", "sender_lid": "126864760766535",
+            "sender_jid": "126864760766535@lid", "chat_jid": "126864760766535@lid",
+            "body": "hello", "wa_message_id": "LID-1",
+        })
+        self.assertEqual(source.chat_type, "private")
+        self.assertTrue(source.can_reply, "a LID-only sender is still replyable")
+
+        reply = self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "direction": "out",
+            "chat_jid": "126864760766535@lid", "body": "hi back",
+        })
+        _path, payload = reply._send_payload()
+        self.assertEqual(payload["jid"], "126864760766535@lid")
+
+    def test_private_reply_keeps_the_phone_and_the_contact(self):
+        partner = self.env["res.partner"].create({
+            "name": "Reply Contact", "phone": "+966 55 019 9014",
+        })
+        source = self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "direction": "in", "state": "received",
+            "phone": "966550199014", "partner_id": partner.id,
+            "chat_jid": "966550199014@s.whatsapp.net", "body": "hi",
+            "wa_message_id": "PRIV-1",
+        })
+        ctx = source.action_reply()["context"]
+        self.assertEqual(ctx["default_phone"], "966550199014")
+        self.assertEqual(ctx["default_partner_id"], partner.id)
+
+    def test_outgoing_accepts_a_chat_instead_of_a_phone(self):
+        msg = self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "direction": "out",
+            "chat_jid": self.GROUP_JID, "body": "hello group",
+        })
+        self.assertEqual(msg.state, "outgoing")
+
+    def test_outgoing_still_needs_some_address(self):
+        with self.assertRaises(ValidationError):
+            self.env["whatsmeow.message"].create({
+                "session_id": self.session.id, "direction": "out", "body": "hi",
+            })
+
+    def test_cannot_send_to_a_receive_only_chat(self):
+        for jid in ("status@broadcast", "120363000000000000@newsletter"):
+            with self.assertRaises(ValidationError), self.cr.savepoint():
+                self.env["whatsmeow.message"].create({
+                    "session_id": self.session.id, "direction": "out",
+                    "chat_jid": jid, "body": "hi",
+                })
+
+    def test_cannot_reply_to_a_receive_only_chat(self):
+        status = self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "direction": "in", "state": "received",
+            "chat_jid": "status@broadcast", "body": "a status update",
+        })
+        self.assertFalse(status.can_reply)
+        with self.assertRaises(UserError):
+            status.action_reply()
+
+    def test_a_message_that_is_not_a_reply_carries_no_quote(self):
+        msg = self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "direction": "out",
+            "phone": "447700900123", "body": "hi",
+        })
+        _path, payload = msg._send_payload()
+        self.assertNotIn("quoted_id", payload)
+        self.assertEqual(payload["phone"], "447700900123")
+        self.assertNotIn("jid", payload)
+
+    def test_quoting_media_falls_back_to_the_filename(self):
+        source = self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "direction": "in", "state": "received",
+            "phone": "447700900123", "message_type": "image", "body": "",
+            "media_filename": "photo.jpg", "media_mimetype": "image/jpeg",
+            "media_state": "fetched", "wa_message_id": "MEDIA-Q1",
+            "chat_jid": self.GROUP_JID,
+        })
+        reply = self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "direction": "out",
+            "chat_jid": self.GROUP_JID, "reply_to_id": source.id, "body": "nice",
+        })
+        _path, payload = reply._send_payload()
+        self.assertEqual(payload["quoted_text"], "photo.jpg")
+
+    def test_webhook_records_the_chat_so_a_reply_can_find_it(self):
+        from odoo.addons.whatsmeow.controllers.webhook import WhatsmeowWebhook
+        WhatsmeowWebhook()._on_message(self.env, self.session, {
+            "wa_message_id": "GRP-WH-1",
+            "sender_phone": "447700900123",
+            "sender_jid": "447700900123@s.whatsapp.net",
+            "is_group": True,
+            "chat_jid": self.GROUP_JID,
+            "chat_name": "Site Team",
+            "body": "morning all",
+        })
+        msg = self.env["whatsmeow.message"].search([("wa_message_id", "=", "GRP-WH-1")])
+        self.assertEqual(msg.chat_jid, self.GROUP_JID)
+        self.assertEqual(msg.chat_name, "Site Team")
+        self.assertEqual(msg.chat_type, "group")
+        self.assertEqual(msg.sender_jid, "447700900123@s.whatsapp.net")
+        self.assertTrue(msg.can_reply)
+
+    def test_group_message_is_named_in_the_chatter(self):
+        """Posted on a participant's chatter, a group message would otherwise
+        read as though they had messaged us privately."""
+        partner = self.env["res.partner"].create({
+            "name": "Group Member", "phone": "+966 55 019 9015",
+        })
+        msg = self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "direction": "in", "state": "received",
+            "phone": "966550199015", "partner_id": partner.id,
+            "chat_jid": self.GROUP_JID, "chat_name": "Site Team",
+            "body": "morning all", "wa_message_id": "GRP-CHAT-1",
+        })
+        msg._post_to_chatter()
+        post = self.env["mail.message"].search(
+            [("model", "=", "res.partner"), ("res_id", "=", partner.id)],
+            order="id desc", limit=1)
+        self.assertIn("Site Team", post.body)
+        self.assertIn("morning all", post.body)
+
+
+@tagged("post_install", "-at_install")
 class TestSecurity(WhatsmeowCommon):
 
     def setUp(self):

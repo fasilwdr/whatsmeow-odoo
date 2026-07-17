@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -97,6 +98,128 @@ func TestExtractText(t *testing.T) {
 				t.Errorf("extractText() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+// A phone number can only address a private chat. Replying to a group, or to a
+// sender we only know by LID, means sending to the chat's JID instead.
+func TestResolveTarget(t *testing.T) {
+	tests := []struct {
+		name   string
+		target target
+		want   string
+	}{
+		{"phone becomes a private chat", target{Phone: "447700900123"}, "447700900123@s.whatsapp.net"},
+		{"phone is stripped of formatting", target{Phone: "+44 7700 900123"}, "447700900123@s.whatsapp.net"},
+		{"group jid is kept as-is", target{JID: "120363000000000000@g.us"}, "120363000000000000@g.us"},
+		{"lid jid is kept as-is", target{JID: "35274583240901@lid"}, "35274583240901@lid"},
+		{"jid wins over phone", target{Phone: "447700900123", JID: "120363000000000000@g.us"},
+			"120363000000000000@g.us"},
+		{"device suffix is dropped: address the chat, not one device",
+			target{JID: "447700900123.0:2@s.whatsapp.net"}, "447700900123@s.whatsapp.net"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := resolveTarget(tt.target)
+			if err != nil {
+				t.Fatalf("resolveTarget(%+v) errored: %v", tt.target, err)
+			}
+			if got.String() != tt.want {
+				t.Errorf("resolveTarget(%+v) = %q, want %q", tt.target, got, tt.want)
+			}
+		})
+	}
+
+	bad := []struct {
+		name   string
+		target target
+	}{
+		{"nothing to address", target{}},
+		{"phone with no digits", target{Phone: "not a number"}},
+		{"no user part", target{JID: "@g.us"}},
+		{"server only", target{JID: "g.us"}},
+		// These are receive-only: WhatsApp needs a different send path for them,
+		// so fail here with a clear error instead of deep inside whatsmeow.
+		{"newsletter is not sendable", target{JID: "120363000000000000@newsletter"}},
+		{"status is not sendable", target{JID: "status@broadcast"}},
+	}
+	for _, tt := range bad {
+		t.Run(tt.name, func(t *testing.T) {
+			if got, err := resolveTarget(tt.target); err == nil {
+				t.Errorf("resolveTarget(%+v) accepted it, returning %q", tt.target, got)
+			}
+		})
+	}
+}
+
+// target and quote are embedded, so their fields have to stay promoted to the
+// top level of the JSON Odoo actually posts. Embedding them in a struct literal
+// or renaming a tag would silently drop the address and send nowhere.
+func TestSendRequestDecodesOdooPayload(t *testing.T) {
+	// Verbatim from whatsmeow.message._send_payload() for a group reply.
+	body := `{"phone": "", "jid": "120363000000000000@g.us",
+	          "quoted_id": "GRP-1", "quoted_participant": "447700900123@s.whatsapp.net",
+	          "quoted_text": "who is bringing the keys?", "message": "I have them"}`
+	var req sendRequest
+	if err := json.Unmarshal([]byte(body), &req); err != nil {
+		t.Fatalf("Odoo's send payload did not decode: %v", err)
+	}
+	if req.Message != "I have them" {
+		t.Errorf("Message = %q", req.Message)
+	}
+	jid, err := resolveTarget(req.target)
+	if err != nil {
+		t.Fatalf("resolveTarget on Odoo's payload: %v", err)
+	}
+	if jid.String() != "120363000000000000@g.us" {
+		t.Errorf("group reply addressed to %q, want the group", jid)
+	}
+	if ci := req.contextInfo(); ci.GetStanzaID() != "GRP-1" {
+		t.Errorf("quote lost in decoding: %v", ci)
+	}
+
+	mediaBody := `{"phone": "", "jid": "120363000000000000@g.us", "quoted_id": "GRP-1",
+	               "caption": "nice", "filename": "photo.jpg", "mimetype": "image/jpeg",
+	               "kind": "image", "ptt": false, "data": "eA=="}`
+	var mreq sendMediaRequest
+	if err := json.Unmarshal([]byte(mediaBody), &mreq); err != nil {
+		t.Fatalf("Odoo's send-media payload did not decode: %v", err)
+	}
+	if mreq.Caption != "nice" || mreq.Filename != "photo.jpg" || mreq.Kind != "image" {
+		t.Errorf("media fields lost: %+v", mreq)
+	}
+	mjid, err := resolveTarget(mreq.target)
+	if err != nil || mjid.String() != "120363000000000000@g.us" {
+		t.Errorf("media reply addressed to %q (err %v), want the group", mjid, err)
+	}
+	if ci := mreq.contextInfo(); ci.GetStanzaID() != "GRP-1" {
+		t.Errorf("media quote lost in decoding: %v", ci)
+	}
+}
+
+func TestQuoteContextInfo(t *testing.T) {
+	if ci := (quote{}).contextInfo(); ci != nil {
+		t.Errorf("a message that is not a reply got a quote: %v", ci)
+	}
+	if ci := (quote{QuotedParticipant: "1@s.whatsapp.net"}).contextInfo(); ci != nil {
+		t.Errorf("a quote without an id should be no quote at all, got %v", ci)
+	}
+
+	ci := quote{
+		QuotedID:          "3EB0F4A2C1",
+		QuotedParticipant: "447700900123@s.whatsapp.net",
+		QuotedText:        "who is bringing the keys?",
+	}.contextInfo()
+	if ci.GetStanzaID() != "3EB0F4A2C1" {
+		t.Errorf("StanzaID = %q, want the quoted message's id", ci.GetStanzaID())
+	}
+	// Without Participant, a group quote does not resolve to anyone.
+	if ci.GetParticipant() != "447700900123@s.whatsapp.net" {
+		t.Errorf("Participant = %q, want the original sender", ci.GetParticipant())
+	}
+	// WhatsApp renders the quote from the copy we send, not from its own history.
+	if got := ci.GetQuotedMessage().GetConversation(); got != "who is bringing the keys?" {
+		t.Errorf("QuotedMessage = %q, want the original text", got)
 	}
 }
 

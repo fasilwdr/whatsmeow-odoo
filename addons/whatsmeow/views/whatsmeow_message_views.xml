@@ -8,6 +8,9 @@
         <header>
           <button name="action_send" type="object" string="Send" class="btn-primary"
                   invisible="direction != 'out' or state not in ('outgoing', 'error')"/>
+          <button name="action_reply" type="object" string="Reply" class="btn-primary"
+                  invisible="not can_reply"/>
+          <field name="can_reply" invisible="1"/>
           <field name="state" widget="statusbar"
                  statusbar_visible="outgoing,sent,delivered,read"/>
         </header>
@@ -25,10 +28,18 @@
               <div colspan="2" class="text-muted"
                    invisible="direction != 'in' or phone or not sender_lid">
                 WhatsApp identified this sender only by LID and did not reveal a
-                phone number, so no contact could be matched.
+                phone number, so no contact could be matched. You can still reply:
+                the message is addressed to the chat, not to a number.
               </div>
             </group>
             <group>
+              <field name="chat_type"/>
+              <field name="chat_name" invisible="chat_type != 'group'"/>
+              <field name="chat_jid" readonly="direction == 'in' or state != 'outgoing'"
+                     placeholder="120363000000000000@g.us"/>
+              <field name="sender_jid" invisible="direction != 'in'"/>
+              <field name="reply_to_id" invisible="not reply_to_id"
+                     readonly="state != 'outgoing'"/>
               <field name="wa_message_id"/>
               <field name="media_state" invisible="message_type == 'text'"/>
               <field name="media_mimetype" invisible="message_type == 'text'"/>
@@ -67,6 +78,8 @@
         <field name="session_id"/>
         <field name="direction"/>
         <field name="message_type"/>
+        <field name="chat_type" widget="badge" optional="show"/>
+        <field name="chat_name" string="Group" optional="show"/>
         <field name="partner_id"/>
         <field name="phone"/>
         <field name="body" string="Message / Caption"/>
@@ -78,6 +91,9 @@
                decoration-danger="state == 'error'"/>
         <button name="action_send" type="object" string="Send" icon="fa-paper-plane"
                 invisible="direction != 'out' or state not in ('outgoing', 'error')"/>
+        <button name="action_reply" type="object" string="Reply" icon="fa-reply"
+                invisible="not can_reply"/>
+        <field name="can_reply" column_invisible="1"/>
       </list>
     </field>
   </record>
@@ -92,8 +108,13 @@
         <field name="body"/>
         <field name="partner_id"/>
         <field name="session_id"/>
+        <field name="chat_name" string="Group"/>
+        <field name="chat_jid"/>
         <filter name="unmatched" string="No Contact Matched"
                 domain="[('direction','=','in'), ('partner_id','=',False)]"/>
+        <separator/>
+        <filter name="groups" string="Group Chats" domain="[('chat_type','=','group')]"/>
+        <filter name="private" string="Private Chats" domain="[('chat_type','=','private')]"/>
         <separator/>
         <filter name="incoming" string="Incoming" domain="[('direction','=','in')]"/>
         <filter name="outgoing" string="Outgoing" domain="[('direction','=','out')]"/>
@@ -106,6 +127,8 @@
                 domain="[('media_state','in',('pending','error'))]"/>
         <group name="group_by">
           <filter name="group_type" string="Type" domain="[]" context="{'group_by': 'message_type'}"/>
+          <filter name="group_chat_type" string="Chat Type" domain="[]" context="{'group_by': 'chat_type'}"/>
+          <filter name="group_chat" string="Chat" domain="[]" context="{'group_by': 'chat_name'}"/>
           <filter name="group_session" string="Session" domain="[]" context="{'group_by': 'session_id'}"/>
           <filter name="group_partner" string="Contact" domain="[]" context="{'group_by': 'partner_id'}"/>
           <filter name="group_state" string="Status" domain="[]" context="{'group_by': 'state'}"/>

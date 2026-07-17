@@ -74,6 +74,11 @@ class WhatsmeowWebhook(http.Controller):
             "partner_id": partner.id or False,
             "phone": phone,
             "sender_lid": data.get("sender_lid") or False,
+            # sender_jid is the participant, chat_jid the conversation; they only
+            # differ in a group, and a reply has to be addressed to the chat.
+            "sender_jid": data.get("sender_jid") or False,
+            "chat_jid": data.get("chat_jid") or False,
+            "chat_name": data.get("chat_name") or False,
             "direction": "in",
             "state": "received",
             "body": body,

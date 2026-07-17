@@ -274,6 +274,13 @@ func makeEventHandler(s *Session) func(interface{}) {
 				log.Printf("[%s] could not resolve a phone number for sender %s (mode=%s)",
 					s.Name, sender, v.Info.AddressingMode)
 			}
+			// Chat is the conversation (the group, or the contact for a 1:1);
+			// Sender is the individual who wrote. They differ only in groups,
+			// and a reply has to go to the Chat.
+			chatName := ""
+			if v.Info.IsGroup {
+				chatName = groupNameCache.lookup(s.Client, v.Info.Chat)
+			}
 			payload := map[string]any{
 				"wa_message_id":   v.Info.ID,
 				"sender_jid":      sender.String(),
@@ -283,7 +290,8 @@ func makeEventHandler(s *Session) func(interface{}) {
 				"push_name":       v.Info.PushName,
 				"is_group":        v.Info.IsGroup,
 				"chat_jid":        v.Info.Chat.String(),
-				"body":            text, // caption, for media
+				"chat_name":       chatName, // "" unless this is a group
+				"body":            text,     // caption, for media
 				"timestamp":       v.Info.Timestamp.UTC().Format(time.RFC3339),
 			}
 			if media != nil {
@@ -301,6 +309,10 @@ func makeEventHandler(s *Session) func(interface{}) {
 					"timestamp":      v.Timestamp.UTC().Format(time.RFC3339),
 				})
 			}
+
+		case *events.GroupInfo:
+			// A rename would otherwise sit stale in the cache for an hour.
+			groupNameCache.forget(v.JID)
 
 		case *events.Connected:
 			s.set("connected", "", "")
@@ -481,6 +493,57 @@ func resolvePN(cli *whatsmeow.Client, sender, senderAlt types.JID) types.JID {
 	return types.EmptyJID
 }
 
+// A group message carries only the group's JID, never its name, so the subject
+// has to be fetched separately. Cache it: otherwise every inbound group message
+// costs an extra round trip to WhatsApp, and busy groups are exactly where that
+// hurts. Failures are cached too, so an unreadable group isn't retried per
+// message.
+type groupNames struct {
+	mu      sync.Mutex
+	entries map[string]groupNameEntry
+}
+
+type groupNameEntry struct {
+	name    string
+	fetched time.Time
+}
+
+const groupNameTTL = time.Hour
+
+var groupNameCache = &groupNames{entries: map[string]groupNameEntry{}}
+
+// lookup returns the group's subject, or "" when WhatsApp won't tell us.
+func (g *groupNames) lookup(cli *whatsmeow.Client, chat types.JID) string {
+	key := chat.String()
+	g.mu.Lock()
+	entry, ok := g.entries[key]
+	g.mu.Unlock()
+	if ok && time.Since(entry.fetched) < groupNameTTL {
+		return entry.name
+	}
+	if cli == nil {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	name := ""
+	if info, err := cli.GetGroupInfo(ctx, chat); err != nil {
+		log.Printf("group info for %s failed: %v", chat, err)
+	} else {
+		name = info.Name
+	}
+	g.mu.Lock()
+	g.entries[key] = groupNameEntry{name: name, fetched: time.Now()}
+	g.mu.Unlock()
+	return name
+}
+
+func (g *groupNames) forget(chat types.JID) {
+	g.mu.Lock()
+	delete(g.entries, chat.String())
+	g.mu.Unlock()
+}
+
 // describeMessage names the concrete payload we could not turn into text, so the
 // Odoo log says "audio" rather than the server's generic "text" label.
 func describeMessage(v *events.Message) string {
@@ -601,9 +664,76 @@ func notifyOdoo(session, event string, data map[string]any) {
 // HTTP API (consumed by the Odoo module)
 // ---------------------------------------------------------------------------
 
+// target says where a message goes. A phone number can only ever address a
+// private chat, so replying to a group (or to a sender WhatsApp only gave us a
+// LID for) needs the full JID instead.
+type target struct {
+	Phone string `json:"phone"` // digits with country code, e.g. "447700900123"
+	JID   string `json:"jid"`   // full JID; takes precedence over Phone
+}
+
+// quote turns a message into a reply to an earlier one. In a group this is
+// what tells everyone which message is being answered.
+type quote struct {
+	QuotedID          string `json:"quoted_id"`          // the original's WhatsApp message id
+	QuotedParticipant string `json:"quoted_participant"` // JID of who sent the original
+	QuotedText        string `json:"quoted_text"`        // original body, redisplayed in the quote
+}
+
 type sendRequest struct {
-	Phone   string `json:"phone"`   // digits with country code, e.g. "447700900123"
+	target
+	quote
 	Message string `json:"message"` // plain text body
+}
+
+// Servers we can actually SendMessage to. Newsletters and broadcasts need
+// their own send paths, so reject them with a clear error rather than
+// failing deep inside whatsmeow.
+var sendableServers = map[string]bool{
+	types.DefaultUserServer: true, // s.whatsapp.net - a normal contact
+	types.HiddenUserServer:  true, // lid - a contact we only know by LID
+	types.GroupServer:       true, // g.us - a group chat
+}
+
+// resolveTarget picks the JID to send to: the explicit one when given, else
+// the phone number as a private chat.
+func resolveTarget(t target) (types.JID, error) {
+	if raw := strings.TrimSpace(t.JID); raw != "" {
+		jid, err := types.ParseJID(raw)
+		if err != nil {
+			return types.EmptyJID, fmt.Errorf("invalid 'jid': %w", err)
+		}
+		jid = jid.ToNonAD() // address the chat, not one of its devices
+		if jid.User == "" {
+			return types.EmptyJID, fmt.Errorf("invalid 'jid': no user part")
+		}
+		if !sendableServers[jid.Server] {
+			return types.EmptyJID, fmt.Errorf("cannot send to a %q address", jid.Server)
+		}
+		return jid, nil
+	}
+	digits := nonDigits.ReplaceAllString(t.Phone, "")
+	if digits == "" {
+		return types.EmptyJID, fmt.Errorf("'phone' or 'jid' is required")
+	}
+	return types.NewJID(digits, types.DefaultUserServer), nil
+}
+
+// contextInfo renders a quote, or nil when this message isn't a reply.
+func (q quote) contextInfo() *waE2E.ContextInfo {
+	if strings.TrimSpace(q.QuotedID) == "" {
+		return nil
+	}
+	ci := &waE2E.ContextInfo{
+		StanzaID: proto.String(q.QuotedID),
+		// WhatsApp renders the quote from the copy we send, not from its own
+		// history, so the original text has to travel with the reply.
+		QuotedMessage: &waE2E.Message{Conversation: proto.String(q.QuotedText)},
+	}
+	if p := strings.TrimSpace(q.QuotedParticipant); p != "" {
+		ci.Participant = proto.String(p)
+	}
+	return ci
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {
@@ -669,8 +799,13 @@ func handleSend(w http.ResponseWriter, r *http.Request) {
 	}
 	var req sendRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil ||
-		strings.TrimSpace(req.Message) == "" || strings.TrimSpace(req.Phone) == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "'phone' and 'message' are required"})
+		strings.TrimSpace(req.Message) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "'message' is required"})
+		return
+	}
+	jid, err := resolveTarget(req.target)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
 	status, _, _, _ := s.snapshot()
@@ -679,10 +814,14 @@ func handleSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	phone := nonDigits.ReplaceAllString(req.Phone, "")
-	jid := types.NewJID(phone, types.DefaultUserServer)
-
+	// A quote has to hang off ContextInfo, which plain Conversation has no room
+	// for; ExtendedTextMessage is the same text with somewhere to put it.
 	msg := &waE2E.Message{Conversation: proto.String(req.Message)}
+	if ci := req.contextInfo(); ci != nil {
+		msg = &waE2E.Message{ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+			Text: proto.String(req.Message), ContextInfo: ci,
+		}}
+	}
 	resp, err := s.Client.SendMessage(r.Context(), jid, msg)
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "send failed: " + err.Error()})
@@ -750,7 +889,8 @@ func handleDeleteMedia(w http.ResponseWriter, r *http.Request) {
 }
 
 type sendMediaRequest struct {
-	Phone    string `json:"phone"`
+	target
+	quote
 	Caption  string `json:"caption"`
 	Filename string `json:"filename"`
 	Mimetype string `json:"mimetype"`
@@ -784,30 +924,35 @@ var uploadMediaType = map[string]whatsmeow.MediaType{
 }
 
 func buildMediaMessage(kind string, req sendMediaRequest, up whatsmeow.UploadResponse) (*waE2E.Message, error) {
+	ci := req.contextInfo() // nil unless this is a reply
 	switch kind {
 	case "image":
 		return &waE2E.Message{ImageMessage: &waE2E.ImageMessage{
 			Caption: proto.String(req.Caption), Mimetype: proto.String(req.Mimetype),
 			URL: &up.URL, DirectPath: &up.DirectPath, MediaKey: up.MediaKey,
 			FileEncSHA256: up.FileEncSHA256, FileSHA256: up.FileSHA256, FileLength: &up.FileLength,
+			ContextInfo: ci,
 		}}, nil
 	case "video":
 		return &waE2E.Message{VideoMessage: &waE2E.VideoMessage{
 			Caption: proto.String(req.Caption), Mimetype: proto.String(req.Mimetype),
 			URL: &up.URL, DirectPath: &up.DirectPath, MediaKey: up.MediaKey,
 			FileEncSHA256: up.FileEncSHA256, FileSHA256: up.FileSHA256, FileLength: &up.FileLength,
+			ContextInfo: ci,
 		}}, nil
 	case "audio":
 		return &waE2E.Message{AudioMessage: &waE2E.AudioMessage{
 			Mimetype: proto.String(req.Mimetype), PTT: proto.Bool(req.PTT),
 			URL: &up.URL, DirectPath: &up.DirectPath, MediaKey: up.MediaKey,
 			FileEncSHA256: up.FileEncSHA256, FileSHA256: up.FileSHA256, FileLength: &up.FileLength,
+			ContextInfo: ci,
 		}}, nil
 	case "sticker":
 		return &waE2E.Message{StickerMessage: &waE2E.StickerMessage{
 			Mimetype: proto.String(req.Mimetype),
 			URL:      &up.URL, DirectPath: &up.DirectPath, MediaKey: up.MediaKey,
 			FileEncSHA256: up.FileEncSHA256, FileSHA256: up.FileSHA256, FileLength: &up.FileLength,
+			ContextInfo: ci,
 		}}, nil
 	case "document":
 		return &waE2E.Message{DocumentMessage: &waE2E.DocumentMessage{
@@ -815,6 +960,7 @@ func buildMediaMessage(kind string, req sendMediaRequest, up whatsmeow.UploadRes
 			FileName: proto.String(req.Filename), Title: proto.String(req.Filename),
 			URL: &up.URL, DirectPath: &up.DirectPath, MediaKey: up.MediaKey,
 			FileEncSHA256: up.FileEncSHA256, FileSHA256: up.FileSHA256, FileLength: &up.FileLength,
+			ContextInfo: ci,
 		}}, nil
 	}
 	return nil, fmt.Errorf("unsupported media kind %q", kind)
@@ -830,8 +976,13 @@ func handleSendMedia(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bad request: " + err.Error()})
 		return
 	}
-	if strings.TrimSpace(req.Phone) == "" || strings.TrimSpace(req.Data) == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "'phone' and 'data' are required"})
+	if strings.TrimSpace(req.Data) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "'data' is required"})
+		return
+	}
+	jid, err := resolveTarget(req.target)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
 	data, err := base64.StdEncoding.DecodeString(req.Data)
@@ -873,7 +1024,6 @@ func handleSendMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jid := types.NewJID(nonDigits.ReplaceAllString(req.Phone, ""), types.DefaultUserServer)
 	resp, err := s.Client.SendMessage(r.Context(), jid, msg)
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "send failed: " + err.Error()})
