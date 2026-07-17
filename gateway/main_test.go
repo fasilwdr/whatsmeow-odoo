@@ -96,6 +96,20 @@ func TestExtractText(t *testing.T) {
 			}},
 			"[edited] fixed typo",
 		},
+		{
+			"view-once image unwraps to its caption",
+			&waE2E.Message{ViewOnceMessageV2: &waE2E.FutureProofMessage{
+				Message: &waE2E.Message{ImageMessage: &waE2E.ImageMessage{Caption: proto.String("secret")}},
+			}},
+			"[image] secret",
+		},
+		{
+			"disappearing text unwraps",
+			&waE2E.Message{EphemeralMessage: &waE2E.FutureProofMessage{
+				Message: &waE2E.Message{Conversation: proto.String("poof")},
+			}},
+			"poof",
+		},
 		{"empty message", &waE2E.Message{}, ""},
 	}
 	for _, tt := range tests {
@@ -296,6 +310,21 @@ func TestExtractMedia(t *testing.T) {
 			&waE2E.Message{DocumentMessage: &waE2E.DocumentMessage{
 				Mimetype: proto.String("application/pdf"), FileName: proto.String("invoice.pdf")}},
 			"document", true,
+		},
+		{
+			"view-once image (the one-time-watchable case)",
+			&waE2E.Message{ViewOnceMessageV2: &waE2E.FutureProofMessage{
+				Message: &waE2E.Message{ImageMessage: &waE2E.ImageMessage{Mimetype: proto.String("image/jpeg")}},
+			}},
+			"image", true,
+		},
+		{
+			"view-once voice note",
+			&waE2E.Message{ViewOnceMessage: &waE2E.FutureProofMessage{
+				Message: &waE2E.Message{AudioMessage: &waE2E.AudioMessage{
+					Mimetype: proto.String("audio/ogg"), PTT: proto.Bool(true)}},
+			}},
+			"audio", true,
 		},
 	}
 	for _, tt := range tests {
