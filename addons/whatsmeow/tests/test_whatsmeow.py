@@ -496,6 +496,150 @@ class TestReply(WhatsmeowCommon):
 
 
 @tagged("post_install", "-at_install")
+class TestInboundDedup(WhatsmeowCommon):
+    """The gateway retries, and WhatsApp itself delivers some messages twice."""
+
+    def setUp(self):
+        super().setUp()
+        from odoo.addons.whatsmeow.controllers.webhook import WhatsmeowWebhook
+        self.ctrl = WhatsmeowWebhook()
+
+    def _messages(self, wa_id):
+        return self.env["whatsmeow.message"].search([("wa_message_id", "=", wa_id)])
+
+    def test_duplicate_wa_id_is_rejected_by_the_database(self):
+        """A search-then-create cannot survive concurrent retries, so the
+        guarantee has to live in the index, not the Python."""
+        self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "direction": "in", "state": "received",
+            "body": "first", "wa_message_id": "3EBDUP",
+        })
+        with self.assertRaises(IntegrityError), mute_logger("odoo.sql_db"):
+            self.env["whatsmeow.message"].create({
+                "session_id": self.session.id, "direction": "in", "state": "received",
+                "body": "second", "wa_message_id": "3EBDUP",
+            })
+            self.env.flush_all()
+
+    def test_outgoing_may_share_a_wa_id_with_inbound(self):
+        """The index is inbound-only: it must not police the outgoing log."""
+        self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "direction": "in", "state": "received",
+            "body": "in", "wa_message_id": "3EBSHARED",
+        })
+        out = self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "direction": "out", "phone": "447700900123",
+            "body": "out", "wa_message_id": "3EBSHARED",
+        })
+        self.env.flush_all()
+        self.assertTrue(out.id)
+
+    def test_many_outgoing_may_have_no_wa_id_yet(self):
+        """A queued message has no id until the gateway answers; they must not
+        all collide on NULL."""
+        for i in range(3):
+            self.env["whatsmeow.message"].create({
+                "session_id": self.session.id, "direction": "out",
+                "phone": "447700900123", "body": f"queued {i}",
+            })
+        self.env.flush_all()
+        self.assertEqual(len(self.env["whatsmeow.message"].search(
+            [("state", "=", "outgoing"), ("wa_message_id", "=", False)])), 3)
+
+    def test_plain_retry_creates_one_record(self):
+        data = {"wa_message_id": "3EBR", "sender_phone": "447700900123", "body": "hi"}
+        self.ctrl._on_message(self.env, self.session, data)
+        self.ctrl._on_message(self.env, self.session, data)
+        self.assertEqual(len(self._messages("3EBR")), 1)
+
+    def test_real_copy_replaces_the_empty_one(self):
+        """WhatsApp delivers some messages twice, the first copy empty. Keeping
+        whichever landed first would keep the stub and lose the actual text."""
+        self.ctrl._on_message(self.env, self.session, {
+            "wa_message_id": "3EBTWIN", "sender_phone": "447700900123",
+            "body": "[unsupported message type: text]", "placeholder": True,
+        })
+        stub = self._messages("3EBTWIN")
+        self.assertTrue(stub.is_placeholder)
+
+        self.ctrl._on_message(self.env, self.session, {
+            "wa_message_id": "3EBTWIN", "sender_phone": "447700900123",
+            "body": "Undoo", "placeholder": False,
+        })
+        merged = self._messages("3EBTWIN")
+        self.assertEqual(len(merged), 1, "the real copy must not add a second row")
+        self.assertEqual(merged.body, "Undoo")
+        self.assertFalse(merged.is_placeholder)
+
+    def test_a_real_copy_is_never_downgraded_to_a_stub(self):
+        """The stub can arrive second; it must not overwrite the real text."""
+        self.ctrl._on_message(self.env, self.session, {
+            "wa_message_id": "3EBORDER", "sender_phone": "447700900123",
+            "body": "Vc available", "placeholder": False,
+        })
+        self.ctrl._on_message(self.env, self.session, {
+            "wa_message_id": "3EBORDER", "sender_phone": "447700900123",
+            "body": "[unsupported message type: text]", "placeholder": True,
+        })
+        self.assertEqual(self._messages("3EBORDER").body, "Vc available")
+
+    def test_real_media_copy_upgrades_the_stub_and_queues_the_download(self):
+        self.ctrl._on_message(self.env, self.session, {
+            "wa_message_id": "3EBMED", "sender_phone": "447700900123",
+            "body": "[unsupported message type: image]", "placeholder": True,
+        })
+        self.ctrl._on_message(self.env, self.session, {
+            "wa_message_id": "3EBMED", "sender_phone": "447700900123", "body": "",
+            "placeholder": False,
+            "media": {"kind": "image", "mimetype": "image/jpeg",
+                      "filename": "p.jpg", "size": 10},
+        })
+        msg = self._messages("3EBMED")
+        self.assertEqual(len(msg), 1)
+        self.assertEqual(msg.message_type, "image")
+        self.assertEqual(msg.media_state, "pending",
+                         "the upgraded record must still get its bytes fetched")
+
+
+@tagged("post_install", "-at_install")
+class TestSendIdempotency(WhatsmeowCommon):
+
+    def test_key_is_stable_across_attempts(self):
+        """The whole point: the key must survive the rollback that causes the
+        resend, so it cannot be generated per attempt."""
+        msg = self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "phone": "447700900123",
+            "direction": "out", "body": "hi",
+        })
+        self.assertEqual(msg._idempotency_key(), msg._idempotency_key())
+        self.assertIn(str(msg.id), msg._idempotency_key())
+
+    def test_two_messages_get_different_keys(self):
+        common = {"session_id": self.session.id, "phone": "447700900123",
+                  "direction": "out", "body": "hi"}
+        a = self.env["whatsmeow.message"].create(common)
+        b = self.env["whatsmeow.message"].create(common)
+        self.assertNotEqual(a._idempotency_key(), b._idempotency_key())
+
+    def test_send_payload_carries_the_key_on_both_endpoints(self):
+        text = self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "phone": "447700900123",
+            "direction": "out", "body": "hi",
+        })
+        _, payload = text._send_payload()
+        self.assertEqual(payload["idempotency_key"], text._idempotency_key())
+
+        media = self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "phone": "447700900123",
+            "direction": "out", "message_type": "image",
+            "media_data": base64.b64encode(b"x"), "media_filename": "p.jpg",
+        })
+        path, payload = media._send_payload()
+        self.assertIn("send-media", path)
+        self.assertEqual(payload["idempotency_key"], media._idempotency_key())
+
+
+@tagged("post_install", "-at_install")
 class TestThrottle(WhatsmeowCommon):
     """Bursting gets numbers banned, so the queue paces itself per session."""
 

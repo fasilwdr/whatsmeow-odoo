@@ -57,7 +57,23 @@ var (
 	mediaDir      = filepath.Join(dataDir, "media")
 	maxMediaBytes = int64(envIntOr("WMG_MAX_MEDIA_MB", 100)) << 20
 	mediaTTL      = time.Duration(envIntOr("WMG_MEDIA_TTL_HOURS", 24)) * time.Hour
+
+	// WhatsApp emits a delivery *and* a read receipt per participant, so one
+	// message to a large group turns into dozens of events at once. Posting
+	// them all concurrently once took an Odoo down: its threaded dev server
+	// spawns a thread per request, and it ran out of threads. Webhooks
+	// therefore go through a fixed pool of senders.
+	webhookWorkers   = envIntOr("WMG_WEBHOOK_WORKERS", 4)
+	webhookQueueSize = envIntOr("WMG_WEBHOOK_QUEUE", 2048)
+	webhookQueue     chan webhookJob
 )
+
+// webhookJob is one event waiting to be posted to Odoo.
+type webhookJob struct {
+	session string
+	event   string
+	body    []byte
+}
 
 func envOr(key, def string) string {
 	if v := os.Getenv(key); v != "" {
@@ -257,9 +273,17 @@ func makeEventHandler(s *Session) func(interface{}) {
 					media = info
 				}
 			}
+			// WhatsApp sometimes delivers a message twice: once as a stub with
+			// nothing in it, once for real. Both carry the same ID, so Odoo can
+			// dedupe them — but only if it knows which copy is the empty one,
+			// otherwise it keeps whichever landed first and the real text is
+			// lost. Say so explicitly rather than making Odoo guess from the
+			// placeholder text.
+			placeholder := false
 			if text == "" && media == nil {
 				// Nothing we can render - still tell Odoo something arrived.
 				text = "[unsupported message type: " + describeMessage(v) + "]"
+				placeholder = true
 			}
 			sender := v.Info.Sender.ToNonAD()
 			senderPN := resolvePN(s.Client, sender, v.Info.SenderAlt)
@@ -292,6 +316,7 @@ func makeEventHandler(s *Session) func(interface{}) {
 				"chat_jid":        v.Info.Chat.String(),
 				"chat_name":       chatName, // "" unless this is a group
 				"body":            text,     // caption, for media
+				"placeholder":     placeholder,
 				"timestamp":       v.Info.Timestamp.UTC().Format(time.RFC3339),
 			}
 			if media != nil {
@@ -450,9 +475,11 @@ func (s *Session) downloadMedia(ctx context.Context, id string, info *mediaInfo)
 }
 
 // mediaGC drops media Odoo never collected, so the disk can't grow forever.
+// It also expires resolved send keys, which leak at the same lazy pace.
 func mediaGC() {
 	for {
 		time.Sleep(time.Hour)
+		sendGuard.sweep()
 		cutoff := time.Now().Add(-mediaTTL)
 		_ = filepath.Walk(mediaDir, func(path string, fi os.FileInfo, err error) error {
 			if err != nil || fi.IsDir() {
@@ -629,35 +656,71 @@ func notifyOdoo(session, event string, data map[string]any) {
 		"event":   event,
 		"data":    data,
 	}
-	body, _ := json.Marshal(payload)
+	body, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("[%s] webhook build error: %v", session, err)
+		return
+	}
 
-	go func() {
-		backoff := 2 * time.Second
-		for attempt := 1; attempt <= 4; attempt++ {
-			req, err := http.NewRequest(http.MethodPost, odooWebhookURL, bytes.NewReader(body))
-			if err != nil {
-				log.Printf("webhook build error: %v", err)
+	// Never block: this runs on whatsmeow's event handler, and stalling there
+	// stalls the WhatsApp connection itself. A full queue means Odoo has been
+	// unreachable for a long while, and the workers are already giving up on
+	// events anyway — dropping here is the same loss, without the backpressure.
+	select {
+	case webhookQueue <- webhookJob{session: session, event: event, body: body}:
+	default:
+		log.Printf("[%s] webhook queue full (%d), dropping event %s",
+			session, webhookQueueSize, event)
+	}
+}
+
+// startWebhookWorkers must run before any session connects, so no event can
+// find a nil queue and be dropped on the floor at boot.
+func startWebhookWorkers() {
+	webhookQueue = make(chan webhookJob, webhookQueueSize)
+	for i := 0; i < webhookWorkers; i++ {
+		go func() {
+			for job := range webhookQueue {
+				postToOdoo(job)
+			}
+		}()
+	}
+	log.Printf("webhook: %d workers, queue %d", webhookWorkers, webhookQueueSize)
+}
+
+// webhookClient is shared so the pool reuses connections instead of opening a
+// fresh one per attempt.
+var webhookClient = &http.Client{Timeout: 15 * time.Second}
+
+func postToOdoo(job webhookJob) {
+	backoff := 2 * time.Second
+	for attempt := 1; attempt <= 4; attempt++ {
+		req, err := http.NewRequest(http.MethodPost, odooWebhookURL, bytes.NewReader(job.body))
+		if err != nil {
+			log.Printf("[%s] webhook build error: %v", job.session, err)
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Webhook-Secret", webhookSecret)
+
+		resp, err := webhookClient.Do(req)
+		if err == nil {
+			// Drain before closing, so the connection can be reused.
+			io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 				return
 			}
-			req.Header.Set("Content-Type", "application/json")
-			req.Header.Set("X-Webhook-Secret", webhookSecret)
-
-			clientHTTP := &http.Client{Timeout: 15 * time.Second}
-			resp, err := clientHTTP.Do(req)
-			if err == nil {
-				resp.Body.Close()
-				if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-					return
-				}
-				log.Printf("[%s] odoo webhook HTTP %d (attempt %d)", session, resp.StatusCode, attempt)
-			} else {
-				log.Printf("[%s] odoo webhook error: %v (attempt %d)", session, err, attempt)
-			}
+			log.Printf("[%s] odoo webhook HTTP %d (attempt %d)", job.session, resp.StatusCode, attempt)
+		} else {
+			log.Printf("[%s] odoo webhook error: %v (attempt %d)", job.session, err, attempt)
+		}
+		if attempt < 4 {
 			time.Sleep(backoff)
 			backoff *= 2
 		}
-		log.Printf("[%s] odoo webhook: giving up on event %s", session, event)
-	}()
+	}
+	log.Printf("[%s] odoo webhook: giving up on event %s", job.session, job.event)
 }
 
 // ---------------------------------------------------------------------------
@@ -683,7 +746,124 @@ type quote struct {
 type sendRequest struct {
 	target
 	quote
+	idempotent
 	Message string `json:"message"` // plain text body
+}
+
+// ---------------------------------------------------------------------------
+// Send idempotency
+//
+// Odoo can hand us the same message twice: its transaction may roll back after
+// we have already given the message to WhatsApp, leaving the record queued so
+// the send cron picks it up again. A resend is not a harmless retry — the
+// recipient sees the message twice. So a send carries a key that is stable
+// across attempts of the same message, and we replay the first result instead
+// of sending again.
+// ---------------------------------------------------------------------------
+
+type idempotent struct {
+	Key string `json:"idempotency_key"`
+}
+
+// sendOutcome is one send's result, shared by every caller replaying its key.
+type sendOutcome struct {
+	done      chan struct{} // closed once the send has resolved
+	once      sync.Once     // resolve exactly once, however we leave the handler
+	waID      string
+	kind      string // media only; "" for text
+	timestamp time.Time
+	err       error
+	storedAt  time.Time
+}
+
+type sendCache struct {
+	mu    sync.Mutex
+	byKey map[string]*sendOutcome
+	ttl   time.Duration
+}
+
+var sendGuard = &sendCache{
+	byKey: map[string]*sendOutcome{},
+	// A duplicate arrives within seconds (the next cron run). A day is
+	// generous and costs a few hundred bytes per message.
+	ttl: 24 * time.Hour,
+}
+
+var errSendIncomplete = fmt.Errorf("send did not complete")
+
+// begin claims a key. It returns replay=true when this key has been seen, in
+// which case the outcome is already resolved (waiting first if a concurrent
+// attempt is still in flight) and must be replayed rather than sent again.
+//
+// An empty key means the caller opted out — a request composed by hand rather
+// than by the Odoo module — so it always sends.
+func (c *sendCache) begin(key string) (*sendOutcome, bool) {
+	if key == "" {
+		return &sendOutcome{done: make(chan struct{})}, false
+	}
+	c.mu.Lock()
+	if out, ok := c.byKey[key]; ok {
+		c.mu.Unlock()
+		<-out.done // a concurrent attempt is still sending; use its result
+		return out, true
+	}
+	out := &sendOutcome{done: make(chan struct{}), storedAt: time.Now()}
+	c.byKey[key] = out
+	c.mu.Unlock()
+	return out, false
+}
+
+// resolve publishes a send's result to anyone replaying the key. A failed send
+// is forgotten rather than cached: nothing reached WhatsApp, so a later retry
+// must be free to really send.
+//
+// Safe to call twice: handlers defer a resolve so that a panic cannot leave a
+// key claimed forever, with every later attempt blocked on a channel that will
+// never close.
+func (c *sendCache) resolve(key string, out *sendOutcome, waID, kind string, ts time.Time, err error) {
+	out.once.Do(func() {
+		out.waID, out.kind, out.timestamp, out.err = waID, kind, ts, err
+		close(out.done)
+		if err != nil && key != "" {
+			c.mu.Lock()
+			delete(c.byKey, key)
+			c.mu.Unlock()
+		}
+	})
+}
+
+// writeReplay answers a send whose key we have already resolved.
+func writeReplay(w http.ResponseWriter, session, key string, out *sendOutcome, media bool) {
+	if out.err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{
+			"error": "send failed: " + out.err.Error()})
+		return
+	}
+	log.Printf("[%s] replaying send %s -> %s (not sending again)", session, key, out.waID)
+	body := map[string]any{
+		"status":        "sent",
+		"wa_message_id": out.waID,
+		"timestamp":     out.timestamp.UTC().Format(time.RFC3339),
+		"replayed":      true,
+	}
+	if media {
+		body["kind"] = out.kind
+	}
+	writeJSON(w, http.StatusOK, body)
+}
+
+func (c *sendCache) sweep() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for key, out := range c.byKey {
+		select {
+		case <-out.done:
+			if time.Since(out.storedAt) > c.ttl {
+				delete(c.byKey, key)
+			}
+		default: // still in flight, leave it alone
+		}
+	}
 }
 
 // Servers we can actually SendMessage to. Newsletters and broadcasts need
@@ -814,6 +994,14 @@ func handleSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Replay a send we have already made rather than delivering it twice.
+	out, replay := sendGuard.begin(req.Key)
+	if replay {
+		writeReplay(w, s.Name, req.Key, out, false)
+		return
+	}
+	defer sendGuard.resolve(req.Key, out, "", "", time.Time{}, errSendIncomplete)
+
 	// A quote has to hang off ContextInfo, which plain Conversation has no room
 	// for; ExtendedTextMessage is the same text with somewhere to put it.
 	msg := &waE2E.Message{Conversation: proto.String(req.Message)}
@@ -823,6 +1011,7 @@ func handleSend(w http.ResponseWriter, r *http.Request) {
 		}}
 	}
 	resp, err := s.Client.SendMessage(r.Context(), jid, msg)
+	sendGuard.resolve(req.Key, out, resp.ID, "", resp.Timestamp, err)
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "send failed: " + err.Error()})
 		return
@@ -891,6 +1080,7 @@ func handleDeleteMedia(w http.ResponseWriter, r *http.Request) {
 type sendMediaRequest struct {
 	target
 	quote
+	idempotent
 	Caption  string `json:"caption"`
 	Filename string `json:"filename"`
 	Mimetype string `json:"mimetype"`
@@ -1013,18 +1203,29 @@ func handleSendMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Claimed before the upload: replaying must not re-upload the file either.
+	out, replay := sendGuard.begin(req.Key)
+	if replay {
+		writeReplay(w, s.Name, req.Key, out, true)
+		return
+	}
+	defer sendGuard.resolve(req.Key, out, "", "", time.Time{}, errSendIncomplete)
+
 	up, err := s.Client.Upload(r.Context(), data, mediaType)
 	if err != nil {
+		sendGuard.resolve(req.Key, out, "", "", time.Time{}, err)
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "upload failed: " + err.Error()})
 		return
 	}
 	msg, err := buildMediaMessage(kind, req, up)
 	if err != nil {
+		sendGuard.resolve(req.Key, out, "", "", time.Time{}, err)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
 
 	resp, err := s.Client.SendMessage(r.Context(), jid, msg)
+	sendGuard.resolve(req.Key, out, resp.ID, kind, resp.Timestamp, err)
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "send failed: " + err.Error()})
 		return
@@ -1091,6 +1292,9 @@ func main() {
 	if err := os.MkdirAll(mediaDir, 0o700); err != nil {
 		log.Fatalf("cannot create media dir: %v", err)
 	}
+
+	// Before restoreExisting: reconnecting a session emits events immediately.
+	startWebhookWorkers()
 
 	manager.restoreExisting()
 	go mediaGC()

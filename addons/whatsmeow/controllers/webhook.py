@@ -1,6 +1,8 @@
 import json
 import logging
 
+from psycopg2 import IntegrityError
+
 from odoo import http
 from odoo.http import request
 
@@ -56,12 +58,31 @@ class WhatsmeowWebhook(http.Controller):
 
         return request.make_json_response({"status": "ok"})
 
+    def _find_existing(self, env, wa_id):
+        if not wa_id:
+            return env["whatsmeow.message"]
+        return env["whatsmeow.message"].search(
+            [("wa_message_id", "=", wa_id), ("direction", "=", "in")], limit=1)
+
+    def _media_vals(self, media):
+        """The bytes stay on the gateway; a cron collects them so a big file
+        can't hold this webhook (and its transaction) open."""
+        return {
+            "message_type": media.get("kind") or "document",
+            "media_filename": media.get("filename") or False,
+            "media_mimetype": media.get("mimetype") or False,
+            "media_size": media.get("size") or 0,
+            "media_duration": media.get("seconds") or 0,
+            "is_voice_note": bool(media.get("ptt")),
+            "media_state": "pending",
+        }
+
     def _on_message(self, env, session, data):
         wa_id = data.get("wa_message_id")
-        if wa_id and env["whatsmeow.message"].search_count(
-            [("wa_message_id", "=", wa_id), ("direction", "=", "in")], limit=1
-        ):
-            return  # webhook retries -> stay idempotent
+        existing = self._find_existing(env, wa_id)
+        if existing:
+            # Webhook retries and WhatsApp's own double-delivery both land here.
+            return self._merge_duplicate(existing, data)
         # sender_phone is empty when WhatsApp only gave us a LID; don't try to
         # match a partner on it, and never store the LID as if it were a phone.
         phone = (data.get("sender_phone") or "").strip()
@@ -83,24 +104,49 @@ class WhatsmeowWebhook(http.Controller):
             "state": "received",
             "body": body,
             "wa_message_id": wa_id,
+            "is_placeholder": bool(data.get("placeholder")),
         }
         if media:
-            # The bytes stay on the gateway; a cron collects them so a big file
-            # can't hold this webhook (and its transaction) open.
-            vals.update({
-                "message_type": media.get("kind") or "document",
-                "media_filename": media.get("filename") or False,
-                "media_mimetype": media.get("mimetype") or False,
-                "media_size": media.get("size") or 0,
-                "media_duration": media.get("seconds") or 0,
-                "is_voice_note": bool(media.get("ptt")),
-                "media_state": "pending",
-            })
-        msg = env["whatsmeow.message"].create(vals)
+            vals.update(self._media_vals(media))
+        try:
+            # Two retries can arrive at the same instant: both search, both find
+            # nothing, both insert. Only the unique index can settle that, so
+            # let it, and treat the loser as the duplicate it is.
+            with env.cr.savepoint():
+                msg = env["whatsmeow.message"].create(vals)
+                msg.flush_recordset()
+        except IntegrityError:
+            existing = self._find_existing(env, wa_id)
+            _logger.info("whatsmeow: concurrent duplicate of %s settled by the "
+                         "database", wa_id)
+            return self._merge_duplicate(existing, data) if existing else None
 
         if media:
             return  # _post_to_chatter runs once the media has been fetched
         msg._post_to_chatter()
+
+    def _merge_duplicate(self, existing, data):
+        """Reconcile a second copy of a message we already have.
+
+        Normally there is nothing to do — the gateway retried and we are
+        idempotent. But WhatsApp also delivers some messages twice, the first
+        copy empty, and the gateway flags that one as a placeholder. Keeping
+        whichever landed first would mean keeping the empty one and losing the
+        real text, so let the real copy replace the stand-in.
+        """
+        if not existing.is_placeholder or data.get("placeholder"):
+            return  # a plain retry, or another empty copy: nothing to gain
+        media = data.get("media") or {}
+        vals = {"body": data.get("body") or "", "is_placeholder": False}
+        if media:
+            vals.update(self._media_vals(media))
+        existing.write(vals)
+        _logger.info("whatsmeow: real copy of %s replaced its placeholder",
+                     existing.wa_message_id)
+        if not media:
+            # The placeholder never reached the chatter with anything useful;
+            # post the real text now.
+            existing._post_to_chatter()
 
     def _on_receipt(self, env, data):
         state = "read" if data.get("receipt_type") == "read" else "delivered"

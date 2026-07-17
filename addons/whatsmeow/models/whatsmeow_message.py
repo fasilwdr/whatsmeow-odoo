@@ -138,6 +138,13 @@ class WhatsmeowMessage(models.Model):
         string="Duration (s)", readonly=True, help="For audio and video.",
     )
     wa_message_id = fields.Char(readonly=True, index=True)
+    is_placeholder = fields.Boolean(
+        readonly=True,
+        help="The gateway had nothing to render for this message, so the body "
+             "is a stand-in. WhatsApp sometimes delivers a message twice — once "
+             "empty, once for real — and the real copy replaces this one when "
+             "it lands.",
+    )
     state = fields.Selection(
         [
             ("outgoing", "Queued"),
@@ -150,6 +157,16 @@ class WhatsmeowMessage(models.Model):
         default="outgoing", required=True,
     )
     error_message = fields.Char(readonly=True)
+
+    # The gateway retries a webhook it thinks failed, and those retries can
+    # land at the same moment. A search-then-create cannot dedupe that: both
+    # requests look, both find nothing, both insert. Only the database can
+    # settle it. Outgoing messages are excluded because they have no id until
+    # the gateway answers, so they would all collide on NULL... which Postgres
+    # permits, but the index would still be meaningless for them.
+    _inbound_wa_id_uniq = models.UniqueIndex(
+        "(wa_message_id) WHERE direction = 'in' AND wa_message_id IS NOT NULL",
+    )
 
     @api.depends("chat_jid")
     def _compute_chat_type(self):
@@ -287,12 +304,35 @@ class WhatsmeowMessage(models.Model):
             payload["quoted_text"] = text
         return payload
 
+    def _idempotency_key(self):
+        """A key that is stable across every send attempt of this message.
+
+        Handing the gateway the same message twice is not a harmless retry —
+        the recipient sees it twice. It happens because the send and the
+        record live in one transaction: if that transaction rolls back after
+        the gateway POST (a crash, a serialisation failure, a wedged worker),
+        the message is already on its way to WhatsApp but the record still
+        reads 'outgoing', so the queue sends it again. The gateway replays the
+        first result for a key it has already seen.
+
+        The database name and record id are enough: the id is assigned at
+        create and committed with the record, so it survives the rollback that
+        causes the resend in the first place. That also means no extra column,
+        and no backfill for messages that already exist.
+        """
+        self.ensure_one()
+        return f"{self.env.cr.dbname}:{self._name}:{self.id}"
+
     def _send_payload(self):
         """Build the gateway call for this message: text and media use
         different endpoints and payloads."""
         self.ensure_one()
         code = self.session_id.code
-        common = {**self._target_payload(), **self._quote_payload()}
+        common = {
+            **self._target_payload(),
+            **self._quote_payload(),
+            "idempotency_key": self._idempotency_key(),
+        }
         if self.message_type == "text":
             return f"/sessions/{code}/send", {**common, "message": self.body or ""}
         return f"/sessions/{code}/send-media", {

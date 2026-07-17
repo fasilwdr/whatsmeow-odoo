@@ -2,9 +2,15 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	waE2E "go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
@@ -380,5 +386,237 @@ func TestDescribeMessage(t *testing.T) {
 				t.Errorf("describeMessage() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Send idempotency
+// ---------------------------------------------------------------------------
+
+// Odoo's transaction can roll back after we have already handed the message to
+// WhatsApp, leaving the record queued so the cron sends it again. The key is
+// what stops the recipient seeing it twice.
+func TestSendCacheReplaysInsteadOfResending(t *testing.T) {
+	c := &sendCache{byKey: map[string]*sendOutcome{}, ttl: time.Hour}
+	ts := time.Now()
+
+	out, replay := c.begin("db:whatsmeow.message:372")
+	if replay {
+		t.Fatal("a key seen for the first time must not replay")
+	}
+	c.resolve("db:whatsmeow.message:372", out, "3EB0FIRST", "", ts, nil)
+
+	again, replay := c.begin("db:whatsmeow.message:372")
+	if !replay {
+		t.Fatal("a key we have already sent must replay, not send again")
+	}
+	if again.waID != "3EB0FIRST" {
+		t.Errorf("replay returned %q, want the original send's id", again.waID)
+	}
+}
+
+// A send that never reached WhatsApp must be retryable, otherwise a transient
+// gateway error would strand the message forever.
+func TestSendCacheForgetsFailures(t *testing.T) {
+	c := &sendCache{byKey: map[string]*sendOutcome{}, ttl: time.Hour}
+	out, _ := c.begin("k")
+	c.resolve("k", out, "", "", time.Time{}, fmt.Errorf("boom"))
+
+	if _, replay := c.begin("k"); replay {
+		t.Error("a failed send must not be cached: the retry has to really send")
+	}
+}
+
+// An empty key means the caller opted out; it must never dedupe those together.
+func TestSendCacheIgnoresEmptyKeys(t *testing.T) {
+	c := &sendCache{byKey: map[string]*sendOutcome{}, ttl: time.Hour}
+	out, replay := c.begin("")
+	if replay {
+		t.Fatal("an empty key must not replay")
+	}
+	c.resolve("", out, "3EB0A", "", time.Now(), nil)
+	if _, replay := c.begin(""); replay {
+		t.Error("two keyless sends are different messages, not a duplicate")
+	}
+	if len(c.byKey) != 0 {
+		t.Errorf("keyless sends must not accumulate in the cache: %v", c.byKey)
+	}
+}
+
+// Two cron workers racing on the same message must produce one WhatsApp
+// message, and both must be told the same id.
+func TestSendCacheConcurrentAttemptsSendOnce(t *testing.T) {
+	c := &sendCache{byKey: map[string]*sendOutcome{}, ttl: time.Hour}
+	const key = "db:whatsmeow.message:1"
+
+	var sends int32
+	var wg sync.WaitGroup
+	ids := make([]string, 8)
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			out, replay := c.begin(key)
+			if !replay {
+				atomic.AddInt32(&sends, 1)
+				time.Sleep(5 * time.Millisecond) // the send is not instant
+				c.resolve(key, out, "3EB0ONCE", "", time.Now(), nil)
+			}
+			ids[i] = out.waID
+		}(i)
+	}
+	wg.Wait()
+
+	if sends != 1 {
+		t.Errorf("sent %d times, want exactly 1", sends)
+	}
+	for i, id := range ids {
+		if id != "3EB0ONCE" {
+			t.Errorf("caller %d got id %q, want the single send's id", i, id)
+		}
+	}
+}
+
+// resolve runs from a defer as well as the happy path, so it must be safe twice.
+func TestSendCacheResolveIsIdempotent(t *testing.T) {
+	c := &sendCache{byKey: map[string]*sendOutcome{}, ttl: time.Hour}
+	out, _ := c.begin("k")
+	c.resolve("k", out, "3EB0A", "", time.Now(), nil)
+	c.resolve("k", out, "", "", time.Time{}, errSendIncomplete) // the deferred call
+	if out.waID != "3EB0A" || out.err != nil {
+		t.Errorf("the deferred resolve overwrote a real result: %q / %v", out.waID, out.err)
+	}
+}
+
+func TestSendCacheSweepExpiresResolvedKeys(t *testing.T) {
+	c := &sendCache{byKey: map[string]*sendOutcome{}, ttl: time.Hour}
+	old, _ := c.begin("old")
+	c.resolve("old", old, "3EB0OLD", "", time.Now(), nil)
+	old.storedAt = time.Now().Add(-2 * time.Hour)
+
+	fresh, _ := c.begin("fresh")
+	c.resolve("fresh", fresh, "3EB0NEW", "", time.Now(), nil)
+
+	inflight, _ := c.begin("inflight") // never resolved
+	_ = inflight
+
+	c.sweep()
+	if _, ok := c.byKey["old"]; ok {
+		t.Error("an expired key must be swept")
+	}
+	if _, ok := c.byKey["fresh"]; !ok {
+		t.Error("a fresh key must survive the sweep")
+	}
+	if _, ok := c.byKey["inflight"]; !ok {
+		t.Error("an in-flight send must never be swept: its result is still owed")
+	}
+}
+
+// Odoo sends the key on both endpoints; a typo in the json tag would silently
+// disable idempotency rather than fail.
+func TestIdempotencyKeyDecodesFromOdooPayload(t *testing.T) {
+	var req sendRequest
+	body := `{"phone": "447700900123", "message": "hi",
+	          "idempotency_key": "whatsmeow:whatsmeow.message:372"}`
+	if err := json.Unmarshal([]byte(body), &req); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if req.Key != "whatsmeow:whatsmeow.message:372" {
+		t.Errorf("text send lost the idempotency key: %q", req.Key)
+	}
+
+	var mreq sendMediaRequest
+	mbody := `{"phone": "447700900123", "data": "eA==", "mimetype": "image/jpeg",
+	           "idempotency_key": "whatsmeow:whatsmeow.message:373"}`
+	if err := json.Unmarshal([]byte(mbody), &mreq); err != nil {
+		t.Fatalf("decode media: %v", err)
+	}
+	if mreq.Key != "whatsmeow:whatsmeow.message:373" {
+		t.Errorf("media send lost the idempotency key: %q", mreq.Key)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Webhook fan-out
+// ---------------------------------------------------------------------------
+
+// One message to a big group produces a receipt per participant. Posting them
+// all at once once exhausted an Odoo's threads; the queue is what bounds it.
+func TestNotifyOdooNeverBlocksTheEventHandler(t *testing.T) {
+	prevURL, prevQueue := odooWebhookURL, webhookQueue
+	defer func() { odooWebhookURL, webhookQueue = prevURL, prevQueue }()
+
+	odooWebhookURL = "http://127.0.0.1:1/whatsmeow/webhook"
+	webhookQueue = make(chan webhookJob, 4) // deliberately tiny; no workers drain it
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; i < 200; i++ { // far more than the queue holds
+			notifyOdoo("test_me", "message.receipt", map[string]any{"n": i})
+		}
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("notifyOdoo blocked on a full queue: this stalls the WhatsApp " +
+			"connection, since it runs on whatsmeow's event handler")
+	}
+	if len(webhookQueue) != 4 {
+		t.Errorf("queue holds %d, want it capped at 4", len(webhookQueue))
+	}
+}
+
+// The incident this fixes: one reply to a group produced ~62 receipts at once,
+// each posted on its own goroutine. Odoo's threaded server spawns a thread per
+// request, ran out, and died — after which the retries kept it down. Prove the
+// pool bounds concurrency no matter how many events arrive together.
+func TestWebhookWorkersBoundConcurrency(t *testing.T) {
+	prevURL, prevQueue, prevWorkers := odooWebhookURL, webhookQueue, webhookWorkers
+	defer func() {
+		odooWebhookURL, webhookQueue, webhookWorkers = prevURL, prevQueue, prevWorkers
+	}()
+
+	var inFlight, maxInFlight, total int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := atomic.AddInt32(&inFlight, 1)
+		for {
+			old := atomic.LoadInt32(&maxInFlight)
+			if n <= old || atomic.CompareAndSwapInt32(&maxInFlight, old, n) {
+				break
+			}
+		}
+		time.Sleep(2 * time.Millisecond) // Odoo is not instant
+		atomic.AddInt32(&total, 1)
+		atomic.AddInt32(&inFlight, -1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	odooWebhookURL = srv.URL
+	webhookWorkers = 4
+	startWebhookWorkers()
+
+	const events = 200 // a very large group
+	for i := 0; i < events; i++ {
+		notifyOdoo("test_me", "message.receipt", map[string]any{"n": i})
+	}
+
+	deadline := time.Now().Add(20 * time.Second)
+	for atomic.LoadInt32(&total) < events && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	if got := atomic.LoadInt32(&total); got != events {
+		t.Fatalf("Odoo received %d of %d events; none may be dropped when it is healthy", got, events)
+	}
+	peak := atomic.LoadInt32(&maxInFlight)
+	if peak > int32(webhookWorkers) {
+		t.Errorf("peak concurrency %d exceeded the %d workers: the fan-out is still unbounded",
+			peak, webhookWorkers)
+	} else {
+		t.Logf("delivered %d events with peak concurrency %d (workers=%d)",
+			atomic.LoadInt32(&total), peak, webhookWorkers)
 	}
 }
