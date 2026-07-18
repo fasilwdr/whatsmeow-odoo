@@ -10,8 +10,15 @@ $o-whatsmeow-green: #25d366;
 // Tint the bubble of a message that went out over WhatsApp. Chatter notes are
 // yellow and comments are white, so a third colour is what keeps the three
 // kinds of entry apart in a busy thread.
+//
+// Mixed from the theme's own variables rather than a literal green: the tint and
+// the outline then follow the view background, so they stay legible in dark mode
+// instead of glowing over it.
+$o-whatsmeow-border-base: mix($success, $body-color, 75%);
+
 .o-mail-Message[data-whatsmeow="1"] .o-mail-Message-body {
-    background-color: rgba($o-whatsmeow-green, 0.09);
-    border-radius: 0.25rem;
-    padding: 0.5rem 0.75rem;
+    background-color: mix($o-view-background-color, $success, 90%);
+    border: 1px solid mix($o-view-background-color, $o-whatsmeow-border-base, 80%);
+    border-radius: 0.5rem;
+    padding: map-get($spacers, 2) map-get($spacers, 3);
 }
