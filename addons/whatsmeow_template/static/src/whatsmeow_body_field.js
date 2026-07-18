@@ -74,15 +74,24 @@ export class WhatsmeowBodyField extends TextField {
      * A textarea exposes no caret geometry, so the position is measured: the
      * line is the newline count before the selection, and the column is the
      * width of that line's prefix in the textarea's own font. It only has to be
-     * close — the result is clamped into the field, and being a few pixels off
-     * costs nothing because the buttons act on the selection, not on wherever
-     * they happen to sit.
+     * close — being a few pixels off costs nothing because the buttons act on
+     * the selection, not on wherever they happen to sit.
+     *
+     * The one thing it must never do is sit on top of the selection, because
+     * then the operator cannot see the text they are formatting. So it floats
+     * above the first selected line, and when there is no room up there it
+     * flips *below the last* selected line rather than being clamped to the
+     * top edge — clamping would park it directly over a selection on line one.
      */
     anchorFor(textarea) {
         const style = getComputedStyle(textarea);
         const lineHeight = parseFloat(style.lineHeight) || 16;
-        const before = textarea.value.slice(0, textarea.selectionStart);
-        const lineIndex = before.split("\n").length - 1;
+        const paddingTop = parseFloat(style.paddingTop) || 0;
+        const { value, selectionStart, selectionEnd } = textarea;
+
+        const before = value.slice(0, selectionStart);
+        const firstLine = before.split("\n").length - 1;
+        const lastLine = value.slice(0, selectionEnd).split("\n").length - 1;
         const prefix = before.slice(before.lastIndexOf("\n") + 1);
 
         const context = (WhatsmeowBodyField.measureContext ??= document
@@ -90,10 +99,15 @@ export class WhatsmeowBodyField extends TextField {
             .getContext("2d"));
         context.font = style.font || `${style.fontSize} ${style.fontFamily}`;
 
-        const top = lineIndex * lineHeight - textarea.scrollTop - TOOLBAR_HEIGHT;
+        const offset = paddingTop - textarea.scrollTop;
+        let top = offset + firstLine * lineHeight - TOOLBAR_HEIGHT - TOOLBAR_GAP;
+        if (top < 0) {
+            top = offset + (lastLine + 1) * lineHeight + TOOLBAR_GAP;
+        }
+
         const left = parseFloat(style.paddingLeft) + context.measureText(prefix).width;
         return {
-            top: Math.max(top, 0),
+            top,
             left: Math.max(Math.min(left, textarea.clientWidth - TOOLBAR_WIDTH), 0),
         };
     }
@@ -130,9 +144,13 @@ export class WhatsmeowBodyField extends TextField {
     }
 }
 
-/** Rough size of the floating toolbar, used only to keep it inside the field. */
+// Rough size of the floating toolbar. The width only keeps it from running off
+// the right edge; the height decides whether it clears the line above.
 const TOOLBAR_WIDTH = 132;
-const TOOLBAR_HEIGHT = 32;
+const TOOLBAR_HEIGHT = 28;
+// Enough daylight that the toolbar reads as floating over the text rather than
+// as part of the line it sits next to.
+const TOOLBAR_GAP = 2;
 
 const MARK_TITLES = {
     bold: _t("Bold"),
