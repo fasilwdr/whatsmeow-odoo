@@ -76,8 +76,28 @@ sudo LISTEN_ADDR=127.0.0.1:9000 \
 | `GO_VERSION` | from `gateway/go.mod` | Go toolchain to install |
 | `UPGRADE_WHATSMEOW` | `0` | see [§7](#7-upgrading-whatsmeow) |
 
-These only take effect on a **first** install. On a re-run the existing
-`gateway.env` wins; edit that file and `systemctl restart whatsmeow-gateway`.
+On a re-run the existing `gateway.env` wins over the *defaults* — secrets and
+settings are kept — but `LISTEN_ADDR` and `ODOO_WEBHOOK_URL` passed explicitly
+are written into that file, so a first install that picked a bad port can be
+corrected without losing the generated credentials:
+
+```bash
+sudo LISTEN_ADDR=127.0.0.1:8081 ./install.sh
+```
+
+`DATA_DIR` is deliberately *not* re-applied once an env file exists: the paired
+sessions live in the old directory and moving it would orphan them. Anything
+else is a hand-edit of `gateway.env` plus `systemctl restart whatsmeow-gateway`.
+
+### Choosing a port
+
+The default is `127.0.0.1:8080`. The script checks the port is free before
+installing anything and stops with a one-line message if it is not — a busy
+port otherwise shows up as a systemd restart loop.
+
+Note that **8080 is a popular port** and, under WSL2 mirrored networking, a
+listener on the *Windows* side occupies it inside Linux too without appearing in
+`ss` or `netstat`. If 8080 is taken, 8081 is the usual next choice.
 
 ## 3. Wiring it to Odoo
 
@@ -208,11 +228,20 @@ or a timeout means the URL is wrong or Odoo is not reachable from this host.
 had no network. The script runs it; a proxy that blocks `proxy.golang.org` is
 the usual cause.
 
-**The service restarts in a loop.** `journalctl -u whatsmeow-gateway -n 50`.
-A port already in use and an unwritable `WMG_DATA_DIR` are the common two;
-the latter means `ReadWritePaths` in the unit no longer matches the data
-directory in `gateway.env` (they are set together, so this only happens after
-editing one by hand).
+**`bind: address already in use` in the journal.** Something else holds the
+port. Re-run with a free one — the explicit value replaces what is in
+`gateway.env`, keeping the secrets:
+
+```bash
+sudo LISTEN_ADDR=127.0.0.1:8081 ./install.sh
+```
+
+**The service restarts in a loop.** `journalctl -u whatsmeow-gateway -n 50`, and
+read the *first* error, not the last — the loop repeats it every five seconds.
+A busy port and an unwritable `WMG_DATA_DIR` are the common two; the latter
+means `ReadWritePaths` in the unit no longer matches the data directory in
+`gateway.env` (they are set together, so this only happens after editing one by
+hand). A failed install leaves the service stopped rather than cycling.
 
 **A session shows Disconnected after the phone was offline.** Normal — the gateway
 reconnects on its own. A session that stays disconnected has been unlinked from

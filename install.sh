@@ -22,6 +22,14 @@
 set -euo pipefail
 
 # ---- configurable knobs (override via env) --------------------------------
+# Remember which of these the caller actually passed, before defaulting fills
+# them in. On a re-run the existing env file wins over a default — but a knob
+# given on the command line has to win over the file, or a first install that
+# failed on a busy port can never be corrected: the second run would keep the
+# bad value from the first and fail identically.
+[ -n "${LISTEN_ADDR+x}" ] && LISTEN_ADDR_GIVEN=1 || LISTEN_ADDR_GIVEN=0
+[ -n "${ODOO_WEBHOOK_URL+x}" ] && ODOO_WEBHOOK_URL_GIVEN=1 || ODOO_WEBHOOK_URL_GIVEN=0
+
 INSTALL_DIR="${INSTALL_DIR:-/opt/whatsmeow-gateway}"
 DATA_DIR="${DATA_DIR:-/var/lib/whatsmeow-gateway}"
 SERVICE_USER="${SERVICE_USER:-wagw}"
@@ -144,8 +152,40 @@ fi
 
 # ---- env file (preserve existing secrets on re-run) ------------------------
 ENV_FILE="$INSTALL_DIR/gateway.env"
+
+# Rewrite one key in place, keeping the rest of the file (and its comments).
+set_env() {
+  local key="$1" val="$2"
+  if grep -qE "^$key=" "$ENV_FILE"; then
+    # awk, not sed: a URL value is full of '/' and '&', which sed would treat as
+    # a delimiter and a backreference. awk -v takes the value as plain data.
+    awk -v k="$key" -v v="$val" \
+        'index($0, k "=") == 1 { print k "=" v; next } { print }' \
+        "$ENV_FILE" > "$ENV_FILE.tmp"
+    mv "$ENV_FILE.tmp" "$ENV_FILE"
+  else
+    printf '%s=%s\n' "$key" "$val" >> "$ENV_FILE"
+  fi
+}
+
 if [ -f "$ENV_FILE" ]; then
   log "Existing env file found — keeping current secrets and settings."
+  # ...except a knob passed explicitly on this run, which is how a bad value
+  # from an earlier install gets corrected.
+  if [ "$LISTEN_ADDR_GIVEN" = "1" ]; then
+    set_env WMG_LISTEN "$LISTEN_ADDR"
+    log "Applied LISTEN_ADDR=$LISTEN_ADDR to the existing env file."
+  fi
+  if [ "$ODOO_WEBHOOK_URL_GIVEN" = "1" ]; then
+    set_env WMG_ODOO_WEBHOOK_URL "$ODOO_WEBHOOK_URL"
+    log "Applied ODOO_WEBHOOK_URL=$ODOO_WEBHOOK_URL to the existing env file."
+  fi
+  # The data directory is not a free knob once sessions exist: moving it would
+  # orphan the pairings. Say so rather than silently ignoring it.
+  CUR_DATA="$(grep -E '^WMG_DATA_DIR=' "$ENV_FILE" | head -1 | cut -d= -f2-)"
+  if [ -n "$CUR_DATA" ] && [ "$CUR_DATA" != "$DATA_DIR" ]; then
+    log "Note: keeping WMG_DATA_DIR=$CUR_DATA (the sessions live there)."
+  fi
 else
   log "Generating fresh API key and webhook secret..."
   cat > "$ENV_FILE" <<ENV
@@ -170,6 +210,35 @@ API_KEY="$(get_env WMG_API_KEY)"
 WEBHOOK_SECRET="$(get_env WMG_WEBHOOK_SECRET)"
 ACTUAL_LISTEN="$(get_env WMG_LISTEN)"
 ACTUAL_DATA_DIR="$(get_env WMG_DATA_DIR)"
+
+# A listen address may be host-less (":8080") or a wildcard ("0.0.0.0:8080");
+# neither is dialable as written, so probe the loopback on that port instead.
+PROBE_HOST="${ACTUAL_LISTEN%:*}"
+PROBE_PORT="${ACTUAL_LISTEN##*:}"
+case "$PROBE_HOST" in ""|"0.0.0.0"|"[::]"|"::") PROBE_HOST="127.0.0.1" ;; esac
+PROBE_URL="http://${PROBE_HOST}:${PROBE_PORT}/health"
+
+# ---- is the port free? -----------------------------------------------------
+# Check before installing the unit: otherwise a busy port shows up as a restart
+# loop and a wall of journal output, which says "already in use" only if you
+# read to the end. Connect rather than consult ss: under WSL2 mirrored
+# networking a Windows-side listener holds the port inside Linux too and does
+# not appear in ss at all -- which is exactly how port 8080 fails here.
+if ! systemctl is-active --quiet whatsmeow-gateway 2>/dev/null; then
+  # Bound the connect: a refused port answers instantly, but a *filtered* one
+  # (no listener, packets dropped -- what an unused port looks like under WSL2
+  # mirrored networking) never answers at all, and an unbounded probe would
+  # hang the installer on a perfectly good port. A timeout means "nothing
+  # answered", so carry on and let the real bind be the judge.
+  if timeout 2 bash -c "exec 3<>/dev/tcp/${PROBE_HOST}/${PROBE_PORT}" 2>/dev/null; then
+    err "Something is already listening on ${PROBE_HOST}:${PROBE_PORT}."
+    err "The gateway cannot bind it. Pick a free port and re-run, e.g.:"
+    err "    sudo LISTEN_ADDR=127.0.0.1:8081 $0"
+    err "(A re-run applies an explicitly passed LISTEN_ADDR to the existing"
+    err " env file, so the secrets already generated are kept.)"
+    exit 1
+  fi
+fi
 
 # ---- systemd unit ----------------------------------------------------------
 # Always generated from the knobs above: a checked-in unit file would hardcode
@@ -203,13 +272,6 @@ systemctl enable --now whatsmeow-gateway
 systemctl restart whatsmeow-gateway
 
 # ---- verify it actually came up --------------------------------------------
-# A listen address may be host-less (":8080") or a wildcard ("0.0.0.0:8080");
-# neither is dialable as written, so probe the loopback on that port instead.
-PROBE_HOST="${ACTUAL_LISTEN%:*}"
-PROBE_PORT="${ACTUAL_LISTEN##*:}"
-case "$PROBE_HOST" in ""|"0.0.0.0"|"[::]"|"::") PROBE_HOST="127.0.0.1" ;; esac
-PROBE_URL="http://${PROBE_HOST}:${PROBE_PORT}/health"
-
 log "Waiting for the gateway to answer on ${PROBE_URL} ..."
 OK=0
 for _ in $(seq 1 15); do
@@ -217,8 +279,16 @@ for _ in $(seq 1 15); do
   sleep 1
 done
 if [ "$OK" -ne 1 ]; then
-  err "Gateway did not become healthy. Recent logs:"
+  # Stop the restart loop before reporting: leaving it cycling every 5s buries
+  # the cause in fresh journal lines while the operator is reading them.
+  systemctl stop whatsmeow-gateway 2>/dev/null || true
+  err "Gateway did not become healthy — the service has been stopped."
+  err "Last lines from the journal (the cause is usually the first error):"
   journalctl -u whatsmeow-gateway -n 30 --no-pager >&2 || true
+  echo >&2
+  err "Fix the cause, then re-run this script. Common ones:"
+  err "  'address already in use'  -> sudo LISTEN_ADDR=127.0.0.1:8081 $0"
+  err "  'permission denied'       -> $ACTUAL_DATA_DIR not writable by $SERVICE_USER"
   exit 1
 fi
 log "Gateway is healthy."
