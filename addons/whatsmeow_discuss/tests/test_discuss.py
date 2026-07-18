@@ -335,6 +335,32 @@ class TestOutboundRelay(DiscussCommon):
         self.assertEqual(out._quote_payload().get("quoted_id"),
                          inbound.wa_message_id)
 
+    def test_inbound_reply_threads_under_the_bubble_it_quotes(self):
+        """A contact quoting a message must render in Discuss's native reply
+        style, i.e. as a child of the bubble it answers."""
+        channel = self._open_channel()
+        first = self.env["whatsmeow.message"].search([
+            ("session_id", "=", self.session.id), ("direction", "=", "in")], limit=1)
+        self._inbound(wa_message_id="WA2", body="about that",
+                      quoted_id=first.wa_message_id)
+        reply = self.env["whatsmeow.message"].search(
+            [("wa_message_id", "=", "WA2")])
+        self.assertEqual(reply.reply_to_id, first)
+        self.assertEqual(reply.mail_message_id.parent_id, first.mail_message_id)
+        self.assertEqual(reply.mail_message_id.res_id, channel.id)
+
+    def test_inbound_reply_to_an_unknown_message_still_posts(self):
+        """The quoted message may predate the install or have been filtered
+        out; the reply must land as a plain bubble, not vanish."""
+        self._open_channel()
+        self._inbound(wa_message_id="WA2", body="about that",
+                      quoted_id="NEVER-SEEN")
+        reply = self.env["whatsmeow.message"].search(
+            [("wa_message_id", "=", "WA2")])
+        self.assertFalse(reply.reply_to_id)
+        self.assertTrue(reply.mail_message_id)
+        self.assertFalse(reply.mail_message_id.parent_id)
+
     def test_plain_reply_carries_no_quote(self):
         channel = self._open_channel()
         with patch.object(type(self.session), "_gw",

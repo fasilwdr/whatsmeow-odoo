@@ -210,11 +210,21 @@ class WhatsmeowMessage(models.Model):
             body = self.env._("sent %s", self.message_type)
         # Inbound WhatsApp text is untrusted; plaintext2html escapes it (and
         # renders newlines), the same guarantee as the chatter's Markup(...) % .
+        # A WhatsApp reply quotes the message it answers; Discuss shows the same
+        # thing as parent_id, so an inbound reply renders in the native reply
+        # style instead of arriving as an unrelated bubble. Only a parent in
+        # *this* channel qualifies — mail.message rejects a cross-thread parent,
+        # and a quote of a message from before the conversation was routed has
+        # no bubble at all.
+        parent = self.reply_to_id.mail_message_id
+        if parent.model != "discuss.channel" or parent.res_id != channel.id:
+            parent = self.env["mail.message"]
         posted = channel.with_context(whatsmeow_skip_send=True).message_post(
             body=plaintext2html(body) if body else Markup(""),
             author_id=author.id or False,
             message_type="comment",
             subtype_xmlid="mail.mt_comment",
             attachment_ids=attachments.ids,
+            parent_id=parent.id or False,
         )
         self.mail_message_id = posted.id

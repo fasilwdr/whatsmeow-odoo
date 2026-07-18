@@ -321,6 +321,10 @@ func makeEventHandler(s *Session) func(interface{}) {
 				"placeholder":     placeholder,
 				"timestamp":       v.Info.Timestamp.UTC().Format(time.RFC3339),
 			}
+			if q := quotedID(v.Message); q != "" {
+				// The message this one replies to, so Odoo can thread it.
+				payload["quoted_id"] = q
+			}
 			if media != nil {
 				// Metadata only; Odoo pulls the bytes from /media/{id}.
 				payload["media"] = media
@@ -716,6 +720,31 @@ func extractText(msg *waE2E.Message) string {
 	}
 	if lst := msg.GetListResponseMessage(); lst != nil {
 		return lst.GetTitle()
+	}
+	return ""
+}
+
+// quotedID returns the id of the message this one quotes, "" when it quotes
+// nothing. A quote rides in the ContextInfo of whichever part carries it, so
+// this is the mirror of `quote.contextInfo()` on the sending side: it lets Odoo
+// link an inbound reply back to the message it answers instead of losing the
+// thread.
+func quotedID(msg *waE2E.Message) string {
+	msg = unwrap(msg)
+	if msg == nil {
+		return ""
+	}
+	for _, ci := range []*waE2E.ContextInfo{
+		msg.GetExtendedTextMessage().GetContextInfo(),
+		msg.GetImageMessage().GetContextInfo(),
+		msg.GetVideoMessage().GetContextInfo(),
+		msg.GetAudioMessage().GetContextInfo(),
+		msg.GetStickerMessage().GetContextInfo(),
+		msg.GetDocumentMessage().GetContextInfo(),
+	} {
+		if id := ci.GetStanzaID(); id != "" {
+			return id
+		}
 	}
 	return ""
 }

@@ -583,6 +583,46 @@ class TestInboundDedup(WhatsmeowCommon):
         })
         self.assertEqual(self._messages("3EBORDER").body, "Vc available")
 
+    def test_inbound_quote_links_back_to_our_outgoing(self):
+        """A contact usually replies to something *we* sent, so the lookup has
+        to span both directions."""
+        out = self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "direction": "out",
+            "phone": "447700900123", "body": "your order is ready",
+            "wa_message_id": "OUT-9",
+        })
+        self.ctrl._on_message(self.env, self.session, {
+            "wa_message_id": "3EBQ", "sender_phone": "447700900123",
+            "body": "on my way", "quoted_id": "OUT-9",
+        })
+        self.assertEqual(self._messages("3EBQ").reply_to_id, out)
+
+    def test_the_quote_arrives_with_the_real_copy_not_the_stub(self):
+        """The empty first copy carries no ContextInfo, so the link can only be
+        made when the real one lands."""
+        self.ctrl._on_message(self.env, self.session, {
+            "wa_message_id": "3EBQTWIN", "sender_phone": "447700900123",
+            "body": "[unsupported message type: text]", "placeholder": True,
+        })
+        first = self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "direction": "in", "state": "received",
+            "body": "the question", "wa_message_id": "IN-8",
+        })
+        self.ctrl._on_message(self.env, self.session, {
+            "wa_message_id": "3EBQTWIN", "sender_phone": "447700900123",
+            "body": "the answer", "placeholder": False, "quoted_id": "IN-8",
+        })
+        self.assertEqual(self._messages("3EBQTWIN").reply_to_id, first)
+
+    def test_a_quote_of_a_message_we_never_stored_is_ignored(self):
+        self.ctrl._on_message(self.env, self.session, {
+            "wa_message_id": "3EBQMISS", "sender_phone": "447700900123",
+            "body": "about that", "quoted_id": "NEVER-SEEN",
+        })
+        msg = self._messages("3EBQMISS")
+        self.assertTrue(msg, "the reply itself must still be stored")
+        self.assertFalse(msg.reply_to_id)
+
     def test_real_media_copy_upgrades_the_stub_and_queues_the_download(self):
         self.ctrl._on_message(self.env, self.session, {
             "wa_message_id": "3EBMED", "sender_phone": "447700900123",

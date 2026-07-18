@@ -704,3 +704,57 @@ func TestWebhookWorkersBoundConcurrency(t *testing.T) {
 			atomic.LoadInt32(&total), peak, webhookWorkers)
 	}
 }
+
+// A quote rides in the ContextInfo of whichever part carries it, and it is what
+// lets Odoo thread an inbound reply under the message it answers.
+func TestQuotedID(t *testing.T) {
+	ctx := &waE2E.ContextInfo{StanzaID: proto.String("ORIG-1")}
+	tests := []struct {
+		name string
+		msg  *waE2E.Message
+		want string
+	}{
+		{"nil", nil, ""},
+		{"plain conversation", &waE2E.Message{Conversation: proto.String("hi")}, ""},
+		{
+			"extended text reply",
+			&waE2E.Message{ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+				Text: proto.String("yes"), ContextInfo: ctx}},
+			"ORIG-1",
+		},
+		{
+			"image reply",
+			&waE2E.Message{ImageMessage: &waE2E.ImageMessage{ContextInfo: ctx}},
+			"ORIG-1",
+		},
+		{
+			"document reply",
+			&waE2E.Message{DocumentMessage: &waE2E.DocumentMessage{ContextInfo: ctx}},
+			"ORIG-1",
+		},
+		{
+			// A view-once or disappearing reply hides its ContextInfo a level
+			// down, exactly as extractText/extractMedia see it.
+			"wrapped reply",
+			&waE2E.Message{EphemeralMessage: &waE2E.FutureProofMessage{
+				Message: &waE2E.Message{ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+					Text: proto.String("yes"), ContextInfo: ctx}}}},
+			"ORIG-1",
+		},
+		{
+			// ContextInfo is present on every quoted-capable part; an empty
+			// StanzaID means it is not a reply.
+			"context without a stanza id",
+			&waE2E.Message{ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+				Text: proto.String("hi"), ContextInfo: &waE2E.ContextInfo{}}},
+			"",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := quotedID(tt.msg); got != tt.want {
+				t.Errorf("quotedID() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

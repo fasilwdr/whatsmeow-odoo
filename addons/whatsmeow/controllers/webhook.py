@@ -69,6 +69,22 @@ class WhatsmeowWebhook(http.Controller):
         return env["whatsmeow.message"].search(
             [("wa_message_id", "=", wa_id), ("direction", "=", "in")], limit=1)
 
+    def _find_quoted(self, env, session, quoted_id):
+        """The message an inbound reply quotes, if we have it.
+
+        Either direction: a contact commonly replies to *our* outgoing message.
+        Scoped to the session, since a WhatsApp id is only unique within one.
+        Missing is normal — the quoted message may predate this install, or
+        have been rejected by the inbound filter — so this returns an empty
+        recordset rather than complaining.
+        """
+        if not quoted_id:
+            return env["whatsmeow.message"]
+        return env["whatsmeow.message"].search([
+            ("session_id", "=", session.id),
+            ("wa_message_id", "=", quoted_id),
+        ], limit=1)
+
     def _media_vals(self, media):
         """The bytes stay on the gateway; a cron collects them so a big file
         can't hold this webhook (and its transaction) open."""
@@ -135,6 +151,9 @@ class WhatsmeowWebhook(http.Controller):
             "wa_message_id": wa_id,
             "is_placeholder": bool(data.get("placeholder")),
         }
+        quoted = self._find_quoted(env, session, data.get("quoted_id"))
+        if quoted:
+            vals["reply_to_id"] = quoted.id
         if media:
             vals.update(self._media_vals(media))
         try:
@@ -167,6 +186,12 @@ class WhatsmeowWebhook(http.Controller):
             return  # a plain retry, or another empty copy: nothing to gain
         media = data.get("media") or {}
         vals = {"body": data.get("body") or "", "is_placeholder": False}
+        # The empty first copy carries no ContextInfo, so the quote only shows
+        # up on the real one.
+        quoted = self._find_quoted(
+            existing.env, existing.session_id, data.get("quoted_id"))
+        if quoted:
+            vals["reply_to_id"] = quoted.id
         if media:
             vals.update(self._media_vals(media))
         existing.write(vals)
