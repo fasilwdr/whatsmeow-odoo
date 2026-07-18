@@ -12,7 +12,6 @@ $o-whatsmeow-green: #25d366;
 // kinds of entry apart in a busy thread.
 .o-mail-Message[data-whatsmeow="1"] .o-mail-Message-body {
     background-color: rgba($o-whatsmeow-green, 0.09);
-    border-left: 3px solid rgba($o-whatsmeow-green, 0.55);
     border-radius: 0.25rem;
     padding: 0.5rem 0.75rem;
 }
