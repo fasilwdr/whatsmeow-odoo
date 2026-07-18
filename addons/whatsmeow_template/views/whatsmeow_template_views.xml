@@ -53,7 +53,7 @@
           </group>
           <notebook>
             <page string="Message" name="message">
-              <field name="body" nolabel="1" widget="whatsmeow_body"
+              <field name="body" nolabel="1" widget="whatsmeow_body" class="w-100"
                      placeholder="Hello {{ object.partner_id.name }}, your order {{ object.name }} is confirmed."/>
               <div class="text-muted mt-2">
                 Placeholders are rendered against the record:

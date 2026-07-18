@@ -1,3 +1,14 @@
+// `w-100` on the field only stretches the .o_field_widget wrapper; the widget's
+// own div sits inside it and would still shrink to its content, so the width
+// has to be carried the rest of the way down to the textarea.
+.o_whatsmeow_body {
+    width: 100%;
+
+    > textarea {
+        width: 100%;
+    }
+}
+
 // The formatting toolbar floats over the textarea, anchored near the selection
 // (see `anchorFor`). It has to sit above the field's own input buttons, and it
 // must not take a drag with it — pointer events on the buttons only.
