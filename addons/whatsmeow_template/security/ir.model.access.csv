@@ -1,0 +1,4 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_whatsmeow_template_user,whatsmeow.template user,model_whatsmeow_template,whatsmeow.group_whatsmeow_user,1,0,0,0
+access_whatsmeow_template_manager,whatsmeow.template manager,model_whatsmeow_template,whatsmeow.group_whatsmeow_manager,1,1,1,1
+access_whatsmeow_composer_user,whatsmeow.composer user,model_whatsmeow_composer,whatsmeow.group_whatsmeow_user,1,1,1,1

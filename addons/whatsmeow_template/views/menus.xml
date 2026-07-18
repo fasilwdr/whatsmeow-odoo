@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+  <menuitem id="menu_whatsmeow_templates" name="Templates"
+            parent="whatsmeow.menu_whatsmeow_config"
+            action="whatsmeow_template_action"
+            groups="whatsmeow.group_whatsmeow_manager" sequence="30"/>
+
+</odoo>

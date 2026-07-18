@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+  <record id="whatsmeow_composer_view_form" model="ir.ui.view">
+    <field name="name">whatsmeow.composer.form</field>
+    <field name="model">whatsmeow.composer</field>
+    <field name="arch" type="xml">
+      <form string="Send WhatsApp">
+        <field name="res_model" invisible="1"/>
+        <field name="res_ids" invisible="1"/>
+        <field name="batch_mode" invisible="1"/>
+        <field name="record_count" invisible="1"/>
+
+        <div class="alert alert-info" role="status" invisible="not batch_mode">
+          Each message is rendered from the template against its own record and
+          queued; the recipient number is resolved per record. Records with no
+          WhatsApp number are skipped and reported.
+        </div>
+
+        <group>
+          <field name="template_id" options="{'no_create_edit': True}"
+                 placeholder="Optional — write freely without one"/>
+          <field name="session_id" options="{'no_create': True}"/>
+          <field name="phone" invisible="batch_mode"
+                 placeholder="e.g. 447700900123"/>
+        </group>
+        <field name="body" invisible="batch_mode" nolabel="1"
+               placeholder="Your message…"/>
+        <div class="text-muted" invisible="not batch_mode">
+          The message body comes from the template and cannot be edited for a
+          batch — pick a single record to preview and tweak it.
+        </div>
+        <field name="attachment_ids" widget="many2many_binary"/>
+
+        <footer>
+          <button name="action_send" type="object" string="Send"
+                  class="btn-primary" data-hotkey="q"/>
+          <button string="Cancel" class="btn-secondary" special="cancel"
+                  data-hotkey="x"/>
+        </footer>
+      </form>
+    </field>
+  </record>
+
+  <!-- No menu: the composer is only ever opened from a record. -->
+  <record id="whatsmeow_composer_action" model="ir.actions.act_window">
+    <field name="name">Send WhatsApp</field>
+    <field name="res_model">whatsmeow.composer</field>
+    <field name="view_mode">form</field>
+    <field name="view_id" ref="whatsmeow_composer_view_form"/>
+    <field name="target">new</field>
+  </record>
+
+</odoo>

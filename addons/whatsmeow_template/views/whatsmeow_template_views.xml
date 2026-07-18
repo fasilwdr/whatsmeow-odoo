@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+  <record id="whatsmeow_template_view_list" model="ir.ui.view">
+    <field name="name">whatsmeow.template.list</field>
+    <field name="model">whatsmeow.template</field>
+    <field name="arch" type="xml">
+      <list string="WhatsApp Templates">
+        <field name="sequence" widget="handle"/>
+        <field name="name"/>
+        <field name="model_id"/>
+        <field name="session_id"/>
+        <field name="message_type"/>
+        <field name="phone_field" optional="hide"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="whatsmeow_template_view_form" model="ir.ui.view">
+    <field name="name">whatsmeow.template.form</field>
+    <field name="model">whatsmeow.template</field>
+    <field name="arch" type="xml">
+      <form string="WhatsApp Template">
+        <header>
+          <button name="action_open_composer" type="object" string="Test Send"
+                  class="btn-secondary"
+                  help="Open the composer on the first record of this model."/>
+        </header>
+        <sheet>
+          <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
+                  invisible="active"/>
+          <div class="oe_title">
+            <label for="name"/>
+            <h1><field name="name" placeholder="e.g. Order Confirmation"/></h1>
+          </div>
+          <group>
+            <group>
+              <field name="model_id" options="{'no_create': True}"/>
+              <field name="model" invisible="1"/>
+              <field name="session_id" options="{'no_create': True}"/>
+              <field name="active" invisible="1"/>
+            </group>
+            <group>
+              <field name="message_type"/>
+              <field name="phone_field"
+                     placeholder="phone — leave empty to auto-detect"/>
+            </group>
+          </group>
+          <notebook>
+            <page string="Message" name="message">
+              <field name="body" nolabel="1"
+                     placeholder="Hello {{ object.partner_id.name }}, your order {{ object.name }} is confirmed."/>
+              <div class="text-muted mt-2">
+                Placeholders are rendered against the record:
+                <code>{{ object.&lt;field&gt; }}</code> for the record itself,
+                <code>{{ user.name }}</code> for the sender. Unlike Meta's
+                official API there is no approval step and no numbered
+                variables — write the message as it should read.
+              </div>
+            </page>
+            <page string="Attachments" name="attachments">
+              <group>
+                <field name="report_id" options="{'no_create': True}"
+                       domain="[('model', '=', model)]"/>
+              </group>
+              <field name="attachment_ids" widget="many2many_binary"/>
+              <div class="text-muted mt-2">
+                Each file is sent as its own WhatsApp message; the first one
+                carries the message body as its caption.
+              </div>
+            </page>
+          </notebook>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="whatsmeow_template_view_search" model="ir.ui.view">
+    <field name="name">whatsmeow.template.search</field>
+    <field name="model">whatsmeow.template</field>
+    <field name="arch" type="xml">
+      <search string="WhatsApp Templates">
+        <field name="name"/>
+        <field name="model_id"/>
+        <filter name="archived" string="Archived" domain="[('active', '=', False)]"/>
+        <group name="group_by">
+          <filter name="group_model" string="Model" context="{'group_by': 'model_id'}"/>
+          <filter name="group_session" string="Send From" context="{'group_by': 'session_id'}"/>
+        </group>
+      </search>
+    </field>
+  </record>
+
+  <record id="whatsmeow_template_action" model="ir.actions.act_window">
+    <field name="name">WhatsApp Templates</field>
+    <field name="res_model">whatsmeow.template</field>
+    <field name="view_mode">list,form</field>
+    <field name="help" type="html">
+      <p class="o_view_nocontent_smiling_face">Create a WhatsApp template</p>
+      <p>
+        A template is a saved message, interpolated against a record of any
+        model. Send it by hand from the record's chatter or Action menu, or let
+        an automation rule fire it.
+      </p>
+    </field>
+  </record>
+
+</odoo>

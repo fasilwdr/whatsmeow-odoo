@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+  <record id="ir_actions_server_view_form_whatsmeow" model="ir.ui.view">
+    <field name="name">ir.actions.server.form.whatsmeow</field>
+    <field name="model">ir.actions.server</field>
+    <field name="inherit_id" ref="base.view_server_action_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//field[@name='state']" position="after">
+        <field name="whatsmeow_template_id"
+               invisible="state != 'whatsmeow_send'"
+               required="state == 'whatsmeow_send'"
+               options="{'no_create_edit': True}"/>
+      </xpath>
+    </field>
+  </record>
+
+</odoo>
