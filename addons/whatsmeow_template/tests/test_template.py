@@ -62,6 +62,22 @@ class TestRendering(TemplateCommon):
     def test_render_model_follows_the_template_model(self):
         self.assertEqual(self.template.render_model, "res.partner")
 
+    def test_sender_and_company_are_in_the_context(self):
+        """`user` comes from the mixin, `company` is ours — both name the
+        sender, which is what a customer-facing sign-off needs."""
+        self.template.body = "{{ user.name }} at {{ company.name }}"
+        rendered = self.template._render_body(self.alice.ids)
+        self.assertEqual(
+            rendered[self.alice.id],
+            f"{self.env.user.name} at {self.env.company.name}",
+        )
+
+    def test_company_follows_the_senders_active_company(self):
+        other = self.env["res.company"].create({"name": "Branch Co"})
+        self.template.body = "{{ company.name }}"
+        rendered = self.template.with_company(other)._render_body(self.alice.ids)
+        self.assertEqual(rendered[self.alice.id], "Branch Co")
+
 
 @tagged("post_install", "-at_install")
 class TestPhoneField(TemplateCommon):
@@ -190,6 +206,17 @@ class TestComposer(TemplateCommon):
         self.assertEqual(message.message_type, "image")
         self.assertEqual(message.media_filename, "flyer.png")
         self.assertEqual(message.body, "Hello Alice, welcome.", "the body is the caption")
+
+    def test_attachment_without_a_template_still_gets_its_kind(self):
+        """The chatter button opens the composer with no template at all; the
+        kind must still come from the mimetype."""
+        attachment = self.env["ir.attachment"].create({
+            "name": "clip.mp4", "datas": b"aGVsbG8=", "mimetype": "video/mp4",
+        })
+        composer = self._composer(self.alice, session_id=self.session.id)
+        composer.attachment_ids = attachment
+        composer.action_send()
+        self.assertEqual(self._messages().message_type, "video")
 
 
 @tagged("post_install", "-at_install")
@@ -373,6 +400,28 @@ class TestSidebarAction(TemplateCommon):
         action = self.template.ref_ir_act_window
         self.template.unlink()
         self.assertFalse(action.exists())
+
+    def test_archiving_withdraws_the_binding(self):
+        """An archived template must not stay in the Action menu: the composer
+        would open on a template its own domain no longer offers."""
+        action = self.template.ref_ir_act_window
+        self.template.action_archive()
+        self.assertFalse(action.exists())
+        self.assertFalse(self.template.ref_ir_act_window)
+
+    def test_activating_rebuilds_the_binding(self):
+        self.template.action_archive()
+        self.template.action_unarchive()
+        self.assertTrue(self.template.active)
+        self.assertEqual(
+            self.template.ref_ir_act_window.binding_model_id, self.partner_model)
+
+    def test_an_archived_template_is_created_without_a_binding(self):
+        template = self.env["whatsmeow.template"].create({
+            "name": "Draft", "model_id": self.partner_model.id,
+            "body": "wip", "active": False,
+        })
+        self.assertFalse(template.ref_ir_act_window)
 
 
 @tagged("post_install", "-at_install")

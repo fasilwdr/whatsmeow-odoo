@@ -10,8 +10,8 @@
         <field name="name"/>
         <field name="model_id"/>
         <field name="session_id"/>
-        <field name="message_type"/>
         <field name="phone_field" optional="hide"/>
+        <field name="active" column_invisible="1"/>
       </list>
     </field>
   </record>
@@ -22,9 +22,15 @@
     <field name="arch" type="xml">
       <form string="WhatsApp Template">
         <header>
+          <button name="action_unarchive" type="object" string="Activate"
+                  class="btn-primary" invisible="active"
+                  help="Publish this template: it becomes available in the composer and in the record's Action menu."/>
           <button name="action_open_composer" type="object" string="Test Send"
-                  class="btn-secondary"
+                  class="btn-secondary" invisible="not active"
                   help="Open the composer on the first record of this model."/>
+          <button name="action_archive" type="object" string="Archive"
+                  invisible="not active"
+                  help="Withdraw this template until it is ready to use."/>
         </header>
         <sheet>
           <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
@@ -41,9 +47,8 @@
               <field name="active" invisible="1"/>
             </group>
             <group>
-              <field name="message_type"/>
               <field name="phone_field"
-                     placeholder="phone — leave empty to auto-detect"/>
+                     placeholder="phone — leave empty to auto-detect" widget="field_selector" class="oe_inline" options="{'model': 'model', 'allow_properties': False}"/>
             </group>
           </group>
           <notebook>
@@ -53,7 +58,8 @@
               <div class="text-muted mt-2">
                 Placeholders are rendered against the record:
                 <code>{{ object.&lt;field&gt; }}</code> for the record itself,
-                <code>{{ user.name }}</code> for the sender. Unlike Meta's
+                <code>{{ user.name }}</code> for the sender and
+                <code>{{ company.name }}</code> for their active company. Unlike Meta's
                 official API there is no approval step and no numbered
                 variables — write the message as it should read.
               </div>

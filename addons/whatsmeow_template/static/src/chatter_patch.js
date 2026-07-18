@@ -46,7 +46,17 @@ patch(Chatter.prototype, {
             {
                 // The message lands on the record's chatter through the normal
                 // inbound/outbound path, so refresh what the user is looking at.
-                onClose: () => this.load(this.state.thread, this.requestList),
+                //
+                // `requestList` alone is not enough: the form chatter's list is
+                // activities/attachments/followers/… and *not* "messages", and
+                // `Thread.fetchThreadData` only calls `fetchNewMessages()` when
+                // "messages" is in it — so the log we just wrote never arrived
+                // until the form itself was reloaded. Same shape as core's
+                // `onActivityChanged`, plus the scroll core does after a post.
+                onClose: () => {
+                    this.state.jumpThreadPresent++;
+                    this.load(this.state.thread, [...this.requestList, "messages"]);
+                },
             }
         );
     },

@@ -197,9 +197,12 @@ class WhatsmeowComposer(models.TransientModel):
         A `whatsmeow.message` carries at most one file, so extra attachments
         become their own follow-up messages — the queue paces them apart just
         like any other send.
+
+        Each file's kind comes from its mimetype, the same derivation the
+        gateway's `kindFor()` and inbound media use — one rule for what a file
+        is, wherever it entered Odoo.
         """
         self.ensure_one()
-        template = self.template_id
         partner = self.env["whatsmeow.message"]._find_partner(digits)
         common = {
             "session_id": self.session_id.id,
@@ -217,14 +220,9 @@ class WhatsmeowComposer(models.TransientModel):
 
         vals_list = []
         for index, (name, mimetype, data) in enumerate(media):
-            kind = self.env["whatsmeow.message"]._kind_for_mimetype(mimetype)
-            if index == 0 and template.message_type != "text":
-                # The author declared what the first file is; trust that over
-                # a mimetype the browser guessed at upload time.
-                kind = template.message_type
             vals_list.append({
                 **common,
-                "message_type": kind,
+                "message_type": self.env["whatsmeow.message"]._kind_for_mimetype(mimetype),
                 # Only the first file carries the message; the rest follow bare.
                 "body": body if index == 0 else "",
                 "media_data": data,

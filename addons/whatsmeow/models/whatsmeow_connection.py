@@ -103,6 +103,7 @@ class WhatsmeowConnection(models.Model):
                 "type": "success",
                 "sticky": False,
                 "message": _("Gateway '%s' reachable and key valid.", self.name),
+                "next": {"type": "ir.actions.act_window_close"},
             },
         }
 

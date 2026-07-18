@@ -8,10 +8,7 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.tools.osutil import clean_filename
 from odoo.tools.safe_eval import safe_eval, time
 
-from odoo.addons.whatsmeow.models.whatsmeow_message import (
-    MESSAGE_TYPES,
-    PHONE_FIELDS,
-)
+from odoo.addons.whatsmeow.models.whatsmeow_message import PHONE_FIELDS
 
 _logger = logging.getLogger(__name__)
 
@@ -43,14 +40,28 @@ class WhatsmeowTemplate(models.Model):
     _inherit = ["mail.render.mixin"]
     _order = "sequence, name"
 
+    # Same call mail.template and sms.template make: writing a template is
+    # manager-only (see ir.model.access.csv), so the *record* is trusted config
+    # and rendering it must not demand `mail.group_mail_template_editor` from
+    # the operator who sends it. Without this, a plain user sending a template
+    # that says {{ user.name }} gets an AccessError from `_is_restricted`.
+    _unrestricted_rendering = True
+
     name = fields.Char(required=True, translate=True)
-    active = fields.Boolean(default=True)
+    active = fields.Boolean(
+        default=True,
+        help="Only an active template is offered in the composer and in the "
+             "record's Action menu. Archive a draft until it is ready to use.",
+    )
     sequence = fields.Integer(default=10)
     model_id = fields.Many2one(
         "ir.model", string="Applies to", required=True, ondelete="cascade",
         help="The model whose records this template can be sent from.",
     )
-    model = fields.Char(related="model_id.model", store=True, readonly=True)
+    model = fields.Char(
+        string='Related Document Model',
+        related='model_id.model',
+        precompute=True, store=True, readonly=True)
     session_id = fields.Many2one(
         "whatsmeow.session", string="Send From",
         help="Default WhatsApp number to send from. The composer can override it.",
@@ -64,12 +75,8 @@ class WhatsmeowTemplate(models.Model):
     body = fields.Text(
         required=True,
         help="The message. Placeholders are interpolated against the record: "
-             "{{ object.name }}, {{ object.partner_id.name }}, {{ user.name }}.",
-    )
-    message_type = fields.Selection(
-        MESSAGE_TYPES, default="text", required=True,
-        help="Anything other than Text sends the attachment (or the rendered "
-             "report) as media, with the body as its caption.",
+             "{{ object.name }}, {{ object.partner_id.name }}, {{ user.name }}, "
+             "{{ company.name }}.",
     )
     attachment_ids = fields.Many2many(
         "ir.attachment", string="Attachments",
@@ -167,10 +174,16 @@ class WhatsmeowTemplate(models.Model):
         offers inline_template/qweb/qweb_view, and it is the one mail.template
         uses for its subject. It is sandboxed, so a template author cannot
         reach beyond the record.
+
+        The mixin's own context already carries `user`; `company` is added
+        beside it so a template can sign off with the sender's active company.
+        It is the *sender's* company, not the record's: `add_context` is shared
+        by the whole batch, and the operator is who the message comes from.
         """
         self.ensure_one()
         return self._render_template(
             self.body or "", self.model, list(res_ids), engine="inline_template",
+            add_context={"company": self.env.company},
         )
 
     def _render_report(self, record):
@@ -288,11 +301,22 @@ class WhatsmeowTemplate(models.Model):
         templates = super().create(vals_list)
         # On by default: a template you cannot launch from a record is useless,
         # and mail.template's opt-in button is a relic of a busier sidebar.
-        templates.create_action()
+        templates.filtered("active").create_action()
         return templates
 
     def write(self, vals):
         res = super().write(vals)
+        if "active" in vals:
+            # `ir.actions.act_window` has no `active` column, so the binding
+            # cannot simply be archived along with the template: an archived
+            # template would keep its Action-menu entry and the composer would
+            # then open on a template the domain no longer offers. Drop the
+            # binding on archive, rebuild it on activate.
+            if vals["active"]:
+                self.create_action()
+            else:
+                self.unlink_action()
+                self.ref_ir_act_window = False
         if "model_id" in vals:
             # The binding names a model; retarget it rather than leaving the
             # entry on the old model's records, where it would now fail.
