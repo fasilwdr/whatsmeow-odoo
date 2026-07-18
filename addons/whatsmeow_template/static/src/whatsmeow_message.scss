@@ -1,0 +1,18 @@
+// WhatsApp's own green, so the badge reads as the channel it names.
+$o-whatsmeow-green: #25d366;
+
+.o-whatsmeow-badge {
+    color: $o-whatsmeow-green;
+    font-size: 1.05em;
+    vertical-align: baseline;
+}
+
+// Tint the bubble of a message that went out over WhatsApp. Chatter notes are
+// yellow and comments are white, so a third colour is what keeps the three
+// kinds of entry apart in a busy thread.
+.o-mail-Message[data-whatsmeow="1"] .o-mail-Message-body {
+    background-color: rgba($o-whatsmeow-green, 0.09);
+    border-left: 3px solid rgba($o-whatsmeow-green, 0.55);
+    border-radius: 0.25rem;
+    padding: 0.5rem 0.75rem;
+}

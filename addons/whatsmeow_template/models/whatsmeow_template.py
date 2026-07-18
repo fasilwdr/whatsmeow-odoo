@@ -2,6 +2,11 @@ import logging
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
+# `time` here is safe_eval's *wrapped* module: Odoo 19 refuses a raw module in
+# an evaluation context, and this is the same object the report download route
+# and mail.template hand to print_report_name.
+from odoo.tools.osutil import clean_filename
+from odoo.tools.safe_eval import safe_eval, time
 
 from odoo.addons.whatsmeow.models.whatsmeow_message import (
     MESSAGE_TYPES,
@@ -169,15 +174,41 @@ class WhatsmeowTemplate(models.Model):
         )
 
     def _render_report(self, record):
-        """Render `report_id` for one record as (filename, bytes), or None."""
+        """Render `report_id` for one record as (filename, bytes), or None.
+
+        The name comes from the report's `print_report_name` — the same
+        expression the Print menu evaluates in `web`'s report download route
+        and that `mail.template` uses for emailed reports. Anything else and
+        the customer receives 'account.report_invoice_with_payments-42.pdf'
+        where the operator saw 'INV_2026_00001.pdf'.
+        """
         self.ensure_one()
-        if not self.report_id:
+        report = self.report_id
+        if not report:
             return None
-        content, _report_type = self.env["ir.actions.report"] \
+        content, report_format = self.env["ir.actions.report"] \
             .with_context(active_model=self.model) \
-            ._render_qweb_pdf(self.report_id, [record.id])
-        name = self.report_id.report_name or self.name
-        return f"{name}-{record.id}.pdf", content
+            ._render_qweb_pdf(report, [record.id])
+        return self._report_filename(report, record, report_format), content
+
+    @api.model
+    def _report_filename(self, report, record, report_format="pdf"):
+        name = None
+        if report.print_report_name:
+            # Trusted config, evaluated in the same sandbox and with the same
+            # variables as the download route: only `object` and `time`.
+            name = safe_eval(report.print_report_name,
+                             {"object": record, "time": time})
+        if not name:
+            name = record.display_name or report.name
+        # The download route hands the raw name to Content-Disposition, which
+        # percent-encodes '/' and leaves the *browser* to turn it into '_' —
+        # which is why an operator sees INV_2026_00001.pdf for a record named
+        # INV/2026/00001. Nothing does that for us here, so do it explicitly:
+        # the filename must read the same in WhatsApp as it did in the UI.
+        name = clean_filename(str(name).strip(), replacement="_")
+        extension = f".{report_format or 'pdf'}"
+        return name if name.endswith(extension) else name + extension
 
     def _resolve_phone(self, record):
         """The recipient number for one record, or '' when it has none.

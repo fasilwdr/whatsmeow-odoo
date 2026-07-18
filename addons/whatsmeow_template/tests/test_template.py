@@ -193,6 +193,129 @@ class TestComposer(TemplateCommon):
 
 
 @tagged("post_install", "-at_install")
+class TestChatterLog(TemplateCommon):
+    """A send must land on the source record's chatter, like a sent email."""
+
+    def _logs(self, record):
+        return record.message_ids.filtered(
+            lambda m: m.message_type == "whatsmeow")
+
+    def test_send_is_logged_on_the_source_record(self):
+        composer = self._composer(self.alice, template_id=self.template.id)
+        composer.action_send()
+
+        log = self._logs(self.alice)
+        self.assertEqual(len(log), 1)
+        self.assertIn("Hello Alice, welcome.", log.body)
+        self.assertEqual(log.author_id, self.env.user.partner_id)
+
+    def test_log_is_a_note_so_followers_are_not_emailed(self):
+        """The recipient already has it on WhatsApp; a notifying subtype would
+        send them a second copy by email."""
+        composer = self._composer(self.alice, template_id=self.template.id)
+        composer.action_send()
+        self.assertEqual(
+            self._logs(self.alice).subtype_id,
+            self.env.ref("mail.mt_note"),
+        )
+
+    def test_message_links_back_to_its_chatter_entry(self):
+        composer = self._composer(self.alice, template_id=self.template.id)
+        composer.action_send()
+        message = self._messages()
+        self.assertEqual(message.source_res_model, "res.partner")
+        self.assertEqual(message.source_res_id, self.alice.id)
+        self.assertTrue(message.mail_message_id)
+
+    def test_line_breaks_survive_into_the_chatter(self):
+        self.template.body = "Dear {{ object.name }},\n\nThank you."
+        composer = self._composer(self.alice, template_id=self.template.id)
+        composer.action_send()
+        self.assertIn("<br>", self._logs(self.alice).body)
+
+    def test_batch_logs_each_record_on_its_own_chatter(self):
+        composer = self._composer(self.alice + self.bob, template_id=self.template.id)
+        composer.action_send()
+        self.assertIn("Hello Alice", self._logs(self.alice).body)
+        self.assertIn("Hello Bob", self._logs(self.bob).body)
+
+    def test_media_is_attached_to_the_log(self):
+        attachment = self.env["ir.attachment"].create({
+            "name": "flyer.png", "datas": b"aGVsbG8=", "mimetype": "image/png",
+        })
+        self.template.attachment_ids = attachment
+        composer = self._composer(self.alice, template_id=self.template.id)
+        composer.action_send()
+        self.assertEqual(
+            self._logs(self.alice).attachment_ids.mapped("name"), ["flyer.png"])
+
+    def test_model_without_a_chatter_is_skipped_not_crashed(self):
+        """The composer can target any model; not all of them are mail.thread."""
+        currency = self.env["res.currency"].search([], limit=1)
+        message = self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "direction": "out",
+            "phone": "447700900123", "body": "hi",
+            "source_res_model": currency._name, "source_res_id": currency.id,
+        })
+        message._log_on_source()
+        self.assertFalse(message.mail_message_id)
+
+
+@tagged("post_install", "-at_install")
+class TestReportFilename(TemplateCommon):
+    """The customer must receive the filename the operator sees in the UI."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.report = cls.env["ir.actions.report"].create({
+            "name": "Partner Sheet",
+            "model": "res.partner",
+            "report_type": "qweb-pdf",
+            "report_name": "whatsmeow_template.dummy_partner_report",
+        })
+
+    def test_print_report_name_is_used(self):
+        self.report.print_report_name = "'Statement_%s' % object.name"
+        name = self.template._report_filename(self.report, self.alice)
+        self.assertEqual(name, "Statement_Alice.pdf")
+
+    def test_extension_is_not_doubled(self):
+        self.report.print_report_name = "'Statement.pdf'"
+        self.assertEqual(
+            self.template._report_filename(self.report, self.alice),
+            "Statement.pdf",
+        )
+
+    def test_falls_back_to_the_record_name(self):
+        """Without print_report_name, the record's name beats the technical
+        report_name the old code used."""
+        self.report.print_report_name = False
+        self.assertEqual(
+            self.template._report_filename(self.report, self.alice),
+            "Alice.pdf",
+        )
+
+    def test_slashes_become_underscores_like_the_browser_download(self):
+        """An invoice named INV/2026/00001 downloads as INV_2026_00001.pdf,
+        because Content-Disposition escapes the slash and the browser rewrites
+        it. Nothing does that on the WhatsApp path, so we do it here."""
+        self.alice.name = "INV/2026/00001"
+        self.report.print_report_name = "object.name"
+        self.assertEqual(
+            self.template._report_filename(self.report, self.alice),
+            "INV_2026_00001.pdf",
+        )
+
+    def test_non_pdf_format_keeps_its_extension(self):
+        self.report.print_report_name = "'Sheet_%s' % object.name"
+        self.assertEqual(
+            self.template._report_filename(self.report, self.alice, "html"),
+            "Sheet_Alice.html",
+        )
+
+
+@tagged("post_install", "-at_install")
 class TestServerAction(TemplateCommon):
 
     def test_running_on_n_records_queues_n_messages(self):

@@ -178,6 +178,10 @@ class WhatsmeowComposer(models.TransientModel):
             ))
 
         messages = self.env["whatsmeow.message"].create(vals_list)
+        # Logged now, at queue time, not when the gateway confirms: the chatter
+        # records what the operator did, and the queue may not place the message
+        # for another minute. Delivery state lives on the whatsmeow.message row.
+        messages._log_on_source()
         if skipped:
             # Reported, never silently dropped: a batch that quietly reaches 40
             # of 50 customers is worse than one that says so.
@@ -202,6 +206,10 @@ class WhatsmeowComposer(models.TransientModel):
             "direction": "out",
             "phone": digits,
             "partner_id": partner.id,
+            # Where this was composed from, so the send can be logged on that
+            # record's chatter the way a sent email is.
+            "source_res_model": record._name,
+            "source_res_id": record.id,
         }
         media = self._media_items(record)
         if not media:
