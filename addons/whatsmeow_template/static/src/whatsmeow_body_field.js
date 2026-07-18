@@ -2,9 +2,9 @@ import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { TextField, textField } from "@web/views/fields/text/text_field";
 
-import { useState } from "@odoo/owl";
+import { markup, useState } from "@odoo/owl";
 
-import { applyMark, isInsideMonospace, MARKS } from "./whatsmeow_markup";
+import { applyMark, isInsideMonospace, MARKS, renderPreview } from "./whatsmeow_markup";
 
 /**
  * A textarea that offers WhatsApp's four text styles on the current selection.
@@ -22,8 +22,12 @@ import { applyMark, isInsideMonospace, MARKS } from "./whatsmeow_markup";
  * never learn this feature exists — and a WYSIWYG later is a widget swap, not
  * a rewrite.
  *
- * For the same reason there is no preview pane: the markers are visible in the
- * textarea, so the edit surface already *is* the wire format.
+ * The preview underneath does not walk that back. It is display-only and
+ * one-way — nothing is ever read back out of it — so the markup is still the
+ * only thing anyone edits, and still the only thing that is stored. It reads
+ * the record rather than the textarea, which is what makes it reflect the
+ * toolbar and typing alike without a second code path: both already go through
+ * `record.update`, and Owl re-renders from there.
  */
 export class WhatsmeowBodyField extends TextField {
     static template = "whatsmeow_template.WhatsmeowBodyField";
@@ -40,6 +44,17 @@ export class WhatsmeowBodyField extends TextField {
 
     get textarea() {
         return this.textareaRef.el;
+    }
+
+    /**
+     * The body as a phone would draw it.
+     *
+     * `markup()` is safe here because `renderPreview` builds its output from
+     * escaped text and a closed set of tags — the operator's body is data to
+     * it, never markup.
+     */
+    get previewHtml() {
+        return markup(renderPreview(this.props.record.data[this.props.name] || ""));
     }
 
     /**

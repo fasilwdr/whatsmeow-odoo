@@ -207,6 +207,95 @@ export function isInsideMonospace(text, index) {
 }
 
 /**
+ * Render `text` the way a phone would, as an HTML string.
+ *
+ * This is display-only and deliberately one-way: the markup stays the single
+ * canonical representation (see the widget's header comment), nothing round
+ * trips back out of the preview. So the renderer only has to be
+ * approximately right — where it disagrees with WhatsApp's own parser the
+ * phone wins and the preview is a little wrong, which costs nothing, whereas
+ * a second *editable* representation would cost the whole design.
+ *
+ * The output is built from escaped text and a fixed set of tags, so an
+ * operator cannot smuggle HTML in through the body.
+ */
+export function renderPreview(text) {
+    if (!text) {
+        return "";
+    }
+
+    // Placeholders come out first, as sentinels. `{{ object.partner_id.name }}`
+    // twice in a body puts two underscores on the same line, and WhatsApp would
+    // happily italicise everything between them — true to the wire, but it
+    // would render a *template* as garbage on screen for a reason the author
+    // cannot act on. Same instinct as the toolbar refusing to mark inside one.
+    const placeholders = [];
+    let masked = text.replace(PLACEHOLDER_RE, (match) => {
+        placeholders.push(match);
+        return `\u0000${placeholders.length - 1}\u0000`;
+    });
+    masked = escapeHtml(masked);
+
+    // Monospace is a block: it spans newlines and suppresses everything inside,
+    // so the fences are split off before any inline mark is looked for. An
+    // unterminated trailing fence is left as literal text, which is what the
+    // phone does too.
+    const chunks = masked.split("```");
+    let html = "";
+    for (const [index, chunk] of chunks.entries()) {
+        const isCode = index % 2 === 1 && index < chunks.length - 1;
+        if (isCode) {
+            html += `<code>${lineBreaks(chunk)}</code>`;
+        } else {
+            // An odd chunk that is also the last one had an opening fence with
+            // nothing to close it. `split` ate that fence, so it goes back as
+            // the literal text the phone would show.
+            const opener = index % 2 === 1 ? "```" : "";
+            html += opener + lineBreaks(renderInline(chunk));
+        }
+    }
+
+    return html.replace(/\u0000(\d+)\u0000/g, (_match, index) =>
+        `<span class="o_whatsmeow_placeholder">${escapeHtml(placeholders[index])}</span>`
+    );
+}
+
+/** The inline marks, innermost last: each match recurses into its own content. */
+const INLINE_RE = /([*_~])(?=\S)((?:(?!\1)[^\n])*?\S)\1/;
+
+const INLINE_TAGS = { "*": "strong", _: "em", "~": "s" };
+
+/**
+ * Wrap every inline mark in `text`, recursing so `*bold _and italic_*` nests.
+ *
+ * A run is bounded to one line and cannot contain its own marker, mirroring
+ * `applyMark`'s rules: those are the sequences the toolbar emits, so this is
+ * the same grammar read back rather than a second, looser one.
+ */
+function renderInline(text) {
+    const match = INLINE_RE.exec(text);
+    if (!match) {
+        return text;
+    }
+    const tag = INLINE_TAGS[match[1]];
+    const before = text.slice(0, match.index);
+    const after = text.slice(match.index + match[0].length);
+    return `${before}<${tag}>${renderInline(match[2])}</${tag}>${renderInline(after)}`;
+}
+
+function escapeHtml(text) {
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+}
+
+function lineBreaks(text) {
+    return text.replace(/\n/g, "<br/>");
+}
+
+/**
  * Apply (or remove) a mark around a selection.
  *
  * @param {string} text the whole body

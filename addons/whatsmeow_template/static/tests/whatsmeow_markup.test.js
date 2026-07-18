@@ -1,6 +1,6 @@
 import { describe, expect, test } from "@odoo/hoot";
 
-import { applyMark, isInsideMonospace } from "@whatsmeow_template/whatsmeow_markup";
+import { applyMark, isInsideMonospace, renderPreview } from "@whatsmeow_template/whatsmeow_markup";
 
 /**
  * The whole of §11.8 lives in `applyMark`, so the whole of it is testable
@@ -147,5 +147,68 @@ describe("restored selection", () => {
 
     test("is the bare text after unwrapping", () => {
         expect(selectionAfter("*hello* world", 1, 6, "bold")).toBe("hello");
+    });
+});
+
+/**
+ * The preview is display-only, so what is tested here is that it reads back the
+ * grammar `applyMark` writes — and that a body can never become markup.
+ */
+describe("preview", () => {
+    test("renders the four marks", () => {
+        expect(renderPreview("*a*")).toBe("<strong>a</strong>");
+        expect(renderPreview("_a_")).toBe("<em>a</em>");
+        expect(renderPreview("~a~")).toBe("<s>a</s>");
+        expect(renderPreview("```a```")).toBe("<code>a</code>");
+    });
+
+    test("nests, the way chaining two marks produces", () => {
+        expect(renderPreview("*bold _and italic_*")).toBe(
+            "<strong>bold <em>and italic</em></strong>"
+        );
+    });
+
+    test("leaves markers that would not render on a phone", () => {
+        // Whitespace inside the marker: the phone shows literal asterisks, and
+        // `applyMark` refuses to emit this in the first place.
+        expect(renderPreview("*a *")).toBe("*a *");
+        // A marker does not span a line break.
+        expect(renderPreview("*a\nb*")).toBe("*a<br/>b*");
+    });
+
+    test("monospace spans lines and suppresses the other marks", () => {
+        expect(renderPreview("```*a*\nb```")).toBe("<code>*a*<br/>b</code>");
+    });
+
+    test("leaves an unterminated fence as text", () => {
+        expect(renderPreview("```a")).toBe("```a");
+    });
+
+    test("escapes the body, so it can never be markup", () => {
+        expect(renderPreview("<b>&</b>")).toBe("&lt;b&gt;&amp;&lt;/b&gt;");
+    });
+
+    test("shows a placeholder as itself, not as a value", () => {
+        expect(renderPreview("Hi {{ object.name }}")).toBe(
+            'Hi <span class="o_whatsmeow_placeholder">{{ object.name }}</span>'
+        );
+    });
+
+    test("does not let two placeholders italicise the text between them", () => {
+        // Both hold an underscore; naive parsing would mark everything between.
+        expect(renderPreview("{{ object.partner_id.name }} {{ object.user_id.name }}")).toBe(
+            '<span class="o_whatsmeow_placeholder">{{ object.partner_id.name }}</span> ' +
+                '<span class="o_whatsmeow_placeholder">{{ object.user_id.name }}</span>'
+        );
+    });
+
+    test("marks a placeholder without breaking it", () => {
+        expect(renderPreview("*{{ object.name }}*")).toBe(
+            '<strong><span class="o_whatsmeow_placeholder">{{ object.name }}</span></strong>'
+        );
+    });
+
+    test("is empty for an empty body", () => {
+        expect(renderPreview("")).toBe("");
     });
 });

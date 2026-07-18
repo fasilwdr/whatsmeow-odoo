@@ -51,6 +51,20 @@
                              record="props.record"/>
         </div>
       </div>
+      <!--
+        The preview reads the *record*, not the textarea, so it follows the
+        toolbar and plain typing through the one path both already take. It is
+        drawn as the chatter bubble a sent message becomes, so what an author
+        checks here is what they will later see in the log.
+
+        Placeholders stay unrendered on purpose: there is no record to render
+        them against at this point, and showing `{{ object.name }}` as itself is
+        honest about that where a fake value would not be.
+      -->
+      <div t-if="props.record.data[props.name]" class="o_whatsmeow_body_preview mt-2">
+        <span class="o_whatsmeow_body_preview_label text-muted small">Preview</span>
+        <div class="o_whatsmeow_body_preview_bubble" t-out="previewHtml"/>
+      </div>
     </t>
   </t>
 
