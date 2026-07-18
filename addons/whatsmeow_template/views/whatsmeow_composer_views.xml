@@ -24,7 +24,14 @@
           <field name="phone" invisible="batch_mode"
                  placeholder="e.g. 447700900123"/>
         </group>
+        <!--
+          Same toolbar as the template editor. The body here is already
+          rendered — the placeholders are gone and any markers that arrived in
+          a field value were neutralised at render time — so the operator is
+          formatting the literal text that will go on the wire.
+        -->
         <field name="body" invisible="batch_mode" nolabel="1"
+               widget="whatsmeow_body" class="w-100"
                placeholder="Your message…"/>
         <div class="text-muted" invisible="not batch_mode">
           The message body comes from the template and cannot be edited for a
