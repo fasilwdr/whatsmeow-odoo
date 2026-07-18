@@ -36,11 +36,30 @@ err() { echo -e "\033[1;31m[whatsmeow-install]\033[0m $*" >&2; }
 [ "$(id -u)" -eq 0 ] || { err "Please run as root (sudo)."; exit 1; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-GATEWAY_SRC="${GATEWAY_SRC:-$REPO_ROOT/gateway}"
 
-[ -f "$GATEWAY_SRC/main.go" ] || {
-  err "gateway source not found at $GATEWAY_SRC — set GATEWAY_SRC=/path/to/gateway"; exit 1; }
+# Find the gateway source by walking up from the script rather than counting
+# "../.." levels: a hardcoded depth silently points at the wrong directory the
+# moment this script moves, which is exactly how it once resolved to /home/dev.
+if [ -z "${GATEWAY_SRC:-}" ]; then
+  DIR="$SCRIPT_DIR"
+  while : ; do
+    if [ -f "$DIR/gateway/main.go" ]; then GATEWAY_SRC="$DIR/gateway"; break; fi
+    [ "$DIR" = "/" ] && break
+    DIR="$(dirname "$DIR")"
+  done
+fi
+
+if [ -z "${GATEWAY_SRC:-}" ] || [ ! -f "$GATEWAY_SRC/main.go" ]; then
+  err "Could not find the gateway source (a directory holding main.go + go.mod)."
+  err "Looked upwards from $SCRIPT_DIR for gateway/main.go."
+  err "Run this from a checkout, or point at it:  sudo GATEWAY_SRC=/path/to/gateway $0"
+  exit 1
+fi
+log "Gateway source: $GATEWAY_SRC"
+
+for f in go.mod go.sum; do
+  [ -f "$GATEWAY_SRC/$f" ] || { err "$GATEWAY_SRC/$f is missing — incomplete checkout?"; exit 1; }
+done
 
 command -v apt-get >/dev/null 2>&1 || {
   err "This installer targets Debian/Ubuntu (apt-get not found)."; exit 1; }
@@ -101,17 +120,10 @@ chmod 700 "$DATA_DIR"
 log "Building gateway..."
 # Don't copy a locally-built binary or dev secrets into the install dir.
 rm -f "$INSTALL_DIR/whatsmeow-gateway"
-for f in main.go go.mod go.sum; do
-  [ -f "$GATEWAY_SRC/$f" ] && cp "$GATEWAY_SRC/$f" "$INSTALL_DIR/"
-done
+cp "$GATEWAY_SRC/main.go" "$GATEWAY_SRC/go.mod" "$GATEWAY_SRC/go.sum" "$INSTALL_DIR/"
 cd "$INSTALL_DIR"
 
-if [ ! -f go.mod ]; then
-  log "No go.mod found — initialising and resolving latest whatsmeow."
-  go mod init whatsmeow-gateway
-  go get go.mau.fi/whatsmeow@latest
-  go get github.com/mattn/go-sqlite3
-elif [ "$UPGRADE_WHATSMEOW" = "1" ]; then
+if [ "$UPGRADE_WHATSMEOW" = "1" ]; then
   log "UPGRADE_WHATSMEOW=1 — moving the pin to the latest whatsmeow."
   go get go.mau.fi/whatsmeow@latest
   go get github.com/mattn/go-sqlite3

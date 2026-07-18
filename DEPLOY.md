@@ -25,12 +25,16 @@ what the defaults assume.
 
 ## 2. Install
 
-Copy the repository to the server (or clone it), then:
+Copy the repository to the server (or clone it), then run the installer from the
+repository root:
 
 ```bash
-cd whatsmeow-odoo/deploy
+cd whatsmeow-odoo
 sudo ./install.sh
 ```
+
+It finds the gateway source by walking up from itself, so it also works when
+called by path from elsewhere (`sudo /srv/whatsmeow-odoo/install.sh`).
 
 It is one script for Debian and Ubuntu — the two differ in nothing it touches,
 so there is no separate Debian variant to keep in sync.
@@ -68,7 +72,7 @@ sudo LISTEN_ADDR=127.0.0.1:9000 \
 | `INSTALL_DIR` | `/opt/whatsmeow-gateway` | binary, env file |
 | `DATA_DIR` | `/var/lib/whatsmeow-gateway` | session stores, staged media |
 | `SERVICE_USER` | `wagw` | system user the service runs as |
-| `GATEWAY_SRC` | `../gateway` | source directory, if not run from the repo |
+| `GATEWAY_SRC` | found by walking up | gateway source, if it is not in the checkout |
 | `GO_VERSION` | from `gateway/go.mod` | Go toolchain to install |
 | `UPGRADE_WHATSMEOW` | `0` | see [§7](#7-upgrading-whatsmeow) |
 
@@ -147,7 +151,7 @@ WhatsApp allows files up to ~100 MB.
 
 ```bash
 git pull
-cd deploy && sudo ./install.sh
+sudo ./install.sh
 ```
 
 Rebuild and restart, secrets and sessions untouched. Do this whenever the Go
