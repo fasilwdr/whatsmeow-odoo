@@ -1,4 +1,5 @@
 import logging
+import re
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
@@ -6,6 +7,7 @@ from odoo.exceptions import UserError, ValidationError
 # an evaluation context, and this is the same object the report download route
 # and mail.template hand to print_report_name.
 from odoo.tools.osutil import clean_filename
+from odoo.tools.rendering_tools import parse_inline_template
 from odoo.tools.safe_eval import safe_eval, time
 
 from odoo.addons.whatsmeow.models.whatsmeow_message import PHONE_FIELDS
@@ -25,6 +27,33 @@ PHONE_FALLBACK_PATHS = (
     *PHONE_FIELDS,
     *(f"partner_id.{name}" for name in PHONE_FIELDS),
 )
+
+# WhatsApp's text markers. They are a client-side convention — the recipient's
+# phone parses them out of the plain body — which is exactly why a *rendered
+# value* carrying one is a problem: {{ object.name }} returning 'SO_2024_07'
+# italicises '2024' on the customer's screen, and a '*' in a price or a '~' in
+# an address does the same. The values most likely to carry stray markers are
+# the ones derived from inbound WhatsApp text, which is already untrusted.
+MARKUP_CHARS = "*_~`"
+MARKUP_CHAR_RE = re.compile(f"[{re.escape(MARKUP_CHARS)}]")
+
+# WhatsApp has no escape character, so a marker is neutralised by making it
+# fail the parser's own adjacency rule instead: a marker only opens a span when
+# a non-space follows it, and only closes one when a non-space precedes it. A
+# zero-width space on both sides breaks it in both roles.
+#
+# Chosen over stripping the markers because it is the safer failure: U+200B is
+# invisible and copy-pastes away, so the value still *reads* exactly right,
+# whereas deleting characters would turn 'SO_2024_07' into 'SO202407' and
+# corrupt the order reference the message exists to communicate. If it turns
+# out a client treats U+200B as an ordinary character the style survives, which
+# is cosmetic; a mangled reference is not.
+ZERO_WIDTH_SPACE = "​"
+
+# The name the escape helper is bound to in the rendering context. It is
+# prefixed because it shares a namespace with the template author's own
+# variables (object, user, company).
+MARKUP_ESCAPE_FN = "_whatsmeow_escape_markup"
 
 
 class WhatsmeowTemplate(models.Model):
@@ -182,8 +211,62 @@ class WhatsmeowTemplate(models.Model):
         """
         self.ensure_one()
         return self._render_template(
-            self.body or "", self.model, list(res_ids), engine="inline_template",
-            add_context={"company": self.env.company},
+            self._body_escaping_values(), self.model, list(res_ids),
+            engine="inline_template",
+            add_context={
+                "company": self.env.company,
+                MARKUP_ESCAPE_FN: self._escape_markup,
+            },
+        )
+
+    def _body_escaping_values(self):
+        """`body` with every {{ expression }} wrapped in the markup escaper.
+
+        The escaping has to happen *inside* the render, per value, because
+        afterwards there is no telling which characters came from the author's
+        literal text and which came from a field: a `*` the author typed is
+        formatting they asked for, and a `*` arriving in a customer name is
+        not. Rewriting the expressions is the only seam Odoo's inline_template
+        offers between the two.
+
+        This is the outgoing mirror of the `Markup(...) % value` discipline
+        core already uses when posting inbound text to the chatter.
+
+        The rewrite is render-time only and never stored: `body` keeps its
+        plain `object.field` expressions, so `_has_unsafe_expression` still
+        sees a simple template and a template author without
+        `mail.group_mail_template_editor` can still save it.
+        """
+        self.ensure_one()
+        parts = []
+        for literal, expression, default in parse_inline_template(self.body or ""):
+            parts.append(literal)
+            if expression:
+                # `||| default` is the author's own literal, so it is left
+                # alone — same trust as the surrounding text. render_inline_
+                # template falls back to it when the value is falsy, and an
+                # escaped empty string is still empty, so that still holds.
+                #
+                # The default is re-emitted flush against `}}` because the
+                # parser's own `(.*?)\}\}` already captured whatever whitespace
+                # preceded them; padding it here would add a space to the
+                # rendered output on every round trip.
+                call = f"{MARKUP_ESCAPE_FN}({expression})"
+                parts.append(f"{{{{ {call} ||| {default}}}}}" if default
+                             else f"{{{{ {call} }}}}")
+        return "".join(parts)
+
+    def _escape_markup(self, value):
+        """Neutralise WhatsApp's text markers in one rendered value.
+
+        Override this to strip the markers instead if a client turns out to
+        parse through the zero-width space — see ZERO_WIDTH_SPACE.
+        """
+        if not value:
+            return value
+        return MARKUP_CHAR_RE.sub(
+            lambda match: f"{ZERO_WIDTH_SPACE}{match.group(0)}{ZERO_WIDTH_SPACE}",
+            str(value),
         )
 
     def _render_report(self, record):

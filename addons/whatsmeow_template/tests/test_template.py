@@ -4,6 +4,10 @@ from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests import TransactionCase, tagged
 from odoo.tools import mute_logger
 
+from odoo.addons.whatsmeow_template.models.whatsmeow_template import (
+    MARKUP_CHARS, ZERO_WIDTH_SPACE,
+)
+
 
 class TemplateCommon(TransactionCase):
 
@@ -77,6 +81,74 @@ class TestRendering(TemplateCommon):
         self.template.body = "{{ company.name }}"
         rendered = self.template.with_company(other)._render_body(self.alice.ids)
         self.assertEqual(rendered[self.alice.id], "Branch Co")
+
+
+@tagged("post_install", "-at_install")
+class TestMarkupEscaping(TemplateCommon):
+    """A rendered *value* must not be able to smuggle WhatsApp formatting.
+
+    `{{ object.name }}` returning 'SO_2024_07' would italicise '2024' on the
+    recipient's phone; the values most likely to carry a stray marker are the
+    ones derived from inbound WhatsApp text, which is already untrusted.
+    """
+
+    def _render(self, name):
+        self.alice.name = name
+        return self.template._render_body(self.alice.ids)[self.alice.id]
+
+    def test_markers_in_a_value_are_neutralised(self):
+        rendered = self._render("SO_2024_07")
+        self.assertNotIn("_2024_", rendered, "the underscores still pair up")
+        # The text itself is untouched — the guards are zero-width.
+        self.assertEqual(rendered.replace(ZERO_WIDTH_SPACE, ""),
+                         "Hello SO_2024_07, welcome.")
+
+    def test_every_marker_character_is_guarded(self):
+        for marker in MARKUP_CHARS:
+            with self.subTest(marker=marker):
+                rendered = self._render(f"a{marker}b{marker}c")
+                self.assertIn(f"{ZERO_WIDTH_SPACE}{marker}{ZERO_WIDTH_SPACE}", rendered)
+
+    def test_the_authors_own_markers_are_left_alone(self):
+        """Formatting the author typed is formatting they asked for."""
+        template = self.template.copy({
+            "name": "Author markers", "body": "*Hello* {{ object.name }}",
+        })
+        self.assertEqual(
+            template._render_body(self.alice.ids)[self.alice.id], "*Hello* Alice",
+        )
+
+    def test_a_clean_value_is_unchanged(self):
+        self.assertEqual(self._render("Alice"), "Hello Alice, welcome.")
+
+    def test_a_default_still_applies_when_the_value_is_empty(self):
+        """Wrapping the expression must not disturb `||| default`.
+
+        Asserted against the *unrewritten* body rather than a literal, so the
+        test pins "the rewrite changes nothing here" instead of re-encoding
+        Odoo's own whitespace handling around the braces.
+        """
+        template = self.template.copy({
+            "name": "With a default", "body": "Hi {{ object.comment ||| there }}",
+        })
+        plain = template._render_template(
+            template.body, template.model, self.alice.ids, engine="inline_template",
+        )
+        self.assertEqual(
+            template._render_body(self.alice.ids)[self.alice.id],
+            plain[self.alice.id],
+        )
+        self.assertIn("there", plain[self.alice.id])
+
+    def test_the_stored_body_keeps_its_plain_expressions(self):
+        """The rewrite is render-time only.
+
+        If it were stored, `_has_unsafe_expression` would start seeing a
+        function call and template authors outside
+        `mail.group_mail_template_editor` could no longer save the record.
+        """
+        self.assertEqual(self.template.body, "Hello {{ object.name }}, welcome.")
+        self.assertFalse(self.template._has_unsafe_expression())
 
 
 @tagged("post_install", "-at_install")

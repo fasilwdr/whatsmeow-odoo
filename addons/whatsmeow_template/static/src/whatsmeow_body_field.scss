@@ -1,0 +1,13 @@
+// The formatting toolbar floats over the textarea, anchored near the selection
+// (see `anchorFor`). It has to sit above the field's own input buttons, and it
+// must not take a drag with it — pointer events on the buttons only.
+.o_whatsmeow_body_toolbar {
+    z-index: 2;
+    white-space: nowrap;
+
+    .btn {
+        // The stock small-button padding leaves the toolbar taller than a line
+        // of text, which pushes it over the line above the selection.
+        padding: 0.1rem 0.4rem;
+    }
+}
