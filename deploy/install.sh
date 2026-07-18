@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 #
-# ubuntu_install.sh — install the whatsmeow gateway as a systemd service.
-# Target: Ubuntu 22.04 / 24.04, Debian 12/13. Run as root:  sudo ./ubuntu_install.sh
+# install.sh — install the whatsmeow gateway as a systemd service.
+#
+# One script for both distributions: Debian 12/13 and Ubuntu 22.04/24.04 differ
+# in nothing this script touches (apt, useradd, /usr/sbin/nologin, systemd), so
+# a separate Debian variant would only be a copy that drifts.
+#
+# Run as root:  sudo ./install.sh
 #
 # Re-running is safe: it keeps existing secrets, rebuilds and restarts.
 #
@@ -10,14 +15,13 @@
 # upgrade is how a working gateway silently stops compiling. To move the pin on
 # purpose:
 #
-#     sudo UPGRADE_WHATSMEOW=1 ./ubuntu_install.sh
+#     sudo UPGRADE_WHATSMEOW=1 ./install.sh
 #
 # then commit the resulting go.mod/go.sum.
 #
 set -euo pipefail
 
 # ---- configurable knobs (override via env) --------------------------------
-GO_VERSION="${GO_VERSION:-1.26.5}"
 INSTALL_DIR="${INSTALL_DIR:-/opt/whatsmeow-gateway}"
 DATA_DIR="${DATA_DIR:-/var/lib/whatsmeow-gateway}"
 SERVICE_USER="${SERVICE_USER:-wagw}"
@@ -38,6 +42,15 @@ GATEWAY_SRC="${GATEWAY_SRC:-$REPO_ROOT/gateway}"
 [ -f "$GATEWAY_SRC/main.go" ] || {
   err "gateway source not found at $GATEWAY_SRC — set GATEWAY_SRC=/path/to/gateway"; exit 1; }
 
+command -v apt-get >/dev/null 2>&1 || {
+  err "This installer targets Debian/Ubuntu (apt-get not found)."; exit 1; }
+
+# The toolchain must be at least what go.mod asks for, or the build fails with
+# "go.mod requires go >= x". Take the version from there rather than hardcoding
+# a second copy that has to be remembered when the pin moves.
+GO_VERSION="${GO_VERSION:-$(awk '/^go /{print $2; exit}' "$GATEWAY_SRC/go.mod" 2>/dev/null)}"
+GO_VERSION="${GO_VERSION:-1.26.5}"
+
 # ---- build dependencies ----------------------------------------------------
 log "Installing build dependencies..."
 apt-get update -qq
@@ -48,7 +61,10 @@ apt-get install -y -qq git build-essential ca-certificates wget openssl curl
 NEED_GO=1
 if command -v go >/dev/null 2>&1; then
   CURRENT="$(go version | awk '{print $3}' | sed 's/go//')"
-  [ "$CURRENT" = "$GO_VERSION" ] && { NEED_GO=0; log "Go $GO_VERSION already present."; }
+  # Newer is fine — only an older toolchain than go.mod's pin needs replacing.
+  if [ "$(printf '%s\n%s\n' "$GO_VERSION" "$CURRENT" | sort -V | head -1)" = "$GO_VERSION" ]; then
+    NEED_GO=0; log "Go $CURRENT already present (need >= $GO_VERSION)."
+  fi
 fi
 if [ "$NEED_GO" -eq 1 ]; then
   log "Installing Go $GO_VERSION..."
@@ -126,6 +142,10 @@ WMG_API_KEY=$(openssl rand -hex 32)
 WMG_WEBHOOK_SECRET=$(openssl rand -hex 32)
 WMG_ODOO_WEBHOOK_URL=$ODOO_WEBHOOK_URL
 WMG_DATA_DIR=$DATA_DIR
+
+# Optional tunables (media size/TTL, recipient-check budget, webhook workers)
+# have working defaults and are left out on purpose. See gateway.env.example in
+# the repo for the full list; add a line here and restart to change one.
 ENV
 fi
 chmod 600 "$ENV_FILE"
@@ -171,10 +191,17 @@ systemctl enable --now whatsmeow-gateway
 systemctl restart whatsmeow-gateway
 
 # ---- verify it actually came up --------------------------------------------
-log "Waiting for the gateway to answer on http://${ACTUAL_LISTEN}/health ..."
+# A listen address may be host-less (":8080") or a wildcard ("0.0.0.0:8080");
+# neither is dialable as written, so probe the loopback on that port instead.
+PROBE_HOST="${ACTUAL_LISTEN%:*}"
+PROBE_PORT="${ACTUAL_LISTEN##*:}"
+case "$PROBE_HOST" in ""|"0.0.0.0"|"[::]"|"::") PROBE_HOST="127.0.0.1" ;; esac
+PROBE_URL="http://${PROBE_HOST}:${PROBE_PORT}/health"
+
+log "Waiting for the gateway to answer on ${PROBE_URL} ..."
 OK=0
 for _ in $(seq 1 15); do
-  if curl -fsS -m 2 "http://${ACTUAL_LISTEN}/health" >/dev/null 2>&1; then OK=1; break; fi
+  if curl -fsS -m 2 "$PROBE_URL" >/dev/null 2>&1; then OK=1; break; fi
   sleep 1
 done
 if [ "$OK" -ne 1 ]; then
@@ -190,11 +217,11 @@ log "Installation complete."
 echo "--------------------------------------------------------------------"
 echo "  In Odoo: WhatsApp > Configuration > Gateways > New"
 echo
-echo "    Gateway URL     : http://${ACTUAL_LISTEN}"
+echo "    Gateway URL     : http://${PROBE_HOST}:${PROBE_PORT}"
 echo "    API Key         : ${API_KEY}"
 echo "    Webhook Secret  : ${WEBHOOK_SECRET}"
 echo
-echo "  Health check      : curl http://${ACTUAL_LISTEN}/health"
+echo "  Health check      : curl ${PROBE_URL}"
 echo "  Logs              : journalctl -u whatsmeow-gateway -f"
 echo "  Session stores    : ${ACTUAL_DATA_DIR}  <-- back this up, it holds the pairing keys"
 echo "--------------------------------------------------------------------"
