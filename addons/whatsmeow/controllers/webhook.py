@@ -169,6 +169,11 @@ class WhatsmeowWebhook(http.Controller):
                          "database", wa_id)
             return self._merge_duplicate(existing, data) if existing else None
 
+        # Marked here, on the create path only, so the receipt goes out once per
+        # message: a retry or WhatsApp's second copy lands in _merge_duplicate
+        # and must not tick again. No-op unless the session opted in.
+        msg._mark_read()
+
         if media:
             return  # delivery runs once the media has been fetched
         msg._deliver_inbound()

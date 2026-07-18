@@ -67,7 +67,14 @@
               </div>
               <group>
                 <field name="inbound_default"/>
+                <field name="auto_mark_read"/>
               </group>
+              <div class="text-muted" invisible="not auto_mark_read">
+                Accepted messages are marked read as soon as they arrive, so the
+                sender sees blue ticks before anyone has actually opened the
+                message — and the chat stops showing as unread on the phone.
+                Rejected messages are never marked.
+              </div>
               <field name="inbound_rule_ids">
                 <list editable="bottom">
                   <field name="sequence" widget="handle"/>

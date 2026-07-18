@@ -951,6 +951,89 @@ class TestInboundFilterEngine(WhatsmeowCommon):
 
 
 @tagged("post_install", "-at_install")
+class TestAutoMarkRead(WhatsmeowCommon):
+    """Read receipts go out on accept, once, and only when opted in."""
+
+    def setUp(self):
+        super().setUp()
+        from odoo.addons.whatsmeow.controllers.webhook import WhatsmeowWebhook
+        self.ctrl = WhatsmeowWebhook()
+
+    def _read_calls(self, gw):
+        return [c for c in gw.call_args_list if c.args[1].endswith("/read")]
+
+    def test_off_by_default_sends_no_receipt(self):
+        with patch.object(type(self.session), "_gw", return_value={}) as gw:
+            self.ctrl._on_message(self.env, self.session, {
+                "wa_message_id": "MR-OFF", "sender_phone": "447700900123",
+                "body": "hi",
+            })
+        self.assertFalse(self._read_calls(gw))
+
+    def test_accepted_message_is_marked_read(self):
+        self.session.auto_mark_read = True
+        with patch.object(type(self.session), "_gw", return_value={}) as gw:
+            self.ctrl._on_message(self.env, self.session, {
+                "wa_message_id": "MR-ON", "sender_phone": "447700900123",
+                "body": "hi", "chat_jid": "447700900123@s.whatsapp.net",
+            })
+        calls = self._read_calls(gw)
+        self.assertEqual(len(calls), 1)
+        payload = calls[0].args[2]
+        self.assertEqual(payload["message_ids"], ["MR-ON"])
+        # A 1:1 receipt names no author: the chat is the sender.
+        self.assertEqual(payload["sender"], "")
+
+    def test_a_group_receipt_names_the_participant(self):
+        self.session.auto_mark_read = True
+        with patch.object(type(self.session), "_gw", return_value={}) as gw:
+            self.ctrl._on_message(self.env, self.session, {
+                "wa_message_id": "MR-GRP", "sender_phone": "447700900123",
+                "body": "hi all", "chat_jid": "120363@g.us",
+                "sender_jid": "447700900123@s.whatsapp.net",
+            })
+        payload = self._read_calls(gw)[0].args[2]
+        self.assertEqual(payload["sender"], "447700900123@s.whatsapp.net")
+        self.assertEqual(payload["jid"], "120363@g.us")
+
+    def test_a_rejected_message_is_never_marked_read(self):
+        """Blue-ticking something nobody will ever see is the one outcome this
+        must not produce."""
+        self.session.auto_mark_read = True
+        self.session.inbound_default = "reject"
+        with patch.object(type(self.session), "_gw", return_value={}) as gw, \
+                mute_logger("odoo.addons.whatsmeow.controllers.webhook"):
+            self.ctrl._on_message(self.env, self.session, {
+                "wa_message_id": "MR-REJ", "sender_phone": "447700900123",
+                "body": "spam",
+            })
+        self.assertFalse(self._read_calls(gw))
+
+    def test_a_retry_does_not_tick_twice(self):
+        self.session.auto_mark_read = True
+        data = {"wa_message_id": "MR-RETRY", "sender_phone": "447700900123",
+                "body": "hi"}
+        with patch.object(type(self.session), "_gw", return_value={}) as gw:
+            self.ctrl._on_message(self.env, self.session, data)
+            self.ctrl._on_message(self.env, self.session, data)
+        self.assertEqual(len(self._read_calls(gw)), 1)
+
+    def test_a_gateway_failure_does_not_break_the_webhook(self):
+        self.session.auto_mark_read = True
+        with patch.object(type(self.session), "_gw",
+                          side_effect=UserError("gateway down")), \
+                self.assertLogs("odoo.addons.whatsmeow.models.whatsmeow_message",
+                                level="WARNING"):
+            self.ctrl._on_message(self.env, self.session, {
+                "wa_message_id": "MR-FAIL", "sender_phone": "447700900123",
+                "body": "hi",
+            })
+        # The message is still stored; only the courtesy receipt was lost.
+        self.assertTrue(self.env["whatsmeow.message"].search(
+            [("wa_message_id", "=", "MR-FAIL")]))
+
+
+@tagged("post_install", "-at_install")
 class TestInboundFilterWebhook(WhatsmeowCommon):
     """End-to-end: the filter decides whether a webhook creates a record."""
 

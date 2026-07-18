@@ -1188,6 +1188,67 @@ func handleReact(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+type readRequest struct {
+	target
+	Sender     string   `json:"sender"`      // who wrote them; only groups need it
+	MessageIDs []string `json:"message_ids"` // all by the same author
+	Timestamp  string   `json:"timestamp"`   // RFC3339 read time; defaults to now
+}
+
+// handleMarkRead sends a read receipt — the blue ticks — for messages someone
+// sent us. WhatsApp takes one receipt per author, so a batch must not mix
+// senders; Odoo marks one message at a time, which trivially satisfies that.
+func handleMarkRead(w http.ResponseWriter, r *http.Request) {
+	s := requireSession(w, r)
+	if s == nil {
+		return
+	}
+	var req readRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || len(req.MessageIDs) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "'message_ids' is required"})
+		return
+	}
+	ids := make([]types.MessageID, 0, len(req.MessageIDs))
+	for _, id := range req.MessageIDs {
+		if id = strings.TrimSpace(id); id != "" {
+			ids = append(ids, types.MessageID(id))
+		}
+	}
+	if len(ids) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "'message_ids' is required"})
+		return
+	}
+	chat, err := resolveTarget(req.target)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	status, _, _, _ := s.snapshot()
+	if status != "connected" {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "session not connected (status: " + status + ")"})
+		return
+	}
+	// Only a group receipt names the author; in a 1:1 the chat *is* the sender
+	// and whatsmeow drops the field, so an empty JID is the right default.
+	sender := types.EmptyJID
+	if raw := strings.TrimSpace(req.Sender); raw != "" {
+		if p, perr := types.ParseJID(raw); perr == nil {
+			sender = p.ToNonAD()
+		}
+	}
+	ts := time.Now()
+	if raw := strings.TrimSpace(req.Timestamp); raw != "" {
+		if parsed, perr := time.Parse(time.RFC3339, raw); perr == nil {
+			ts = parsed
+		}
+	}
+	if err := s.Client.MarkRead(r.Context(), ids, ts, chat, sender); err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "mark read failed: " + err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"status": "read", "count": len(ids)})
+}
+
 // handleGetMedia streams a previously downloaded file to Odoo.
 func handleGetMedia(w http.ResponseWriter, r *http.Request) {
 	s := requireSession(w, r)
@@ -1475,6 +1536,7 @@ func main() {
 	mux.HandleFunc("POST /sessions/{name}/send", handleSend)
 	mux.HandleFunc("POST /sessions/{name}/send-media", handleSendMedia)
 	mux.HandleFunc("POST /sessions/{name}/react", handleReact)
+	mux.HandleFunc("POST /sessions/{name}/read", handleMarkRead)
 	mux.HandleFunc("GET /sessions/{name}/media/{id}", handleGetMedia)
 	mux.HandleFunc("DELETE /sessions/{name}/media/{id}", handleDeleteMedia)
 	mux.HandleFunc("POST /sessions/{name}/logout", handleLogout)

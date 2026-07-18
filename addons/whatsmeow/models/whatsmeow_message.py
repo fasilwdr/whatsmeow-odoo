@@ -309,6 +309,36 @@ class WhatsmeowMessage(models.Model):
             payload["jid"] = self.chat_jid
         return payload
 
+    def _mark_read(self):
+        """Send WhatsApp's read receipt for this inbound message.
+
+        Called once, the moment the inbound filter accepts it — so the tick
+        means "this reached the inbox", not "a human read it". That gap is why
+        it is opt-in per session (`auto_mark_read`), and why a rejected message
+        never gets one: blue-ticking something nobody will ever see is a lie.
+
+        Inline like a reaction, and never raising: a courtesy receipt must not
+        fail the webhook that is storing the message.
+        """
+        self.ensure_one()
+        if not self.session_id.auto_mark_read:
+            return
+        if self.direction != "in" or not self.wa_message_id:
+            return
+        payload = {
+            **self._target_payload(),
+            # Only a group receipt names the author; in a 1:1 the chat is the
+            # sender, and the gateway leaves the field out.
+            "sender": (self.sender_jid or "") if self.chat_type == "group" else "",
+            "message_ids": [self.wa_message_id],
+        }
+        try:
+            self.session_id._gw(
+                "POST", f"/sessions/{self.session_id.code}/read", payload)
+        except Exception as exc:  # noqa: BLE001 - a failed receipt must not raise
+            _logger.warning("whatsmeow: read receipt for message %s failed: %s",
+                            self.id, exc)
+
     def _quote_payload(self):
         """Ask the gateway to quote the message this one replies to."""
         self.ensure_one()

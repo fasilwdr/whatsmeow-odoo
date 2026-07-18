@@ -77,6 +77,15 @@ class WhatsmeowSession(models.Model):
     )
     inbound_rule_count = fields.Integer(compute="_compute_inbound_rule_count")
 
+    auto_mark_read = fields.Boolean(
+        string="Auto Mark as Read", default=False,
+        help="Send WhatsApp's read receipt (the blue ticks) as soon as an "
+             "incoming message is accepted by the filter above. The sender is "
+             "told the message reached you, not that anyone has read it — and "
+             "the conversation stops showing as unread on the phone, so leave "
+             "this off if the number is also watched from a handset.",
+    )
+
     _code_conn_uniq = models.Constraint(
         "UNIQUE (code, connection_id)",
         "Session key must be unique per gateway connection.",
