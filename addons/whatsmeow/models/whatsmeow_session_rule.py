@@ -14,6 +14,11 @@ class WhatsmeowSessionRule(models.Model):
     active = fields.Boolean(default=True)          # archive without deleting
     name = fields.Char()                           # optional human label
     action = fields.Selection(
-        [("accept", "Accept"), ("reject", "Reject")],
+        [("accept", "Accept"), ("reject", "Reject"), ("optout", "Opt the sender out")],
         default="reject", required=True,
+        help="Accept/Reject decide whether the message is stored — first match "
+             "wins. 'Opt the sender out' is not a disposition: it flags the "
+             "contact so nothing is ever sent to them again, then lets the "
+             "later rules decide what to do with this message (usually accept "
+             "it, so the request itself is on file).",
     )

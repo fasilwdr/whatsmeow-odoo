@@ -409,3 +409,33 @@ class TestOutboundRelay(DiscussCommon):
         out = self.env["whatsmeow.message"].search([
             ("session_id", "=", self.session.id), ("direction", "=", "out")])
         self.assertEqual(out.state, "error")
+
+
+@tagged("post_install", "-at_install")
+class TestRelayOptOut(DiscussCommon):
+    """An operator typing in the thread is a send like any other: the opt-out
+    gate (core, PLAN.md §12.3) applies there too, and a blocked reply says so
+    in the channel instead of vanishing."""
+
+    def test_a_reply_to_an_opted_out_contact_does_not_go_out(self):
+        contact = self.env["res.partner"].create({
+            "name": "Alice", "phone": "+44 7700 900001", "whatsmeow_optout": True,
+        })
+        self.session.route_fallback_user_ids = [(6, 0, self.frontdesk.ids)]
+        self._inbound()
+        channel = self._channels()
+        self.assertEqual(channel.whatsmeow_partner_id, contact)
+
+        with patch.object(type(self.session), "_gw") as gw, \
+                mute_logger("odoo.addons.whatsmeow_discuss.models.discuss_channel"):
+            channel.with_user(self.frontdesk).message_post(
+                body="are you there?", message_type="comment",
+                subtype_xmlid="mail.mt_comment",
+            )
+        self.assertEqual(gw.call_count, 0, "nothing may reach WhatsApp")
+        note = self.env["mail.message"].search(
+            [("model", "=", "discuss.channel"), ("res_id", "=", channel.id)],
+            order="id desc", limit=1,
+        )
+        self.assertIn("opted out", note.body)
+        self.assertIn("could not send", note.body)

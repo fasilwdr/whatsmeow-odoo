@@ -54,6 +54,35 @@
             </group>
           </group>
           <notebook>
+            <page string="Volume &amp; Warm-Up" name="warmup">
+              <group>
+                <group string="Daily Allowance" name="warmup_caps">
+                  <field name="warmup_enabled"/>
+                  <field name="tz" invisible="not warmup_enabled"/>
+                  <field name="warmup_start_date" invisible="not warmup_enabled"/>
+                  <field name="daily_cap_base" invisible="not warmup_enabled"/>
+                  <field name="daily_cap_growth" invisible="not warmup_enabled"/>
+                  <field name="daily_cap_max" invisible="not warmup_enabled"/>
+                  <field name="hourly_cap" invisible="not warmup_enabled"/>
+                </group>
+                <group string="Today" name="warmup_usage" invisible="not warmup_enabled">
+                  <field name="daily_cap"/>
+                  <field name="sent_today"/>
+                  <field name="sent_this_hour"/>
+                </group>
+              </group>
+              <p class="text-muted">
+                A number that sends hundreds of messages on its first day looks
+                like a broadcaster whatever it says, so the queue bounds the day
+                as well as pacing the sends apart. The allowance grows from the
+                day-1 figure by the growth factor for every day since the first
+                send, up to the ceiling, and resets at midnight in the timezone
+                above. <b>Only queued traffic is capped</b> — an operator's
+                Discuss reply and a message sent by hand from the form are
+                answers to someone who wrote first, which is the safest traffic
+                there is, and they go out regardless.
+              </p>
+            </page>
             <page string="Inbound Filtering" name="inbound_filtering">
               <div class="alert alert-info" role="status"
                    invisible="inbound_default != 'accept' or inbound_rule_count == 0">
@@ -91,6 +120,13 @@
                   <field name="keyword"/>
                 </list>
               </field>
+              <p class="text-muted">
+                An <b>Opt the sender out</b> rule — typically a keyword like
+                <i>stop</i> or <i>unsubscribe</i> — flags the contact so nothing
+                is ever sent to them again, on any path, and then lets the
+                following rules decide whether to keep the message itself.
+                It is not a disposition of its own.
+              </p>
               <p class="text-muted">
                 A rule matches when <b>every field you set</b> matches the message;
                 blank fields are wildcards, so a rule with nothing set matches

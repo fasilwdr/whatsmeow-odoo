@@ -129,6 +129,11 @@ class WhatsmeowWebhook(http.Controller):
             "body": body.lower(),
             "is_placeholder": bool(data.get("placeholder")),
         }
+        # "STOP" has to be honoured whatever the filter then does with the
+        # message, so the opt-out runs first — and on a rejected message too:
+        # someone asking to be left alone is exactly whose wish we must record.
+        session._inbound_optout(facts, partner)
+
         if session._inbound_decision(facts) == "reject":
             _logger.info("whatsmeow: session %s dropped inbound %s by filter",
                          session.code, wa_id)
@@ -202,10 +207,35 @@ class WhatsmeowWebhook(http.Controller):
         existing.write(vals)
         _logger.info("whatsmeow: real copy of %s replaced its placeholder",
                      existing.wa_message_id)
+        # A keyword cannot be judged on an empty stand-in, so this is the first
+        # copy an opt-out rule can actually read. Same fall-through as the
+        # filter's.
+        existing.session_id._inbound_optout(
+            self._facts_for(existing), existing.partner_id)
         if not media:
             # The placeholder never reached the chatter/channel with anything
             # useful; deliver the real text now.
             existing._deliver_inbound()
+
+    def _facts_for(self, message):
+        """Rebuild the match facts from a stored message.
+
+        The create path builds them from the raw event (there is no record
+        yet); the placeholder merge has the record instead. Keep the keys in
+        step with `whatsmeow.match.mixin._matches` — both callers feed the same
+        matcher.
+        """
+        return {
+            "chat_type": message.chat_type,
+            "message_type": message.message_type,
+            "partner_id": message.partner_id.id or False,
+            "sender_state": "existing" if message.partner_id else "new",
+            "chat_jid": message.chat_jid or "",
+            "phone_tail": _phone_tail(message.phone),
+            "sender_lid": message.sender_lid or "",
+            "body": (message.body or "").lower(),
+            "is_placeholder": message.is_placeholder,
+        }
 
     def _on_reaction(self, env, session, data):
         """Apply an inbound WhatsApp reaction to the message it targets.

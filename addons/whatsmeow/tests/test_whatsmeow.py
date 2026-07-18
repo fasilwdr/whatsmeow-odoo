@@ -733,7 +733,10 @@ class TestThrottle(WhatsmeowCommon):
         self.assertEqual(stalled.state, "outgoing")
 
     def test_queue_drains_a_backlog_once_paced(self):
-        self.session.write({"send_delay_min": 0, "send_delay_max": 0})
+        # Warm-up off: this is about pacing, and a new number's default
+        # allowance (§12.2) would bound the backlog before the pacing did.
+        self.session.write({"send_delay_min": 0, "send_delay_max": 0,
+                            "warmup_enabled": False})
         msgs = [self._queue(self.session, body=f"m{i}") for i in range(3)]
         with patch.object(type(self.session), "_gw", return_value={"wa_message_id": "C"}):
             self.env["whatsmeow.message"].cron_process_outgoing()
@@ -1252,3 +1255,282 @@ class TestWebhookRouting(WhatsmeowCommon):
         )
         self.assertNotIn("<img", post.body)
         self.assertIn("&lt;img", post.body)
+
+
+@tagged("post_install", "-at_install")
+class TestOptOut(WhatsmeowCommon):
+    """Opt-out is the one gate no path may route around (PLAN.md §12.3).
+
+    Unlike the volume caps it applies to interactive sends too: a contact who
+    asked to be left alone did not ask only the queue.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.partner = self.env["res.partner"].create({
+            "name": "Alice", "phone": "+44 7700 900123",
+        })
+
+    def _queue(self, **over):
+        vals = {
+            "session_id": self.session.id, "phone": "447700900123",
+            "direction": "out", "body": "hi",
+        }
+        vals.update(over)
+        return self.env["whatsmeow.message"].create(vals)
+
+    def test_optout_blocks_a_hand_sent_message(self):
+        self.partner.whatsmeow_optout = True
+        msg = self._queue(partner_id=self.partner.id)
+        with patch.object(type(self.session), "_gw") as gw:
+            with self.assertRaises(UserError):
+                msg.action_send()
+        self.assertEqual(gw.call_count, 0, "nothing may reach the gateway")
+
+    def test_optout_blocks_the_queue_without_raising(self):
+        """The cron has nobody to tell, so it marks the row and carries on."""
+        self.partner.whatsmeow_optout = True
+        blocked = self._queue(partner_id=self.partner.id)
+        allowed = self._queue(phone="447700900999", body="ok")
+        with patch.object(type(self.session), "_gw",
+                          return_value={"wa_message_id": "OK"}) as gw:
+            self.env["whatsmeow.message"].cron_process_outgoing()
+        self.assertEqual(blocked.state, "error")
+        self.assertIn("opted out", blocked.error_message)
+        self.assertEqual(allowed.state, "sent")
+        self.assertEqual(gw.call_count, 1, "only the allowed message was sent")
+
+    def test_optout_is_matched_by_phone_without_a_partner_link(self):
+        """A message typed against a bare number must not slip past."""
+        self.partner.whatsmeow_optout = True
+        msg = self._queue()
+        self.assertFalse(msg.partner_id)
+        with patch.object(type(self.session), "_gw") as gw:
+            with self.assertRaises(UserError):
+                msg.action_send()
+        self.assertEqual(gw.call_count, 0)
+
+    def test_a_blocked_batch_does_not_roll_back_a_sent_one(self):
+        """The check runs over the whole set before anything is sent, so the
+        raise cannot undo a message WhatsApp already has."""
+        self.partner.whatsmeow_optout = True
+        blocked = self._queue(partner_id=self.partner.id)
+        other = self._queue(phone="447700900999")
+        with patch.object(type(self.session), "_gw",
+                          return_value={"wa_message_id": "Z"}) as gw:
+            with self.assertRaises(UserError):
+                (blocked | other).action_send()
+        self.assertEqual(gw.call_count, 0)
+        self.assertEqual(other.state, "outgoing")
+
+    def test_a_group_message_is_not_blocked_by_one_member(self):
+        """An individual's opt-out cannot speak for a whole group chat."""
+        self.partner.whatsmeow_optout = True
+        msg = self._queue(phone="", chat_jid="site@g.us",
+                          partner_id=self.partner.id)
+        with patch.object(type(self.session), "_gw",
+                          return_value={"wa_message_id": "G"}):
+            msg.action_send()
+        self.assertEqual(msg.state, "sent")
+
+    def test_optout_is_not_lifted_by_a_second_stop(self):
+        self.partner._whatsmeow_optout("first")
+        first = self.partner.whatsmeow_optout_date
+        self.partner._whatsmeow_optout("second")
+        self.assertEqual(self.partner.whatsmeow_optout_date, first)
+        self.assertEqual(self.partner.whatsmeow_optout_reason, "first")
+
+
+@tagged("post_install", "-at_install")
+class TestKeywordOptOut(WhatsmeowCommon):
+    """"STOP" arriving inbound flags the contact, via a rule rather than a
+    hard-coded word list."""
+
+    def setUp(self):
+        super().setUp()
+        from odoo.addons.whatsmeow.controllers.webhook import WhatsmeowWebhook
+        self.ctrl = WhatsmeowWebhook()
+        self.partner = self.env["res.partner"].create({
+            "name": "Alice", "phone": "+44 7700 900123",
+        })
+        self.rule = self.env["whatsmeow.session.rule"].create({
+            "session_id": self.session.id, "sequence": 1,
+            "name": "Stop keyword", "action": "optout", "keyword": "stop",
+        })
+
+    def _inbound(self, **over):
+        data = {
+            "wa_message_id": "IN1", "sender_phone": "447700900123", "body": "stop",
+        }
+        data.update(over)
+        self.ctrl._on_message(self.env, self.session, data)
+
+    def test_keyword_sets_the_flag(self):
+        self._inbound()
+        self.assertTrue(self.partner.whatsmeow_optout)
+        self.assertTrue(self.partner.whatsmeow_optout_date)
+
+    def test_optout_rule_does_not_decide_the_disposition(self):
+        """It flags the sender and steps aside: the request itself is kept."""
+        self._inbound()
+        msg = self.env["whatsmeow.message"].search([("wa_message_id", "=", "IN1")])
+        self.assertEqual(len(msg), 1)
+        self.assertEqual(self.session._inbound_decision({
+            "chat_type": "private", "message_type": "text",
+            "partner_id": self.partner.id, "sender_state": "existing",
+            "chat_jid": "", "phone_tail": "7700900123", "sender_lid": "",
+            "body": "stop", "is_placeholder": False,
+        }), "accept")
+
+    def test_a_rejected_message_still_opts_out(self):
+        """Someone asking to be left alone is exactly whose wish to record."""
+        self.session.inbound_default = "reject"
+        self._inbound()
+        self.assertTrue(self.partner.whatsmeow_optout)
+        self.assertFalse(
+            self.env["whatsmeow.message"].search([("wa_message_id", "=", "IN1")]))
+
+    def test_the_placeholder_does_not_opt_out_but_the_real_copy_does(self):
+        """A keyword cannot be judged on WhatsApp's empty first copy."""
+        self._inbound(body="", placeholder=True)
+        self.assertFalse(self.partner.whatsmeow_optout)
+        self._inbound(body="STOP")            # the real copy of the same id
+        self.assertTrue(self.partner.whatsmeow_optout)
+
+    def test_an_unrelated_message_does_not_opt_out(self):
+        self._inbound(body="hello there")
+        self.assertFalse(self.partner.whatsmeow_optout)
+
+    def test_a_lid_only_sender_cannot_be_flagged(self):
+        """There is no contact to put the flag on; it must not crash."""
+        self._inbound(sender_phone="", sender_lid="12345@lid")
+        self.assertFalse(self.partner.whatsmeow_optout)
+
+
+@tagged("post_install", "-at_install")
+class TestWarmupCaps(WhatsmeowCommon):
+    """The ramp bounds the day; the pacing only spaces sends apart (§12.2)."""
+
+    def setUp(self):
+        super().setUp()
+        self.session.write({
+            "send_delay_min": 0, "send_delay_max": 0,
+            "warmup_enabled": True, "warmup_start_date": fields.Date.today(),
+            "daily_cap_base": 20, "daily_cap_growth": 1.3, "daily_cap_max": 500,
+        })
+
+    def _queue(self, n=1):
+        return self.env["whatsmeow.message"].create([{
+            "session_id": self.session.id, "phone": "447700900123",
+            "direction": "out", "body": f"m{i}",
+        } for i in range(n)])
+
+    def test_the_ramp_curve(self):
+        today = self.session._local_today()
+        for days, expected in ((0, 20), (1, 26), (7, 126), (30, 500), (365, 500)):
+            self.session.warmup_start_date = today - timedelta(days=days)
+            self.assertEqual(self.session._daily_cap(), expected,
+                             f"wrong allowance {days} days in")
+
+    def test_a_future_start_date_gives_day_one(self):
+        self.session.warmup_start_date = self.session._local_today() + timedelta(days=5)
+        self.assertEqual(self.session._daily_cap(), 20)
+
+    def test_disabled_warmup_is_unlimited(self):
+        self.session.warmup_enabled = False
+        self.assertEqual(self.session._daily_cap(), 0)
+        self.assertEqual(self.session._seconds_until_sendable(), 0.0)
+
+    def test_growth_cannot_shrink_the_allowance(self):
+        with self.assertRaises(ValidationError):
+            self.session.daily_cap_growth = 0.9
+
+    def test_the_cron_stops_at_the_cap(self):
+        self.session.write({"daily_cap_base": 3, "hourly_cap": 99})
+        msgs = self._queue(5)
+        with patch.object(type(self.session), "_gw",
+                          return_value={"wa_message_id": "A"}) as gw:
+            self.env["whatsmeow.message"].cron_process_outgoing()
+        self.assertEqual(gw.call_count, 3)
+        self.assertEqual([m.state for m in msgs],
+                         ["sent"] * 3 + ["outgoing"] * 2)
+
+        # A second run the same day adds nothing, and touches no gateway.
+        with patch.object(type(self.session), "_gw") as gw:
+            self.env["whatsmeow.message"].cron_process_outgoing()
+        self.assertEqual(gw.call_count, 0)
+
+    def test_the_remainder_drains_the_next_day(self):
+        self.session.write({"daily_cap_base": 2, "hourly_cap": 99})
+        msgs = self._queue(4)
+        with patch.object(type(self.session), "_gw",
+                          return_value={"wa_message_id": "A"}):
+            self.env["whatsmeow.message"].cron_process_outgoing()
+        self.assertEqual(len(msgs.filtered(lambda m: m.state == "sent")), 2)
+
+        # Move yesterday's sends back rather than the clock: same effect on the
+        # count, and the ramp gives day two a larger allowance anyway.
+        msgs.filtered(lambda m: m.sent_date).sent_date = \
+            fields.Datetime.now() - timedelta(days=1)
+        self.session.warmup_start_date = self.session._local_today() - timedelta(days=1)
+        with patch.object(type(self.session), "_gw",
+                          return_value={"wa_message_id": "B"}):
+            self.env["whatsmeow.message"].cron_process_outgoing()
+        self.assertEqual([m.state for m in msgs], ["sent"] * 4)
+
+    def test_the_hourly_cap_holds_a_days_worth_back(self):
+        """A daily allowance must not leave in one burst."""
+        self.session.write({"daily_cap_base": 24, "hourly_cap": 0})
+        self.assertEqual(self.session._hourly_cap(), 2)
+        msgs = self._queue(4)
+        with patch.object(type(self.session), "_gw",
+                          return_value={"wa_message_id": "A"}) as gw:
+            self.env["whatsmeow.message"].cron_process_outgoing()
+        self.assertEqual(gw.call_count, 2)
+        self.assertEqual(len(msgs.filtered(lambda m: m.state == "outgoing")), 2)
+
+    def test_a_capped_session_does_not_stall_another(self):
+        self.session.write({"daily_cap_base": 1, "hourly_cap": 99})
+        other = self.env["whatsmeow.session"].create({
+            "name": "Client Beta", "code": "client_beta",
+            "connection_id": self.connection.id,
+            "send_delay_min": 0, "send_delay_max": 0,
+        })
+        mine = self._queue(2)
+        theirs = self.env["whatsmeow.message"].create({
+            "session_id": other.id, "phone": "447700900999",
+            "direction": "out", "body": "hi",
+        })
+        with patch.object(type(self.session), "_gw",
+                          return_value={"wa_message_id": "A"}):
+            self.env["whatsmeow.message"].cron_process_outgoing()
+        self.assertEqual(theirs.state, "sent")
+        self.assertEqual(len(mine.filtered(lambda m: m.state == "outgoing")), 1)
+
+    def test_a_hand_sent_message_ignores_the_cap(self):
+        """A reply to someone who wrote first is the safest traffic there is;
+        only queued/bulk traffic is budgeted."""
+        self.session.daily_cap_base = 1
+        first, second = self._queue(2)
+        with patch.object(type(self.session), "_gw",
+                          return_value={"wa_message_id": "A"}):
+            first.action_send()
+            second.action_send()
+        self.assertEqual([first.state, second.state], ["sent", "sent"])
+
+    def test_the_day_rolls_over_in_the_sessions_timezone(self):
+        """A cap that resets at UTC noon is wrong twice a day for a Gulf client."""
+        self.session.tz = "Asia/Riyadh"          # UTC+3, no DST
+        midnight = self.session._local_midnight_utc()
+        self.assertEqual((midnight.hour, midnight.minute), (21, 0))
+        self.assertEqual(
+            self.session._local_today(),
+            (fields.Datetime.now() + timedelta(hours=3)).date())
+
+    def test_the_first_send_starts_the_ramp(self):
+        self.session.warmup_start_date = False
+        msg = self._queue()
+        with patch.object(type(self.session), "_gw",
+                          return_value={"wa_message_id": "A"}):
+            msg.action_send()
+        self.assertEqual(self.session.warmup_start_date, self.session._local_today())

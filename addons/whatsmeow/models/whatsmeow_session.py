@@ -1,13 +1,16 @@
 import base64
 import io
 import logging
+import math
 import random
 import re
 from datetime import timedelta
 
+import pytz
 import qrcode
 
 from odoo import _, api, fields, models
+from odoo.addons.base.models.res_partner import _tz_get
 from odoo.exceptions import ValidationError
 
 _logger = logging.getLogger(__name__)
@@ -62,6 +65,51 @@ class WhatsmeowSession(models.Model):
              "queue leaves this number alone.",
     )
 
+    # -- warm-up ramp and volume caps (PLAN.md §12.2) -------------------------
+    # Pacing spaces sends apart but does not bound the day, and a young number
+    # doing hundreds of sends on day one is a bulk-sender signature all by
+    # itself. The cap is a curve rather than a schedule, so there is one knob
+    # per client instead of a table to maintain.
+    tz = fields.Selection(
+        _tz_get, string="Timezone", default=lambda self: self.env.user.tz or "UTC",
+        help="Whose midnight the daily allowance rolls over at. A cap that "
+             "resets at UTC noon is wrong twice a day for a Gulf client.",
+    )
+    warmup_enabled = fields.Boolean(
+        string="Warm-Up & Daily Cap", default=True,
+        help="Bound how many queued messages this number sends per day, rising "
+             "as the number ages. Off means unlimited — the pacing between "
+             "sends still applies.",
+    )
+    warmup_start_date = fields.Date(
+        string="Sending Since", copy=False,
+        help="Day one of the ramp. Set automatically on the first send; move it "
+             "back by hand if the number was already in use before this install.",
+    )
+    daily_cap_base = fields.Integer(
+        string="Day-1 Allowance", default=20, required=True,
+    )
+    daily_cap_growth = fields.Float(
+        string="Daily Growth", default=1.3, required=True,
+        help="Multiplier per full day since the first send. 1.3 takes 20/day to "
+             "the ceiling in about three weeks; 1.0 keeps the allowance flat.",
+    )
+    daily_cap_max = fields.Integer(
+        string="Ceiling", default=500, required=True,
+        help="The allowance stops growing here, however old the number is.",
+    )
+    hourly_cap = fields.Integer(
+        string="Hourly Cap", default=0,
+        help="0 derives it as a twelfth of the daily allowance, so a day's "
+             "worth cannot go out in one hour.",
+    )
+    daily_cap = fields.Integer(
+        compute="_compute_volume", string="Today's Allowance",
+        help="0 means unlimited.",
+    )
+    sent_today = fields.Integer(compute="_compute_volume", string="Sent Today")
+    sent_this_hour = fields.Integer(compute="_compute_volume", string="Sent This Hour")
+
     # -- inbound filtering ----------------------------------------------------
     inbound_default = fields.Selection(
         [("accept", "Accept"), ("reject", "Reject")],
@@ -101,6 +149,17 @@ class WhatsmeowSession(models.Model):
                     rec.code,
                 ))
 
+    @api.constrains("daily_cap_base", "daily_cap_growth", "daily_cap_max", "hourly_cap")
+    def _check_caps(self):
+        for rec in self:
+            if min(rec.daily_cap_base, rec.daily_cap_max, rec.hourly_cap) < 0:
+                raise ValidationError(_("Volume caps cannot be negative."))
+            if rec.daily_cap_growth < 1.0:
+                raise ValidationError(_(
+                    "Daily growth cannot shrink the allowance: use 1.0 for a "
+                    "flat cap, or more to ramp up."
+                ))
+
     @api.constrains("send_delay_min", "send_delay_max")
     def _check_send_delays(self):
         for rec in self:
@@ -128,10 +187,38 @@ class WhatsmeowSession(models.Model):
         One2many, so this is O(rules) pure Python per message.
         """
         self.ensure_one()
-        for rule in self.inbound_rule_ids.sorted(key=lambda r: (r.sequence, r.id)):
-            if rule._matches(facts):
+        for rule in self._sorted_inbound_rules():
+            # An opt-out rule flags the sender (see `_inbound_optout`) but says
+            # nothing about whether to keep the message, so it never wins the
+            # disposition — the rules after it still get their say.
+            if rule.action != "optout" and rule._matches(facts):
                 return rule.action
         return self.inbound_default
+
+    def _sorted_inbound_rules(self):
+        self.ensure_one()
+        return self.inbound_rule_ids.sorted(key=lambda r: (r.sequence, r.id))
+
+    def _inbound_optout(self, facts, partner):
+        """Honour an opt-out keyword in an incoming message.
+
+        Kept as a rule action rather than a hard-coded "STOP"/"UNSUBSCRIBE"
+        list so the wording is per-client data — the §9 matcher already does
+        keyword matching, so this adds no matching code at all. A LID-only
+        sender resolves to no partner and so cannot be flagged; the flag lives
+        on the contact, and there is no contact to put it on.
+        """
+        self.ensure_one()
+        if not partner:
+            return False
+        for rule in self._sorted_inbound_rules():
+            if rule.action == "optout" and rule._matches(facts):
+                partner.sudo()._whatsmeow_optout(self.env._(
+                    "Asked to stop over WhatsApp (%s)", rule.display_name or self.name))
+                _logger.info("whatsmeow: session %s opted partner %s out by rule %s",
+                             self.code, partner.id, rule.id)
+                return True
+        return False
 
     def action_view_inbound_rules(self):
         self.ensure_one()
@@ -144,14 +231,103 @@ class WhatsmeowSession(models.Model):
             "context": {"default_session_id": self.id},
         }
 
+    # -- warm-up ramp and volume caps -----------------------------------------
+    def _tz(self):
+        self.ensure_one()
+        try:
+            return pytz.timezone(self.tz or "UTC")
+        except pytz.UnknownTimeZoneError:  # pragma: no cover - defensive
+            return pytz.UTC
+
+    def _local_today(self):
+        """Today's date where this number lives."""
+        self.ensure_one()
+        return pytz.UTC.localize(fields.Datetime.now()).astimezone(self._tz()).date()
+
+    def _local_midnight_utc(self):
+        """The start of the session's own day, as naive UTC for the ORM."""
+        self.ensure_one()
+        tz = self._tz()
+        local_now = pytz.UTC.localize(fields.Datetime.now()).astimezone(tz)
+        midnight = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+        return midnight.astimezone(pytz.UTC).replace(tzinfo=None)
+
+    def _daily_cap(self):
+        """Today's allowance: base * growth ** days_online, clamped. 0 = unlimited.
+
+        A curve, not a table. Until the first send there is no start date, so
+        day one's allowance applies — which is what a brand new number should get.
+        """
+        self.ensure_one()
+        if not self.warmup_enabled:
+            return 0
+        start = self.warmup_start_date or self._local_today()
+        days = max(0, (self._local_today() - start).days)
+        try:
+            grown = self.daily_cap_base * (self.daily_cap_growth ** days)
+        except OverflowError:  # a long-lived number with a large growth factor
+            return self.daily_cap_max
+        return max(0, min(self.daily_cap_max, math.ceil(grown)))
+
+    def _hourly_cap(self):
+        """A day's allowance must not leave in one hour."""
+        self.ensure_one()
+        daily = self._daily_cap()
+        if self.hourly_cap:
+            return self.hourly_cap
+        return math.ceil(daily / 12) if daily else 0
+
+    def _sent_since(self, since):
+        """Count what this number has actually put on the wire since `since`.
+
+        A query, not a stored counter: a counter needs a reset cron and drifts
+        whenever a transaction rolls back. This runs once per cron pass, not
+        once per message.
+        """
+        self.ensure_one()
+        return self.env["whatsmeow.message"].search_count([
+            ("session_id", "=", self.id),
+            ("direction", "=", "out"),
+            ("sent_date", ">=", since),
+        ])
+
+    @api.depends("warmup_enabled", "warmup_start_date", "daily_cap_base",
+                 "daily_cap_growth", "daily_cap_max", "hourly_cap", "tz")
+    def _compute_volume(self):
+        for rec in self:
+            rec.daily_cap = rec._daily_cap()
+            rec.sent_today = rec._sent_since(rec._local_midnight_utc())
+            rec.sent_this_hour = rec._sent_since(
+                fields.Datetime.now() - timedelta(hours=1))
+
+    def _note_send(self):
+        """Start the ramp on the first message this number ever sends."""
+        self.ensure_one()
+        if self.warmup_enabled and not self.warmup_start_date:
+            self.warmup_start_date = self._local_today()
+
     # -- send throttling ------------------------------------------------------
     # Bursting is the main ban lever on the unofficial protocol, so the queue
     # paces sends. The pacing is per session because the risk is per number:
     # one busy number must not hold up another, and two numbers sharing a
     # gateway are still two independent reputations.
     def _seconds_until_sendable(self):
-        """How long the queue must wait before this number may send again."""
+        """How long the queue must wait before this number may send again.
+
+        `None` means "not within this run": the daily allowance is spent (it
+        reopens at the session's own midnight) or the hour's is (the queue is
+        better off working another number than sleeping here). Callers must
+        treat it as "drop this session", not as zero.
+        """
         self.ensure_one()
+        daily = self._daily_cap()
+        if daily:
+            if self._sent_since(self._local_midnight_utc()) >= daily:
+                return None
+            hourly = self._hourly_cap()
+            if hourly and self._sent_since(
+                    fields.Datetime.now() - timedelta(hours=1)) >= hourly:
+                return None
         if not self.next_send_at:
             return 0.0
         delta = (self.next_send_at - fields.Datetime.now()).total_seconds()

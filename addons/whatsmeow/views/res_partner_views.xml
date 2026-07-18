@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+  <record id="view_partner_form_whatsmeow" model="ir.ui.view">
+    <field name="name">res.partner.form.whatsmeow.optout</field>
+    <field name="model">res.partner</field>
+    <field name="inherit_id" ref="base.view_partner_form"/>
+    <field name="arch" type="xml">
+      <field name="category_id" position="after">
+        <field name="whatsmeow_optout" groups="whatsmeow.group_whatsmeow_user"/>
+        <field name="whatsmeow_optout_date" invisible="not whatsmeow_optout"
+               groups="whatsmeow.group_whatsmeow_user"/>
+        <field name="whatsmeow_optout_reason" invisible="not whatsmeow_optout"
+               groups="whatsmeow.group_whatsmeow_user"/>
+      </field>
+    </field>
+  </record>
+
+  <record id="view_res_partner_filter_whatsmeow" model="ir.ui.view">
+    <field name="name">res.partner.search.whatsmeow.optout</field>
+    <field name="model">res.partner</field>
+    <field name="inherit_id" ref="base.view_res_partner_filter"/>
+    <field name="arch" type="xml">
+      <filter name="type_company" position="after">
+        <separator/>
+        <filter name="whatsmeow_optout" string="WhatsApp Opt-Out"
+                domain="[('whatsmeow_optout', '=', True)]"
+                groups="whatsmeow.group_whatsmeow_user"/>
+      </filter>
+    </field>
+  </record>
+
+</odoo>

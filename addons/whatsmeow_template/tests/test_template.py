@@ -531,3 +531,28 @@ class TestAccess(TemplateCommon):
                 "model_id": self.partner_model.id,
                 "body": "hi",
             })
+
+
+@tagged("post_install", "-at_install")
+class TestComposerOptOut(TemplateCommon):
+    """The opt-out gate (core, PLAN.md §12.3) must hold on the composer path
+    too — this is the test that stops a future module reintroducing a hole."""
+
+    def test_a_batch_sends_to_everyone_but_the_opted_out(self):
+        from unittest.mock import patch
+        self.alice.whatsmeow_optout = True
+        composer = self._composer(self.alice + self.bob, template_id=self.template.id)
+        composer.action_send()
+        messages = self._messages()
+        self.assertEqual(len(messages), 2, "the rows are queued either way")
+
+        with patch.object(type(self.session), "_gw",
+                          return_value={"wa_message_id": "T1"}) as gw, \
+                mute_logger("odoo.addons.whatsmeow.models.whatsmeow_message"):
+            self.env["whatsmeow.message"].cron_process_outgoing()
+        self.assertEqual(gw.call_count, 1, "only Bob's message reached the gateway")
+        blocked = messages.filtered(lambda m: m.partner_id == self.alice)
+        self.assertEqual(blocked.state, "error")
+        self.assertIn("opted out", blocked.error_message)
+        self.assertEqual(messages.filtered(lambda m: m.partner_id == self.bob).state,
+                         "sent")

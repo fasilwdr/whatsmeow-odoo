@@ -168,6 +168,12 @@ class WhatsmeowMessage(models.Model):
         string="Duration (s)", readonly=True, help="For audio and video.",
     )
     wa_message_id = fields.Char(readonly=True, index=True)
+    sent_date = fields.Datetime(
+        readonly=True, copy=False, index=True,
+        help="When the gateway accepted this message. The daily volume cap "
+             "counts these, not write_date — a delivery receipt landing today "
+             "must not make yesterday's message count against today.",
+    )
     is_placeholder = fields.Boolean(
         readonly=True,
         help="The gateway had nothing to render for this message, so the body "
@@ -426,10 +432,58 @@ class WhatsmeowMessage(models.Model):
             },
         }
 
+    # -- opt-out (PLAN.md §12.3) ----------------------------------------------
+    # Unlike the volume caps, this gate is absolute and belongs on the message
+    # rather than in the queue: every path that sends — the form button, the
+    # template composer, a server action, the Discuss relay — goes through
+    # `action_send`, so checking here is the one place no future module can
+    # route around.
+    def _optout_partner(self):
+        """The contact whose opt-out flag governs this message, if any.
+
+        A group has no single recipient, so an individual's opt-out cannot
+        speak for it; only private chats are gated. When the message carries a
+        bare number the partner is resolved the same way the inbound path
+        resolves one, so opting out from WhatsApp also blocks a send composed
+        against a hand-typed number.
+        """
+        self.ensure_one()
+        if self.direction != "out" or self.chat_type == "group":
+            return self.env["res.partner"]
+        if self.partner_id:
+            return self.partner_id
+        return self._find_partner(self.phone) if self.phone else \
+            self.env["res.partner"]
+
+    def _optout_block_reason(self):
+        """Why this message must not be sent, or False when it may be."""
+        self.ensure_one()
+        partner = self._optout_partner()
+        if partner and partner.sudo().whatsmeow_optout:
+            return self.env._(
+                "%s has opted out of WhatsApp messages.", partner.display_name)
+        return False
+
     def action_send(self):
-        for rec in self.filtered(
+        sendable = self.filtered(
             lambda r: r.direction == "out" and r.state in ("outgoing", "error")
-        ):
+        )
+        # Check every recipient before sending any of them, so a raise cannot
+        # roll back a message that already left for WhatsApp.
+        blocked = self.env[self._name]
+        reasons = []
+        for rec in sendable:
+            reason = rec._optout_block_reason()
+            if reason:
+                blocked |= rec
+                reasons.append(reason)
+                rec.write({"state": "error", "error_message": reason})
+        if blocked and not self.env.context.get("whatsmeow_queued"):
+            # An interactive sender is told to their face; the queue only marks
+            # the row, because there is nobody there to tell.
+            raise UserError("\n".join(dict.fromkeys(reasons)))
+
+        for rec in sendable - blocked:
             try:
                 path, payload = rec._send_payload()
                 # Uploading a file takes longer than posting a line of text.
@@ -437,9 +491,11 @@ class WhatsmeowMessage(models.Model):
                 data = rec.session_id._gw("POST", path, payload, timeout=timeout)
                 rec.write({
                     "state": "sent",
+                    "sent_date": fields.Datetime.now(),
                     "wa_message_id": data.get("wa_message_id"),
                     "error_message": False,
                 })
+                rec.session_id.sudo()._note_send()
             except Exception as exc:  # noqa: BLE001 - one bad send must not stop the queue
                 rec.write({"state": "error", "error_message": str(exc)})
                 _logger.warning("whatsmeow.message %s send failed: %s", rec.id, exc)
@@ -466,9 +522,22 @@ class WhatsmeowMessage(models.Model):
             queues.setdefault(msg.session_id, []).append(msg)
 
         while queues and time.monotonic() < deadline:
-            due = [s for s in queues if not s._seconds_until_sendable()]
+            # `None` means "not today": this number has spent its warm-up
+            # allowance, so drop it from the run rather than sleeping on a
+            # window that will not open before midnight. Its messages stay
+            # `outgoing` and tomorrow's cron drains them.
+            waits = {}
+            for session in list(queues):
+                wait = session._seconds_until_sendable()
+                if wait is None:
+                    del queues[session]
+                else:
+                    waits[session] = wait
+            if not queues:
+                break
+            due = [s for s, wait in waits.items() if not wait]
             if not due:
-                wait = min(s._seconds_until_sendable() for s in queues)
+                wait = min(waits.values())
                 if time.monotonic() + wait >= deadline:
                     break  # the next window opens after this run; leave it queued
                 time.sleep(wait)
@@ -482,7 +551,9 @@ class WhatsmeowMessage(models.Model):
                     # the savepoint is for anything else unforeseen: one bad
                     # send must not poison the whole run's transaction.
                     with self.env.cr.savepoint():
-                        msg.action_send()
+                        # Queued: a blocked recipient marks the row and the run
+                        # carries on; nobody is watching to be told.
+                        msg.with_context(whatsmeow_queued=True).action_send()
                         session._schedule_next_send()
                 except Exception as exc:  # noqa: BLE001 - one bad send must not stop the queue
                     _logger.warning(
