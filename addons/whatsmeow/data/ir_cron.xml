@@ -20,6 +20,16 @@
     <field name="active" eval="True"/>
   </record>
 
+  <record id="cron_whatsmeow_check_numbers" model="ir.cron">
+    <field name="name">Whatsmeow: validate queued recipients</field>
+    <field name="model_id" ref="model_whatsmeow_message"/>
+    <field name="state">code</field>
+    <field name="code">model.cron_check_numbers()</field>
+    <field name="interval_number">15</field>
+    <field name="interval_type">minutes</field>
+    <field name="active" eval="True"/>
+  </record>
+
   <record id="cron_whatsmeow_refresh_sessions" model="ir.cron">
     <field name="name">Whatsmeow: refresh session status</field>
     <field name="model_id" ref="model_whatsmeow_session"/>

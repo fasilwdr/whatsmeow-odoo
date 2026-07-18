@@ -970,6 +970,209 @@ func (c *sendCache) sweep() {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Recipient validation (PLAN.md §12.4)
+//
+// Sending to numbers that are not on WhatsApp is one of the clearest
+// bulk-sender fingerprints there is, and whatsmeow can ask before we burn a
+// send. But bulk-querying IsOnWhatsApp is a fingerprint of its own, so the
+// gateway does not simply pass the batch through: it answers from a cache
+// where it can, and spends a per-session budget where it cannot.
+// ---------------------------------------------------------------------------
+
+type checkEntry struct {
+	registered bool
+	jid        string
+	at         time.Time
+}
+
+type checkCache struct {
+	mu sync.Mutex
+	// Keyed by bare digits. Whether a number is on WhatsApp is a property of
+	// the number, not of the session that asked, so the cache is global.
+	byNumber map[string]checkEntry
+	// Per-session spend, so one busy client cannot burn another's budget.
+	spent map[string]*checkBudget
+	ttl   time.Duration
+}
+
+type checkBudget struct {
+	count       int
+	windowStart time.Time
+}
+
+var (
+	// A registration does not change often, so a long cache is both safe and
+	// the main thing keeping the query rate down.
+	checkTTL = time.Duration(envIntOr("WMG_CHECK_TTL_DAYS", 30)) * 24 * time.Hour
+	// Numbers one request may ask about, and how many *uncached* lookups a
+	// session may make per hour.
+	checkMaxBatch = envIntOr("WMG_CHECK_MAX_BATCH", 50)
+	checkPerHour  = envIntOr("WMG_CHECK_PER_HOUR", 500)
+
+	checkGuard = &checkCache{
+		byNumber: map[string]checkEntry{},
+		spent:    map[string]*checkBudget{},
+	}
+)
+
+// lookup answers from the cache, or reports a miss.
+func (c *checkCache) lookup(number string) (checkEntry, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	e, ok := c.byNumber[number]
+	if !ok || time.Since(e.at) > c.ttlOr() {
+		return checkEntry{}, false
+	}
+	return e, true
+}
+
+func (c *checkCache) ttlOr() time.Duration {
+	if c.ttl > 0 {
+		return c.ttl
+	}
+	return checkTTL
+}
+
+func (c *checkCache) store(number string, registered bool, jid string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.byNumber[number] = checkEntry{registered: registered, jid: jid, at: time.Now()}
+}
+
+// grant hands out up to `want` lookups from this session's hourly budget. A
+// partial grant is normal and useful: the caller checks what it can now and
+// comes back for the rest, which is exactly the drip we want anyway.
+func (c *checkCache) grant(session string, want int) int {
+	if want <= 0 {
+		return 0
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	b, ok := c.spent[session]
+	if !ok || time.Since(b.windowStart) >= time.Hour {
+		b = &checkBudget{windowStart: time.Now()}
+		c.spent[session] = b
+	}
+	free := checkPerHour - b.count
+	if free <= 0 {
+		return 0
+	}
+	if want > free {
+		want = free
+	}
+	b.count += want
+	return want
+}
+
+type checkRequest struct {
+	Phones []string `json:"phones"`
+}
+
+// handleCheck reports which of the given numbers are registered on WhatsApp.
+//
+// Cached answers are free; only numbers we have to ask about spend the hourly
+// budget, and a request that runs out of budget still returns everything it
+// knew, flagged `throttled` so Odoo can come back later rather than treat the
+// unanswered numbers as "not on WhatsApp".
+func handleCheck(w http.ResponseWriter, r *http.Request) {
+	s := requireSession(w, r)
+	if s == nil {
+		return
+	}
+	var req checkRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || len(req.Phones) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "'phones' is required"})
+		return
+	}
+	if len(req.Phones) > checkMaxBatch {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": fmt.Sprintf("too many numbers: %d (max %d per request)",
+				len(req.Phones), checkMaxBatch)})
+		return
+	}
+
+	// Normalise and de-duplicate first: Odoo stores numbers however a human
+	// typed them, and asking WhatsApp about the same number twice in one batch
+	// spends budget for nothing.
+	results := make([]map[string]any, 0, len(req.Phones))
+	var ask []string
+	seen := map[string]bool{}
+	for _, raw := range req.Phones {
+		digits := nonDigits.ReplaceAllString(raw, "")
+		if digits == "" || seen[digits] {
+			continue
+		}
+		seen[digits] = true
+		if e, ok := checkGuard.lookup(digits); ok {
+			results = append(results, map[string]any{
+				"number": digits, "registered": e.registered, "jid": e.jid,
+				"cached": true,
+			})
+			continue
+		}
+		ask = append(ask, digits)
+	}
+
+	throttled := false
+	if len(ask) > 0 {
+		status, _, _, _ := s.snapshot()
+		if status != "connected" {
+			writeJSON(w, http.StatusConflict, map[string]string{
+				"error": "session not connected (status: " + status + ")"})
+			return
+		}
+		granted := checkGuard.grant(s.Name, len(ask))
+		if granted < len(ask) {
+			throttled = true
+			log.Printf("[%s] check: hourly budget allows %d of %d lookups",
+				s.Name, granted, len(ask))
+		}
+		ask = ask[:granted]
+	}
+	if len(ask) > 0 {
+		// IsOnWhatsApp wants international format with the leading '+'.
+		query := make([]string, len(ask))
+		for i, n := range ask {
+			query[i] = "+" + n
+		}
+		resp, err := s.Client.IsOnWhatsApp(r.Context(), query)
+		if err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]string{
+				"error": "check failed: " + err.Error()})
+			return
+		}
+		answered := map[string]bool{}
+		for _, item := range resp {
+			digits := nonDigits.ReplaceAllString(item.Query, "")
+			if digits == "" {
+				digits = item.JID.User
+			}
+			answered[digits] = true
+			jidStr := ""
+			if item.IsIn {
+				jidStr = item.JID.String()
+			}
+			checkGuard.store(digits, item.IsIn, jidStr)
+			results = append(results, map[string]any{
+				"number": digits, "registered": item.IsIn, "jid": jidStr,
+			})
+		}
+		// A number WhatsApp said nothing about is not a "no" — it is an
+		// unanswered question, and caching it as a no would silently stop Odoo
+		// ever messaging that contact again.
+		for _, n := range ask {
+			if !answered[n] {
+				throttled = true
+			}
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"results":   results,
+		"throttled": throttled,
+	})
+}
+
 // Servers we can actually SendMessage to. Newsletters and broadcasts need
 // their own send paths, so reject them with a clear error rather than
 // failing deep inside whatsmeow.
@@ -1537,6 +1740,7 @@ func main() {
 	mux.HandleFunc("POST /sessions/{name}/send-media", handleSendMedia)
 	mux.HandleFunc("POST /sessions/{name}/react", handleReact)
 	mux.HandleFunc("POST /sessions/{name}/read", handleMarkRead)
+	mux.HandleFunc("POST /sessions/{name}/check", handleCheck)
 	mux.HandleFunc("GET /sessions/{name}/media/{id}", handleGetMedia)
 	mux.HandleFunc("DELETE /sessions/{name}/media/{id}", handleDeleteMedia)
 	mux.HandleFunc("POST /sessions/{name}/logout", handleLogout)

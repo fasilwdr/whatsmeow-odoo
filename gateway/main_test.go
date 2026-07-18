@@ -758,3 +758,124 @@ func TestQuotedID(t *testing.T) {
 		})
 	}
 }
+
+// Recipient validation (PLAN.md §12.4). Bulk-querying IsOnWhatsApp is itself a
+// bulk-sender fingerprint, so the cache and the budget are the point of the
+// endpoint — not an optimisation.
+func TestCheckCacheServesWithinTTL(t *testing.T) {
+	c := &checkCache{byNumber: map[string]checkEntry{}, spent: map[string]*checkBudget{},
+		ttl: time.Hour}
+	if _, ok := c.lookup("447700900123"); ok {
+		t.Fatal("empty cache must miss")
+	}
+	c.store("447700900123", true, "447700900123@s.whatsapp.net")
+	e, ok := c.lookup("447700900123")
+	if !ok || !e.registered || e.jid != "447700900123@s.whatsapp.net" {
+		t.Fatalf("cache miss or wrong entry: %+v ok=%v", e, ok)
+	}
+
+	// An answer older than the TTL is a question again, not a stale "no".
+	c.mu.Lock()
+	c.byNumber["447700900123"] = checkEntry{registered: true, at: time.Now().Add(-2 * time.Hour)}
+	c.mu.Unlock()
+	if _, ok := c.lookup("447700900123"); ok {
+		t.Fatal("an expired entry must not be served")
+	}
+}
+
+func TestCheckBudgetIsPerSessionAndPartial(t *testing.T) {
+	old := checkPerHour
+	checkPerHour = 10
+	defer func() { checkPerHour = old }()
+	c := &checkCache{byNumber: map[string]checkEntry{}, spent: map[string]*checkBudget{}}
+
+	if got := c.grant("acme", 4); got != 4 {
+		t.Fatalf("want 4 granted, got %d", got)
+	}
+	// A partial grant is deliberate: check what we can now, come back later.
+	if got := c.grant("acme", 9); got != 6 {
+		t.Fatalf("want the remaining 6, got %d", got)
+	}
+	if got := c.grant("acme", 1); got != 0 {
+		t.Fatalf("want 0 once spent, got %d", got)
+	}
+	// One busy client must not spend another's budget.
+	if got := c.grant("beta", 10); got != 10 {
+		t.Fatalf("another session starts fresh, got %d", got)
+	}
+
+	// The window rolls.
+	c.mu.Lock()
+	c.spent["acme"].windowStart = time.Now().Add(-2 * time.Hour)
+	c.mu.Unlock()
+	if got := c.grant("acme", 3); got != 3 {
+		t.Fatalf("want a fresh window, got %d", got)
+	}
+}
+
+func TestCheckRejectsAnOversizedBatch(t *testing.T) {
+	old := checkMaxBatch
+	checkMaxBatch = 2
+	defer func() { checkMaxBatch = old }()
+
+	manager = &Manager{sessions: map[string]*Session{"acme": {Name: "acme"}}}
+	body := strings.NewReader(`{"phones":["1","2","3"]}`)
+	req := httptest.NewRequest(http.MethodPost, "/sessions/acme/check", body)
+	req.SetPathValue("name", "acme")
+	rec := httptest.NewRecorder()
+	handleCheck(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("want 400 for an oversized batch, got %d", rec.Code)
+	}
+}
+
+func TestCheckAnswersFromCacheWithoutAskingWhatsApp(t *testing.T) {
+	// No Client on the session: if the handler tried to query, it would panic,
+	// which is exactly the assertion — a cached batch must not touch WhatsApp.
+	manager = &Manager{sessions: map[string]*Session{"acme": {Name: "acme"}}}
+	checkGuard = &checkCache{byNumber: map[string]checkEntry{}, spent: map[string]*checkBudget{}}
+	checkGuard.store("447700900123", true, "447700900123@s.whatsapp.net")
+	checkGuard.store("447700900999", false, "")
+
+	// Stored bare, asked with the formatting a human typed into Odoo. Only
+	// non-digits are stripped: a leading 00 is a dialling prefix, not part of
+	// the number, and inventing that rule here would disagree with how
+	// resolveTarget and Odoo's own matching read a number.
+	body := strings.NewReader(`{"phones":["+44 7700 900123","44-7700-900999","447700900123"]}`)
+	req := httptest.NewRequest(http.MethodPost, "/sessions/acme/check", body)
+	req.SetPathValue("name", "acme")
+	rec := httptest.NewRecorder()
+	handleCheck(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var out struct {
+		Results []struct {
+			Number     string `json:"number"`
+			Registered bool   `json:"registered"`
+			Cached     bool   `json:"cached"`
+		} `json:"results"`
+		Throttled bool `json:"throttled"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("bad json: %v", err)
+	}
+	if len(out.Results) != 2 {
+		t.Fatalf("the repeated number must be asked once, got %d results", len(out.Results))
+	}
+	if out.Throttled {
+		t.Fatal("a fully cached batch is not throttled")
+	}
+	byNumber := map[string]bool{}
+	for _, r := range out.Results {
+		if !r.Cached {
+			t.Fatalf("%s should have come from the cache", r.Number)
+		}
+		byNumber[r.Number] = r.Registered
+	}
+	if !byNumber["447700900123"] || byNumber["447700900999"] {
+		t.Fatalf("wrong answers: %+v", byNumber)
+	}
+}

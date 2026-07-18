@@ -18,6 +18,11 @@ _logger = logging.getLogger(__name__)
 # Must stay in sync with sessionNameRe in gateway/main.go.
 SESSION_CODE_RE = re.compile(r"^[a-z0-9_-]{1,40}$")
 
+DIGITS = re.compile(r"\D")
+# Must not exceed the gateway's WMG_CHECK_MAX_BATCH (default 50), which rejects
+# an oversized batch outright.
+CHECK_BATCH_SIZE = 50
+
 
 class WhatsmeowSession(models.Model):
     _name = "whatsmeow.session"
@@ -343,6 +348,36 @@ class WhatsmeowSession(models.Model):
         self.ensure_one()
         delay = random.uniform(self.send_delay_min, self.send_delay_max)
         self.next_send_at = fields.Datetime.now() + timedelta(seconds=delay)
+
+    # -- recipient validation (PLAN.md §12.4) ---------------------------------
+    def _check_numbers(self, phones):
+        """Ask the gateway which of these numbers are on WhatsApp.
+
+        Returns `{digits: True/False}` for the numbers it answered about — an
+        unanswered number is simply absent, never a `False`. WhatsApp does not
+        always answer, and the gateway rations the lookups (bulk-querying is
+        itself a bulk-sender fingerprint), so treating silence as "not
+        registered" would permanently stop us messaging a real contact.
+        """
+        self.ensure_one()
+        digits = [d for d in (DIGITS.sub("", p or "") for p in phones) if d]
+        if not digits:
+            return {}
+        answers = {}
+        for start in range(0, len(digits), CHECK_BATCH_SIZE):
+            batch = digits[start:start + CHECK_BATCH_SIZE]
+            data = self._gw("POST", f"/sessions/{self.code}/check", {"phones": batch})
+            for row in data.get("results") or []:
+                number = DIGITS.sub("", row.get("number") or "")
+                if number:
+                    answers[number] = bool(row.get("registered"))
+            if data.get("throttled"):
+                # The gateway is drip-feeding the lookups on purpose; stop
+                # asking and let the next cron pass take the rest.
+                _logger.info("whatsmeow: session %s check throttled by the gateway",
+                             self.code)
+                break
+        return answers
 
     def _gw(self, method, path, payload=None, timeout=None):
         self.ensure_one()

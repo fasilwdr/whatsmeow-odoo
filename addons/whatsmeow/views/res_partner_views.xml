@@ -12,6 +12,8 @@
                groups="whatsmeow.group_whatsmeow_user"/>
         <field name="whatsmeow_optout_reason" invisible="not whatsmeow_optout"
                groups="whatsmeow.group_whatsmeow_user"/>
+        <field name="whatsmeow_registered" invisible="not whatsmeow_registered"
+               groups="whatsmeow.group_whatsmeow_user"/>
       </field>
     </field>
   </record>
@@ -25,6 +27,9 @@
         <separator/>
         <filter name="whatsmeow_optout" string="WhatsApp Opt-Out"
                 domain="[('whatsmeow_optout', '=', True)]"
+                groups="whatsmeow.group_whatsmeow_user"/>
+        <filter name="whatsmeow_unregistered" string="Not on WhatsApp"
+                domain="[('whatsmeow_registered', '=', 'no')]"
                 groups="whatsmeow.group_whatsmeow_user"/>
       </filter>
     </field>

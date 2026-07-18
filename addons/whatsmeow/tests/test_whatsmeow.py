@@ -1,4 +1,5 @@
 import base64
+import re
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -1534,3 +1535,147 @@ class TestWarmupCaps(WhatsmeowCommon):
                           return_value={"wa_message_id": "A"}):
             msg.action_send()
         self.assertEqual(self.session.warmup_start_date, self.session._local_today())
+
+
+@tagged("post_install", "-at_install")
+class TestRecipientValidation(WhatsmeowCommon):
+    """Sending into the void is a bulk-sender fingerprint, and it is entirely
+    preventable — the gateway can ask first (PLAN.md §12.4)."""
+
+    def setUp(self):
+        super().setUp()
+        self.session.write({"send_delay_min": 0, "send_delay_max": 0,
+                            "warmup_enabled": False})
+        self.alice = self.env["res.partner"].create({
+            "name": "Alice", "phone": "+44 7700 900123",
+        })
+        self.bob = self.env["res.partner"].create({
+            "name": "Bob", "phone": "+44 7700 900456",
+        })
+
+    def _queue(self, partner, phone=None):
+        digits = re.sub(r"\D", "", partner.phone or "")
+        return self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "partner_id": partner.id,
+            "phone": phone if phone is not None else digits,
+            "direction": "out", "body": "hi",
+        })
+
+    def test_check_numbers_chunks_and_reads_the_answers(self):
+        with patch.object(type(self.session), "_gw", return_value={"results": [
+            {"number": "447700900123", "registered": True,
+             "jid": "447700900123@s.whatsapp.net"},
+            {"number": "447700900456", "registered": False, "jid": ""},
+        ]}) as gw:
+            answers = self.session._check_numbers(
+                ["+44 7700 900123", "447700900456"])
+        self.assertEqual(answers, {"447700900123": True, "447700900456": False})
+        self.assertIn("/check", gw.call_args.args[1])
+        self.assertEqual(gw.call_args.args[2]["phones"],
+                         ["447700900123", "447700900456"])
+
+    def test_a_throttled_gateway_stops_the_batch(self):
+        """The gateway drips the lookups on purpose; asking harder defeats it."""
+        with patch.object(type(self.session), "_gw", return_value={
+                "results": [], "throttled": True}) as gw:
+            self.session._check_numbers([str(700000000 + i) for i in range(120)])
+        self.assertEqual(gw.call_count, 1, "stop after the first throttled batch")
+
+    def test_an_unanswered_number_is_not_a_no(self):
+        """Silence is an open question. Recording it as 'not on WhatsApp' would
+        permanently stop us messaging a real contact."""
+        with patch.object(type(self.session), "_gw", return_value={"results": [
+            {"number": "447700900123", "registered": True, "jid": "x"},
+        ]}):
+            answers = self.session._check_numbers(["447700900123", "447700900456"])
+        self.assertNotIn("447700900456", answers)
+
+    def test_the_cron_validates_the_numbers_a_batch_is_queued_to(self):
+        self._queue(self.alice)
+        self._queue(self.bob)
+        with patch.object(type(self.session), "_gw", return_value={"results": [
+            {"number": "447700900123", "registered": True, "jid": "x"},
+            {"number": "447700900456", "registered": False, "jid": ""},
+        ]}) as gw:
+            self.env["whatsmeow.message"].cron_check_numbers()
+        self.assertEqual(gw.call_count, 1)
+        self.assertEqual(self.alice.whatsmeow_registered, "yes")
+        self.assertEqual(self.bob.whatsmeow_registered, "no")
+        self.assertTrue(self.alice.whatsmeow_registered_date)
+
+    def test_the_cron_asks_nothing_about_a_recently_checked_number(self):
+        self.alice.write({"whatsmeow_registered": "yes",
+                          "whatsmeow_registered_date": fields.Datetime.now()})
+        self._queue(self.alice)
+        with patch.object(type(self.session), "_gw") as gw:
+            self.env["whatsmeow.message"].cron_check_numbers()
+        self.assertEqual(gw.call_count, 0)
+
+    def test_a_stale_answer_is_asked_again(self):
+        self.alice.write({
+            "whatsmeow_registered": "no",
+            "whatsmeow_registered_date": fields.Datetime.now() - timedelta(days=40),
+        })
+        self._queue(self.alice)
+        with patch.object(type(self.session), "_gw", return_value={"results": [
+            {"number": "447700900123", "registered": True, "jid": "x"},
+        ]}) as gw:
+            self.env["whatsmeow.message"].cron_check_numbers()
+        self.assertEqual(gw.call_count, 1)
+        self.assertEqual(self.alice.whatsmeow_registered, "yes")
+
+    def test_the_queue_skips_a_number_known_to_be_dead(self):
+        self.bob.write({"whatsmeow_registered": "no",
+                        "whatsmeow_registered_date": fields.Datetime.now()})
+        dead = self._queue(self.bob)
+        alive = self._queue(self.alice)
+        with patch.object(type(self.session), "_gw",
+                          return_value={"wa_message_id": "A"}) as gw, \
+                mute_logger("odoo.addons.whatsmeow.models.whatsmeow_message"):
+            self.env["whatsmeow.message"].cron_process_outgoing()
+        self.assertEqual(gw.call_count, 1, "the dead number burns no send")
+        self.assertEqual(dead.state, "error")
+        self.assertIn("not on WhatsApp", dead.error_message)
+        self.assertEqual(alive.state, "sent")
+
+    def test_a_stale_no_does_not_block_a_send(self):
+        """Past the TTL the gateway would ask WhatsApp again, so Odoo must not
+        treat the old answer as final."""
+        self.bob.write({
+            "whatsmeow_registered": "no",
+            "whatsmeow_registered_date": fields.Datetime.now() - timedelta(days=40),
+        })
+        msg = self._queue(self.bob)
+        with patch.object(type(self.session), "_gw",
+                          return_value={"wa_message_id": "A"}):
+            msg.action_send()
+        self.assertEqual(msg.state, "sent")
+
+    def test_changing_the_number_forgets_the_answer(self):
+        """The old answer was about the old number."""
+        self.alice.write({"whatsmeow_registered": "yes",
+                          "whatsmeow_registered_date": fields.Datetime.now()})
+        self.alice.write({"phone": "+44 7700 900999"})
+        self.assertFalse(self.alice.whatsmeow_registered)
+        self.assertFalse(self.alice.whatsmeow_registered_date)
+
+    def test_rewriting_the_same_number_keeps_the_answer(self):
+        self.alice.write({"whatsmeow_registered": "yes",
+                          "whatsmeow_registered_date": fields.Datetime.now()})
+        self.alice.write({"phone": self.alice.phone, "comment": "touched"})
+        self.assertEqual(self.alice.whatsmeow_registered, "yes")
+
+    def test_an_opted_out_contact_is_never_checked(self):
+        """No point spending a lookup on someone we may not message anyway."""
+        self.alice.whatsmeow_optout = True
+        self._queue(self.alice)
+        with patch.object(type(self.session), "_gw") as gw:
+            self.env["whatsmeow.message"].cron_check_numbers()
+        self.assertEqual(gw.call_count, 0)
+
+    def test_a_failing_gateway_leaves_the_answers_alone(self):
+        self._queue(self.alice)
+        with patch.object(type(self.session), "_gw", side_effect=UserError("down")), \
+                mute_logger("odoo.addons.whatsmeow.models.whatsmeow_message"):
+            self.env["whatsmeow.message"].cron_check_numbers()
+        self.assertFalse(self.alice.whatsmeow_registered)

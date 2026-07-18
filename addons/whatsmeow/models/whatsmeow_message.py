@@ -3,6 +3,7 @@ import logging
 import mimetypes
 import re
 import time
+from datetime import timedelta
 
 from markupsafe import Markup
 
@@ -81,6 +82,15 @@ CRON_BUDGET_SECONDS = 50
 # run places far fewer than this; the limit just stops a huge backlog from
 # being read into memory at once.
 CRON_MAX_MESSAGES = 200
+
+# How long a registration answer is trusted. It must agree with the gateway's
+# WMG_CHECK_TTL_DAYS (30): past it the gateway asks WhatsApp again anyway, so
+# Odoo treating the old answer as final would block sends the gateway is
+# perfectly willing to re-examine.
+REGISTRATION_TTL_DAYS = 30
+# How many numbers one validation pass looks at. The gateway rations lookups
+# per hour; this just bounds the work in a single cron run.
+CHECK_CRON_LIMIT = 200
 
 
 class WhatsmeowMessage(models.Model):
@@ -456,12 +466,29 @@ class WhatsmeowMessage(models.Model):
             self.env["res.partner"]
 
     def _optout_block_reason(self):
-        """Why this message must not be sent, or False when it may be."""
+        """Why this message must not be sent, or False when it may be.
+
+        Two different gates, both about who we are messaging: a contact who
+        asked us to stop, and a number that is not on WhatsApp at all. The
+        second is a data-quality guard rather than a wish, so it expires — an
+        answer older than `REGISTRATION_TTL_DAYS` is treated as the open
+        question it has become, not as a permanent no.
+        """
         self.ensure_one()
-        partner = self._optout_partner()
-        if partner and partner.sudo().whatsmeow_optout:
+        partner = self._optout_partner().sudo()
+        if not partner:
+            return False
+        if partner.whatsmeow_optout:
             return self.env._(
                 "%s has opted out of WhatsApp messages.", partner.display_name)
+        if partner.whatsmeow_registered == "no" and partner.whatsmeow_registered_date \
+                and partner.whatsmeow_registered_date >= fields.Datetime.now() - \
+                timedelta(days=REGISTRATION_TTL_DAYS):
+            return self.env._(
+                "%(name)s's number is not on WhatsApp (checked %(date)s).",
+                name=partner.display_name,
+                date=fields.Date.to_string(partner.whatsmeow_registered_date.date()),
+            )
         return False
 
     def action_send(self):
@@ -571,6 +598,55 @@ class WhatsmeowMessage(models.Model):
         """
         if not modules.module.current_test:
             self.env.cr.commit()
+
+    @api.model
+    def cron_check_numbers(self):
+        """Validate the numbers a queued batch is about to be sent to.
+
+        Lazy and ahead of the queue, never in the webhook path: the point is to
+        find the dead numbers in a large batch *before* sending into them, and
+        an inbound message is not the moment to be making outbound queries.
+
+        Only numbers that resolve to a contact are checked, because the answer
+        has nowhere else to live — a one-off message typed against a bare
+        number is a human act, and a human act does not need a list validated.
+        """
+        messages = self.search(
+            [("direction", "=", "out"), ("state", "=", "outgoing")],
+            limit=CRON_MAX_MESSAGES, order="create_date asc",
+        )
+        stale = fields.Datetime.now() - timedelta(days=REGISTRATION_TTL_DAYS)
+        by_session = {}
+        for msg in messages:
+            partner = msg._optout_partner().sudo()
+            if not partner or partner.whatsmeow_optout:
+                continue
+            if partner.whatsmeow_registered and (
+                    not partner.whatsmeow_registered_date
+                    or partner.whatsmeow_registered_date >= stale):
+                continue  # a recent answer; nothing to ask
+            phone = (msg.phone or "").strip() or (partner.phone or "")
+            digits = DIGITS.sub("", phone)
+            if digits:
+                by_session.setdefault(msg.session_id, {}).setdefault(digits, partner)
+
+        for session, wanted in by_session.items():
+            try:
+                answers = session._check_numbers(list(wanted)[:CHECK_CRON_LIMIT])
+            except Exception as exc:  # noqa: BLE001 - a check is best-effort
+                _logger.warning("whatsmeow: number check on session %s failed: %s",
+                                session.code, exc)
+                continue
+            now = fields.Datetime.now()
+            for digits, registered in answers.items():
+                partner = wanted.get(digits)
+                if not partner:
+                    continue
+                partner.sudo().write({
+                    "whatsmeow_registered": "yes" if registered else "no",
+                    "whatsmeow_registered_date": now,
+                })
+            self._commit_progress()
 
     # -- inbound media --------------------------------------------------------
     def action_fetch_media(self):

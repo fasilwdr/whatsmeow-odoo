@@ -24,6 +24,41 @@ class ResPartner(models.Model):
              "it, or a note from whoever set it.",
     )
 
+    # Sending to numbers that are not on WhatsApp is the other clearest
+    # bulk-sender fingerprint (PLAN.md §12.4), and it is entirely preventable:
+    # the gateway can ask before we burn a send.
+    whatsmeow_registered = fields.Selection(
+        [("yes", "On WhatsApp"), ("no", "Not on WhatsApp")],
+        string="WhatsApp Number", copy=False, readonly=True,
+        help="Blank means nobody has checked. A number known not to be "
+             "registered is skipped by the queue rather than sent into the "
+             "void — a high proportion of sends that never arrive is what a "
+             "bought list looks like.",
+    )
+    whatsmeow_registered_date = fields.Datetime(
+        string="Number Checked On", readonly=True, copy=False,
+    )
+
+    def write(self, vals):
+        """A new number is a new question.
+
+        The old answer was about the old number: keeping it would either block
+        a good send or licence a bad one. Done in `write` rather than an
+        onchange because most number changes come from an import or a sync,
+        where no onchange ever runs.
+        """
+        if "phone" in vals and "whatsmeow_registered" not in vals:
+            stale = self.filtered(
+                lambda p: p.whatsmeow_registered
+                and (p.phone or "") != (vals.get("phone") or "")
+            )
+            if stale:
+                super(ResPartner, stale).write({
+                    "whatsmeow_registered": False,
+                    "whatsmeow_registered_date": False,
+                })
+        return super().write(vals)
+
     @api.onchange("whatsmeow_optout")
     def _onchange_whatsmeow_optout(self):
         for rec in self:
