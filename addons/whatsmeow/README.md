@@ -46,9 +46,15 @@ Installing the add-on from the Apps list is the standard Odoo step. What is spec
 ### 🚀 Deploy the whatsmeow Gateway
 The gateway is a single Go binary that speaks the WhatsApp Web protocol on one side and HTTP+JSON to Odoo on the other. An installer sets it up as a systemd service on Debian 12/13 or Ubuntu 22.04/24.04:
 
-- Copy this repository to the gateway host — running it on the same machine as Odoo is the simple case.
+- Clone the repository onto the gateway host — running it on the same machine as Odoo is the simple case.
 - From the repository root, run `sudo ./install.sh`.
 - When it finishes it prints a **Gateway URL**, **API Key**, and **Webhook Secret** — keep these for the connection record.
+
+```bash
+git clone https://github.com/fasilwdr/whatsmeow-odoo.git
+cd whatsmeow-odoo
+sudo ./install.sh
+```
 
 One gateway can host several WhatsApp numbers, and one Odoo can drive several gateways. Re-running the installer safely rebuilds and restarts the service, keeping your credentials and paired sessions. See `DEPLOY.md` for options such as a custom port, a cross-host webhook URL, TLS, and backups. With the gateway running, register it under **WhatsApp → Configuration → Gateways** using the printed credentials (see Configuration below).
 

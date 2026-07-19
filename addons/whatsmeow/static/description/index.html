@@ -162,7 +162,7 @@
 
     <div class="d-flex align-items-start gap-3 mb-2">
       <div class="d-flex align-items-center justify-content-center flex-shrink-0 rounded-circle text-white fw-bolder" style="width:32px;height:32px;background-color:#6C5CE7;font-size:14px;">1</div>
-      <p class="mb-0 pt-1" style="color:#334155;font-size:13px;line-height:1.6;">Copy this repository to the gateway host &mdash; running it on the same machine as Odoo is the simple case.</p>
+      <p class="mb-0 pt-1" style="color:#334155;font-size:13px;line-height:1.6;">Clone the repository onto the gateway host &mdash; running it on the same machine as Odoo is the simple case.</p>
     </div>
     <div class="d-flex align-items-start gap-3 mb-2">
       <div class="d-flex align-items-center justify-content-center flex-shrink-0 rounded-circle text-white fw-bolder" style="width:32px;height:32px;background-color:#A855F7;font-size:14px;">2</div>
@@ -180,7 +180,8 @@
   <div class="rounded-3 p-3" style="background-color:#0F172A;border:1px solid #1E293B;">
     <div style="color:#475569;font-family:Consolas,monospace;font-size:13px;" class="mb-2">&#9679; &#9679; &#9679;</div>
     <div style="font-family:Consolas,monospace;font-size:13px;color:#E2E8F0;line-height:1.9;">
-      <span style="color:#64748B;"># Deploy the gateway from the repository root</span><br>
+      <span style="color:#64748B;"># Clone the repo and deploy the gateway</span><br>
+      <span style="color:#7CFFA0;">$</span> git clone https://github.com/fasilwdr/whatsmeow-odoo.git<br>
       <span style="color:#7CFFA0;">$</span> cd whatsmeow-odoo<br>
       <span style="color:#7CFFA0;">$</span> sudo ./install.sh<br>
       <span style="color:#7CFFA0;">$</span> <span style="color:#64748B;"># Then in Odoo: install whatsmeow, and register the printed credentials</span>
