@@ -9,10 +9,9 @@ Each whatsmeow.connection record is one gateway endpoint; each whatsmeow.session
 is one WhatsApp number paired by QR. Inbound messages arrive on a webhook and are
 logged as whatsmeow.message records and posted to the matching partner's chatter.
 """,
-    "author": "Fasil",
+    "author": "Fasil, Bytesraw",
     "category": "Discuss",
     "depends": ["base", "mail"],
-    "external_dependencies": {"python": ["qrcode", "requests"]},
     "data": [
         "security/whatsmeow_groups.xml",
         "security/ir.model.access.csv",

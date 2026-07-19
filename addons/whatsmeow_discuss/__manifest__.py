@@ -10,7 +10,7 @@ messages post into it, operators reply by typing in the thread, and per-session
 routing rules decide which operators attend a new conversation. Opt-in per
 session; a session with routing off keeps posting to the partner's chatter.
 """,
-    "author": "Fasil",
+    "author": "Fasil, Bytesraw",
     "category": "Discuss",
     "depends": ["whatsmeow", "mail"],
     "data": [

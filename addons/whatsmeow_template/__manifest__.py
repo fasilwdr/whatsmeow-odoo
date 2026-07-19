@@ -15,7 +15,7 @@ window, so a template here is simply a saved, field-interpolated message. Sendin
 reuses the core queue untouched: the composer only creates outgoing
 whatsmeow.message rows, which inherit pacing, retries and idempotency for free.
 """,
-    "author": "Fasil",
+    "author": "Fasil, Bytesraw",
     "category": "Discuss",
     "depends": ["whatsmeow", "mail"],
     "data": [

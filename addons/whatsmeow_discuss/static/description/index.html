@@ -1,0 +1,365 @@
+<!-- ═══════════════════════════════════════════════════════════
+     HEADER
+     ═══════════════════════════════════════════════════════════ -->
+
+<div id="module_summary" class="rounded-4 mt-3 mb-5 p-5 text-white" style="background-color:#6C5CE7;">
+
+  <div class="d-inline-block px-3 py-2 rounded-pill fw-semibold mb-3" style="background-color:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.35);font-size:13px;">
+    &#9679;&nbsp; Available for Odoo 19.0
+  </div>
+
+  <h1 class="fw-bolder mb-3 text-white" style="font-size:32px;line-height:1.2;">Whatsmeow Discuss Routing</h1>
+
+  <p class="mb-4" style="font-size:15px;color:#E8E5FF;line-height:1.65;">Attend WhatsApp conversations in Odoo Discuss, with rule-based routing that sends each new conversation to the right operators.</p>
+
+  <div class="mb-4">
+    <span class="d-inline-block px-3 py-2 rounded-pill fw-semibold text-white me-2 mb-2" style="background-color:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);font-size:12px;">&#11088; <strong>19.0.1.1.0</strong></span>
+    <span class="d-inline-block px-3 py-2 rounded-pill fw-semibold text-white me-2 mb-2" style="background-color:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);font-size:12px;">&#128220; <strong>LGPL-3</strong></span>
+    <span class="d-inline-block px-3 py-2 rounded-pill fw-semibold text-white mb-2" style="background-color:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);font-size:12px;">&#127991;&#65039; <strong>Discuss</strong></span>
+  </div>
+
+  <a href="#features" class="d-inline-block px-4 py-3 rounded-pill fw-bold text-decoration-none" style="background-color:#FFF;color:#6C5CE7;font-size:14px;">
+    Explore Features &rarr;</a>
+
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     OVERVIEW
+     ═══════════════════════════════════════════════════════════ -->
+
+<div id="overview" class="rounded-4 mt-3 mb-5 p-5" style="background-color:#F3F2F1;">
+  <h2 class="fw-bolder mb-3" style="font-size:26px;color:#0F172A;">&#128203; Overview</h2>
+  <p class="mb-3" style="font-size:15px;color:#334155;line-height:1.7;">
+    <strong>Whatsmeow Discuss Routing</strong> turns accepted inbound WhatsApp messages into live Discuss conversations. Instead of an incoming message quietly landing on a contact's chatter, it opens a real thread in Odoo Discuss that your team attends and replies to &mdash; an operator simply types in the conversation, and the reply goes back out over WhatsApp.</p>
+  <p class="mb-4" style="font-size:15px;color:#334155;line-height:1.7;">
+    Each WhatsApp conversation maps to exactly one Discuss channel, so a customer's messages stay in one place and the whole team can see the history. Per-session routing rules decide who attends a new conversation &mdash; first-time contacts to a front desk, known customers to their account manager &mdash; and it is opt-in per session, so any number you do not route keeps posting to the chatter exactly as before.</p>
+
+  <div class="row g-3">
+
+    <div class="col-12 col-md-4">
+      <div class="bg-white h-100 rounded-3 p-3" style="border:1px solid #D3ADEB;border-top:4px solid #6C5CE7;">
+        <div class="d-inline-flex align-items-center justify-content-center rounded-2 mb-2" style="width:44px;height:44px;background-color:#EEF0FF;font-size:22px;">&#128172;</div>
+        <h3 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">WhatsApp Inside Discuss</h3>
+        <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">Every WhatsApp conversation becomes a native Discuss channel. Operators read and reply in the thread they already use, and their replies are relayed straight back to WhatsApp &mdash; no separate inbox, no context switch.</p>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-4">
+      <div class="bg-white h-100 rounded-3 p-3" style="border:1px solid #E7ADEB;border-top:4px solid #A855F7;">
+        <div class="d-inline-flex align-items-center justify-content-center rounded-2 mb-2" style="width:44px;height:44px;background-color:#EEF0FF;font-size:22px;">&#129517;</div>
+        <h3 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">Rule-Based Routing</h3>
+        <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">When a new conversation's first message arrives, ordered rules pick which operators attend it, matched on the same dimensions as the core inbound filter. First match wins; anything unmatched goes to the default operators.</p>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-4">
+      <div class="bg-white h-100 rounded-3 p-3" style="border:1px solid #A5E9F5;border-top:4px solid #00D4FF;">
+        <div class="d-inline-flex align-items-center justify-content-center rounded-2 mb-2" style="width:44px;height:44px;background-color:#EEF0FF;font-size:22px;">&#127898;&#65039;</div>
+        <h3 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">Opt-In Per Session</h3>
+        <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">Routing is off by default and enabled one session at a time. A session with routing on opens Discuss conversations; a session with it off behaves exactly as it did before this module was installed.</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     FEATURES
+     ═══════════════════════════════════════════════════════════ -->
+
+<div id="features" class="mt-3 mb-5 p-5" style="background-color:#F3F2F1;">
+  <h2 class="fw-bolder mb-4" style="font-size:26px;color:#0F172A;">&#10024; Features</h2>
+
+  <div class="row g-3">
+
+    <div class="col-12 col-md-6">
+      <div class="bg-white h-100 rounded-3 p-3" style="border:1px solid #E2E8F0;">
+        <div class="d-inline-flex align-items-center justify-content-center rounded-2 text-white mb-2" style="width:46px;height:46px;background-color:#6C5CE7;font-size:22px;">&#128257;</div>
+        <h3 class="fw-bold mb-2" style="font-size:14px;color:#0F172A;">Conversation-to-Channel Mapping</h3>
+        <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">Each WhatsApp conversation becomes a single Discuss channel of type WhatsApp. Inbound messages post into it as the correspondent, and the mapping is race-safe, so two messages arriving at once still yield exactly one conversation.</p>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6">
+      <div class="bg-white h-100 rounded-3 p-3" style="border:1px solid #E2E8F0;">
+        <div class="d-inline-flex align-items-center justify-content-center rounded-2 text-white mb-2" style="width:46px;height:46px;background-color:#A855F7;font-size:22px;">&#9997;&#65039;</div>
+        <h3 class="fw-bold mb-2" style="font-size:14px;color:#0F172A;">Reply From the Thread</h3>
+        <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">An operator's reply, typed in the conversation, is relayed out over WhatsApp immediately &mdash; a live reply does not wait on the paced queue. Replying to a specific bubble quotes that message, and attachments are sent as media.</p>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6">
+      <div class="bg-white h-100 rounded-3 p-3" style="border:1px solid #E2E8F0;">
+        <div class="d-inline-flex align-items-center justify-content-center rounded-2 text-white mb-2" style="width:46px;height:46px;background-color:#00D4FF;font-size:22px;">&#128101;</div>
+        <h3 class="fw-bold mb-2" style="font-size:14px;color:#0F172A;">Routing Rules &amp; Default Operators</h3>
+        <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">Add ordered rules per session using criteria like Sender = New (first-time) or Existing (known), chat type, phone, chat JID, or keyword. A conversation matching no rule goes to the session's Default operators.</p>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6">
+      <div class="bg-white h-100 rounded-3 p-3" style="border:1px solid #E2E8F0;">
+        <div class="d-inline-flex align-items-center justify-content-center rounded-2 text-white mb-2" style="width:46px;height:46px;background-color:#10B981;font-size:22px;">&#127381;</div>
+        <h3 class="fw-bold mb-2" style="font-size:14px;color:#0F172A;">Automatic Contact Creation</h3>
+        <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">A conversation needs a correspondent, so an inbound message from an unknown number can create a contact from the sender's WhatsApp name and number. A LID-only sender (with no phone) falls back to a generic correspondent.</p>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6">
+      <div class="bg-white h-100 rounded-3 p-3" style="border:1px solid #E2E8F0;">
+        <div class="d-inline-flex align-items-center justify-content-center rounded-2 text-white mb-2" style="width:46px;height:46px;background-color:#F59E0B;font-size:22px;">&#128578;</div>
+        <h3 class="fw-bold mb-2" style="font-size:14px;color:#0F172A;">Inbound Reactions &amp; Read Markers</h3>
+        <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">A WhatsApp reaction to a message is surfaced on its Discuss bubble, and conversations behave like a private thread &mdash; members see read markers &mdash; so the team can tell what has been handled.</p>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6">
+      <div class="bg-white h-100 rounded-3 p-3" style="border:1px solid #E2E8F0;">
+        <div class="d-inline-flex align-items-center justify-content-center rounded-2 text-white mb-2" style="width:46px;height:46px;background-color:#6C5CE7;font-size:22px;">&#128202;</div>
+        <h3 class="fw-bold mb-2" style="font-size:14px;color:#0F172A;">Conversations Smart Button</h3>
+        <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">A routed session shows a Conversations button that opens every Discuss channel it has spawned, so a manager can review or jump into any WhatsApp thread for that number.</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     INSTALLATION
+     ═══════════════════════════════════════════════════════════ -->
+
+<div id="installation" class="mt-3 mb-5 p-5">
+  <h2 class="fw-bolder mb-2" style="font-size:26px;color:#0F172A;">&#128230; Installation</h2>
+  <p class="mb-4" style="font-size:14px;color:#64748B;line-height:1.6;">
+    This module extends the core connector, so it has one prerequisite before the standard Apps-list install.</p>
+
+  <div class="bg-white rounded-3 p-4 d-flex align-items-start gap-3" style="border:1px solid #E2E8F0;border-left:4px solid #6C5CE7;">
+    <span style="font-size:22px;line-height:1.3;">&#128274;</span>
+    <div>
+      <h4 class="fw-bold mb-1" style="font-size:15px;color:#0F172A;">Install the core connector first</h4>
+      <p class="mb-0" style="color:#64748B;font-size:13px;line-height:1.6;"><strong>Whatsmeow WhatsApp Connector</strong> (<strong style="font-family:Consolas,monospace;color:#6C5CE7;">whatsmeow</strong>) must be installed first &mdash; with its gateway deployed and at least one session paired. Once the core module is in place, install <strong>Whatsmeow Discuss Routing</strong> from the Apps list like any other add-on.</p>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     CONFIGURATION
+     ═══════════════════════════════════════════════════════════ -->
+
+<div id="configuration" class="mt-3 mb-5 p-5">
+  <h2 class="fw-bolder mb-2" style="font-size:26px;color:#0F172A;">&#128295; Configuration</h2>
+  <p class="mb-4" style="font-size:14px;color:#64748B;line-height:1.6;">
+    Routing is configured per session, on the <strong>Discuss Routing</strong> tab under <strong>WhatsApp &rarr; Configuration &rarr; Sessions</strong>.</p>
+
+  <div class="row g-4 text-center">
+
+    <div class="col-6 col-md-3">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder mx-auto mb-2" style="width:50px;height:50px;background-color:#6C5CE7;font-size:20px;">1</div>
+      <h4 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">Enable Routing</h4>
+      <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">On the session's Discuss Routing tab, turn on "Route inbound to Discuss".</p>
+    </div>
+
+    <div class="col-6 col-md-3">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder mx-auto mb-2" style="width:50px;height:50px;background-color:#A855F7;font-size:20px;">2</div>
+      <h4 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">Choose Contact Creation</h4>
+      <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">Leave "Create contact for unknown senders" on, or off for a generic correspondent.</p>
+    </div>
+
+    <div class="col-6 col-md-3">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder mx-auto mb-2" style="width:50px;height:50px;background-color:#00D4FF;font-size:20px;">3</div>
+      <h4 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">Set Default Operators</h4>
+      <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">Fill in who attends a conversation that no routing rule matches.</p>
+    </div>
+
+    <div class="col-6 col-md-3">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder mx-auto mb-2" style="width:50px;height:50px;background-color:#10B981;font-size:20px;">4</div>
+      <h4 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">Add Routing Rules</h4>
+      <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">Order rules top to bottom; the first whose set fields all match decides who attends.</p>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     SCREENSHOTS
+     ═══════════════════════════════════════════════════════════ -->
+
+<div id="screenshots" class="mt-3 mb-5 p-5">
+  <h2 class="fw-bolder mb-2" style="font-size:26px;color:#0F172A;">&#128248; Screenshots</h2>
+  <p class="mb-4" style="font-size:14px;color:#64748B;line-height:1.6;">The Discuss Routing tab, where routing is switched on and rules decide who attends each new conversation.</p>
+
+  <div class="row g-3">
+
+    <div class="col-12 mb-4">
+      <div class="bg-white rounded-3 overflow-hidden" style="border:1px solid #E2E8F0;">
+        <div class="p-3 text-white" style="background-color:#6C5CE7;">
+          <h4 class="fw-bold mb-1" style="font-size:13px;">Per-session Discuss routing</h4>
+          <p class="mb-0" style="font-size:12px;line-height:1.5;">Enable routing, set default operators, and order the rules.</p>
+        </div>
+        <img src="img/discuss_routing.png" alt="Per-session Discuss routing configuration" class="w-100 d-block">
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     USAGE
+     ═══════════════════════════════════════════════════════════ -->
+
+<div id="usage" class="mt-3 mb-5 p-5">
+  <h2 class="fw-bolder mb-2" style="font-size:26px;color:#0F172A;">&#128161; Usage</h2>
+  <p class="mb-4" style="font-size:14px;color:#64748B;line-height:1.6;">From routing a number into Discuss to attending its conversations.</p>
+
+<!-- Workflow 01 -->
+<div class="bg-white rounded-4 mb-3 p-4" style="border:1px solid #E2E8F0;">
+  <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#EEF0FF;color:#6C5CE7;font-size:11px;letter-spacing:.4px;">WORKFLOW &middot; 01</div>
+  <h3 class="fw-bolder mb-2" style="font-size:18px;color:#0F172A;">&#128640; Route a Number into Discuss</h3>
+  <p class="mb-3" style="color:#334155;font-size:14px;line-height:1.65;">Turn a WhatsApp number into a team inbox inside Discuss.</p>
+  <div class="d-flex align-items-center gap-2 mb-2">
+    <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#A855F7;font-size:12px;">&#10003;</div>
+    <span style="font-size:13px;color:#334155;">Open the session and go to the Discuss Routing tab</span>
+  </div>
+  <div class="d-flex align-items-center gap-2 mb-2">
+    <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#A855F7;font-size:12px;">&#10003;</div>
+    <span style="font-size:13px;color:#334155;">Turn on "Route inbound to Discuss" and set your Default operators</span>
+  </div>
+  <div class="d-flex align-items-center gap-2 mb-0">
+    <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#A855F7;font-size:12px;">&#10003;</div>
+    <span style="font-size:13px;color:#334155;">Add routing rules &mdash; e.g. Sender = New attended by your front-desk team</span>
+  </div>
+</div>
+
+<!-- Workflow 02 -->
+<div class="bg-white rounded-4 mb-3 p-4" style="border:1px solid #E2E8F0;">
+  <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#EEF0FF;color:#6C5CE7;font-size:11px;letter-spacing:.4px;">WORKFLOW &middot; 02</div>
+  <h3 class="fw-bolder mb-2" style="font-size:18px;color:#0F172A;">&#128172; Attend a Conversation</h3>
+  <p class="mb-3" style="color:#334155;font-size:14px;line-height:1.65;">Handle a customer's WhatsApp messages from Discuss.</p>
+  <div class="d-flex align-items-center gap-2 mb-2">
+    <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#00D4FF;font-size:12px;">&#10003;</div>
+    <span style="font-size:13px;color:#334155;">Open Discuss; routed conversations appear as WhatsApp channels you were added to</span>
+  </div>
+  <div class="d-flex align-items-center gap-2 mb-2">
+    <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#00D4FF;font-size:12px;">&#10003;</div>
+    <span style="font-size:13px;color:#334155;">Type your reply in the thread &mdash; it is sent back over WhatsApp immediately</span>
+  </div>
+  <div class="d-flex align-items-center gap-2 mb-0">
+    <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#00D4FF;font-size:12px;">&#10003;</div>
+    <span style="font-size:13px;color:#334155;">Reply to a message to quote it, or attach a file to send media</span>
+  </div>
+</div>
+
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     KNOWN ISSUES
+     ═══════════════════════════════════════════════════════════ -->
+
+<div id="known-issues" class="mt-3 mb-5 p-5">
+  <h2 class="fw-bolder mb-2" style="font-size:26px;color:#0F172A;">&#9888;&#65039; Known Issues</h2>
+  <p class="mb-4" style="font-size:14px;color:#64748B;line-height:1.6;">This module builds on the core connector's inbound path, so its behaviour follows the same rules.</p>
+
+  <div class="d-flex align-items-start gap-3 rounded-3 p-4 mb-3" style="background-color:#FFFBEB;border:1px solid #FDE68A;border-left:4px solid #F59E0B;">
+    <span style="font-size:20px;color:#F59E0B;line-height:1.4;">&#9888;&#65039;</span>
+    <div>
+      <h4 class="fw-bold mb-1" style="font-size:15px;color:#78350F;">The core filter runs first</h4>
+      <p class="mb-0" style="color:#92400E;font-size:13px;line-height:1.6;">Only messages the core inbound filter accepts reach Discuss &mdash; a session's reject rules still apply before routing runs. A conversation that no rule and no default operator covers still creates the channel but adds nobody; a manager can open it from the Conversations button.</p>
+    </div>
+  </div>
+
+  <div class="d-flex align-items-start gap-3 rounded-3 p-4" style="background-color:#FFFBEB;border:1px solid #FDE68A;border-left:4px solid #F59E0B;">
+    <span style="font-size:20px;color:#F59E0B;line-height:1.4;">&#9888;&#65039;</span>
+    <div>
+      <h4 class="fw-bold mb-1" style="font-size:15px;color:#78350F;">LID-only senders have no contact</h4>
+      <p class="mb-0" style="color:#92400E;font-size:13px;line-height:1.6;">A sender WhatsApp identifies only by LID has no phone number, so no contact can be created for them; their conversation uses a generic correspondent instead.</p>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     FAQ
+     ═══════════════════════════════════════════════════════════ -->
+
+<div id="faq" class="mt-3 mb-5 p-5">
+  <h2 class="fw-bolder mb-2" style="font-size:26px;color:#0F172A;">&#10067; FAQ</h2>
+  <p class="mb-4" style="font-size:14px;color:#64748B;line-height:1.6;">Quick answers to the most common questions.</p>
+
+<div class="bg-white rounded-3 p-3 mb-2" style="border:1px solid #E2E8F0;border-left:3px solid #6C5CE7;">
+  <h4 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">&#10068; Does turning this on change my existing WhatsApp numbers?</h4>
+  <p class="mb-0" style="color:#334155;font-size:13px;line-height:1.6;">No. Routing is opt-in per session and off by default. A session you never enable keeps posting inbound messages to the contact's chatter exactly as before.</p>
+</div>
+<div class="bg-white rounded-3 p-3 mb-2" style="border:1px solid #E2E8F0;border-left:3px solid #A855F7;">
+  <h4 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">&#10068; How do replies get back to WhatsApp?</h4>
+  <p class="mb-0" style="color:#334155;font-size:13px;line-height:1.6;">An operator's message in the conversation is relayed out over WhatsApp right away. Because a live reply is a human action, it is sent immediately rather than waiting on the paced outgoing queue.</p>
+</div>
+<div class="bg-white rounded-3 p-3 mb-2" style="border:1px solid #E2E8F0;border-left:3px solid #00D4FF;">
+  <h4 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">&#10068; Who can see a WhatsApp conversation?</h4>
+  <p class="mb-0" style="color:#334155;font-size:13px;line-height:1.6;">The operators added to its channel by the routing rules (or the default operators). Managers can open any conversation for a session from that session's Conversations smart button.</p>
+</div>
+<div class="bg-white rounded-3 p-3 mb-2" style="border:1px solid #E2E8F0;border-left:3px solid #10B981;">
+  <h4 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">&#10068; What if two messages from the same contact arrive at once?</h4>
+  <p class="mb-0" style="color:#334155;font-size:13px;line-height:1.6;">The conversation-to-channel mapping is race-safe, so both messages land in the same single conversation rather than creating duplicates.</p>
+</div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     CHANGELOG
+     ═══════════════════════════════════════════════════════════ -->
+
+<div id="changelog" class="mt-3 mb-5 p-5">
+  <h2 class="fw-bolder mb-2" style="font-size:26px;color:#0F172A;">&#128221; Changelog</h2>
+  <p class="mb-4" style="font-size:14px;color:#64748B;line-height:1.6;">A clean record of every release.</p>
+
+<div class="d-flex gap-3 mb-4">
+  <div class="text-end flex-shrink-0 pt-1" style="width:30px;border-right:2px solid #6C5CE7;">
+    <div class="d-inline-block rounded-circle" style="width:14px;height:14px;background-color:#6C5CE7;margin-right:-9px;border:3px solid #F7F8FC;"></div>
+  </div>
+  <div class="ps-2">
+    <div class="fw-semibold mb-1" style="font-size:12px;color:#64748B;">&#128467;&#65039; 2026-07-19</div>
+    <div class="d-inline-block px-3 py-1 rounded-2 fw-bold mb-2" style="background-color:#EEF0FF;color:#6C5CE7;font-size:12px;font-family:Consolas,monospace;">v19.0.1.1.0</div>
+    <h4 class="fw-bold mb-2" style="font-size:15px;color:#0F172A;">Discuss routing</h4>
+    <div class="mb-1"><span style="color:#6C5CE7;font-weight:700;font-size:13px;">&#9656;</span>&nbsp;<span style="font-size:13px;color:#334155;">Map each WhatsApp conversation to a native Discuss channel, opt-in per session</span></div>
+    <div class="mb-1"><span style="color:#6C5CE7;font-weight:700;font-size:13px;">&#9656;</span>&nbsp;<span style="font-size:13px;color:#334155;">Rule-based routing to operators, with default operators for unmatched conversations</span></div>
+    <div class="mb-1"><span style="color:#6C5CE7;font-weight:700;font-size:13px;">&#9656;</span>&nbsp;<span style="font-size:13px;color:#334155;">Operator replies (with quoting and attachments) relayed live back to WhatsApp</span></div>
+    <div class="mb-1"><span style="color:#6C5CE7;font-weight:700;font-size:13px;">&#9656;</span>&nbsp;<span style="font-size:13px;color:#334155;">Automatic contact creation for unknown senders, plus inbound reactions and read markers</span></div>
+    <div class="mb-1"><span style="color:#6C5CE7;font-weight:700;font-size:13px;">&#9656;</span>&nbsp;<span style="font-size:13px;color:#334155;">Conversations smart button on the session</span></div>
+  </div>
+</div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     FOOTER
+     ═══════════════════════════════════════════════════════════ -->
+
+<div class="rounded-4 mt-5 p-4 p-md-5" style="background-color:#0F172A;">
+
+  <div class="d-flex align-items-center gap-3 mb-4">
+    <img src="https://www.bytesraw.com/bytesraw_base/static/img/logo_white.png" class="rounded-circle flex-shrink-0" style="width:72px;height:72px;background-color:#6C5CE7;border:3px solid #1E1B4B;object-fit:cover;" alt="Bytesraw logo">
+    <div>
+      <h3 class="fw-bolder text-white mb-1" style="font-size:20px;">Bytesraw</h3>
+      <div style="color:#A5B4FC;font-size:13px;font-weight:500;">Automate you success</div>
+    </div>
+  </div>
+
+  <div class="rounded-3 p-4 mb-4" style="background-color:#1E1B4B;border:1px solid #312E81;">
+    <h4 class="fw-bold text-white mb-2" style="font-size:16px;">&#128737; Need help?</h4>
+    <p class="mb-3" style="color:#CBD5E1;font-size:13px;line-height:1.6;">
+      Got a question, found a bug, or need a custom enhancement?
+      Get in touch &mdash; happy to help.</p>
+    <a href="https://www.bytesraw.com/contactus" class="d-inline-block px-4 py-2 rounded-pill fw-bold text-decoration-none" style="background-color:#FFF;color:#6C5CE7;font-size:13px;">
+      Contact Support &rarr;</a>
+  </div>
+
+  <div class="text-center pt-4" style="color:#475569;font-size:12px;border-top:1px solid #1E293B;">
+    &copy; 2026 Bytesraw &middot; Whatsmeow Discuss Routing &middot; Licensed under LGPL-3
+  </div>
+</div>
