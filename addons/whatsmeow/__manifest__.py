@@ -22,6 +22,9 @@ logged as whatsmeow.message records and posted to the matching partner's chatter
         "views/menus.xml",
         "data/ir_cron.xml",
     ],
+    'images': [
+        'static/description/banner.gif'
+    ],
     "license": "LGPL-3",
     "installable": True,
     "application": True,

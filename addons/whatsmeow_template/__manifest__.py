@@ -25,6 +25,9 @@ whatsmeow.message rows, which inherit pacing, retries and idempotency for free.
         "views/ir_actions_server_views.xml",
         "views/menus.xml",
     ],
+    'images': [
+        'static/description/banner.gif'
+    ],
     "assets": {
         "web.assets_backend": [
             "whatsmeow_template/static/src/chatter_patch.js",

@@ -17,6 +17,9 @@ session; a session with routing off keeps posting to the partner's chatter.
         "security/ir.model.access.csv",
         "views/whatsmeow_session_views.xml",
     ],
+    'images': [
+        'static/description/banner.gif'
+    ],
     "assets": {
         "web.assets_backend": [
             "whatsmeow_discuss/static/src/discuss_sidebar_category_patch.js",
