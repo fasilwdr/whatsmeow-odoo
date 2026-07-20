@@ -1,26 +1,30 @@
-
 <!-- ═══════════════════════════════════════════════════════════
      HEADER
      ═══════════════════════════════════════════════════════════ -->
 
-<div id="module_summary" class="rounded-4 mt-3 mb-5 p-5 text-white" style="background-color:#6C5CE7;">
+<div id="module_summary" class="rounded-4 mt-3 mb-5 p-5 text-white" style="background-color:#003153;border:1px solid #0A3A5C;">
 
-  <div class="d-inline-block px-3 py-2 rounded-pill fw-semibold mb-3" style="background-color:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.35);font-size:13px;">
-    &#9679;&nbsp; Available for Odoo 19.0
+  <div class="d-inline-block px-3 py-2 rounded-pill fw-semibold mb-3" style="background-color:rgba(78,151,171,.2);border:1px solid rgba(78,151,171,.55);color:#BFE0EA;font-size:13px;">
+    <span style="color:#4E97AB;">&#9679;</span>&nbsp; Available for Odoo 19.0
   </div>
 
   <h1 class="fw-bolder mb-3 text-white" style="font-size:32px;line-height:1.2;">Whatsmeow WhatsApp Connector</h1>
 
-  <p class="mb-4" style="font-size:15px;color:#E8E5FF;line-height:1.65;">Send and receive WhatsApp straight from Odoo through one or more self-hosted whatsmeow gateways &mdash; no Cloud API, no template approval, no session window.</p>
+  <p class="mb-4" style="font-size:15px;color:#9FC9D6;line-height:1.65;">
+    Send and receive WhatsApp via self-hosted whatsmeow gateways &mdash; no Cloud API,
+    no template approval, no 24-hour session window.</p>
 
   <div class="mb-4">
-    <span class="d-inline-block px-3 py-2 rounded-pill fw-semibold text-white me-2 mb-2" style="background-color:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);font-size:12px;">&#11088; <strong>19.0.1.5.0</strong></span>
-    <span class="d-inline-block px-3 py-2 rounded-pill fw-semibold text-white me-2 mb-2" style="background-color:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);font-size:12px;">&#128220; <strong>LGPL-3</strong></span>
-    <span class="d-inline-block px-3 py-2 rounded-pill fw-semibold text-white mb-2" style="background-color:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);font-size:12px;">&#127991;&#65039; <strong>Discuss</strong></span>
+    <span class="d-inline-block px-3 py-2 rounded-pill fw-semibold text-white me-2 mb-2" style="background-color:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.22);font-size:12px;">&#11088; <strong>19.0.1.5.0</strong></span>
+    <span class="d-inline-block px-3 py-2 rounded-pill fw-semibold text-white me-2 mb-2" style="background-color:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.22);font-size:12px;">&#128220; <strong>LGPL-3</strong></span>
+    <span class="d-inline-block px-3 py-2 rounded-pill fw-semibold text-white me-2 mb-2" style="background-color:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.22);font-size:12px;">&#128994; <strong>Open Source</strong></span>
+    <span class="d-inline-block px-3 py-2 rounded-pill fw-semibold text-white mb-2" style="background-color:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.22);font-size:12px;">&#127991;&#65039; <strong>Discuss</strong></span>
   </div>
 
-  <a href="#features" class="d-inline-block px-4 py-3 rounded-pill fw-bold text-decoration-none" style="background-color:#FFF;color:#6C5CE7;font-size:14px;">
+  <a href="#features" class="d-inline-block px-4 py-3 rounded-pill fw-bold text-decoration-none text-white me-2 mb-2" style="background-color:#4E97AB;font-size:14px;">
     Explore Features &rarr;</a>
+  <a href="mailto:help@bytesraw.com" class="d-inline-block px-4 py-3 rounded-pill fw-bold text-decoration-none text-white mb-2" style="background-color:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.25);font-size:14px;">
+    Contact Support</a>
 
 </div>
 
@@ -29,36 +33,44 @@
      OVERVIEW
      ═══════════════════════════════════════════════════════════ -->
 
-<div id="overview" class="rounded-4 mt-3 mb-5 p-5" style="background-color:#F3F2F1;">
-  <h2 class="fw-bolder mb-3" style="font-size:26px;color:#0F172A;">&#128203; Overview</h2>
-  <p class="mb-3" style="font-size:15px;color:#334155;line-height:1.7;">
-    <strong>Whatsmeow WhatsApp Connector</strong> drives one or more self-hosted whatsmeow gateways straight from Odoo &mdash; send and receive WhatsApp messages without Meta's Cloud API, without template pre-approval, and without a 24-hour session window. Each gateway connection is one endpoint, each session is one WhatsApp number paired by QR, and every inbound message is logged, matched to a contact, and posted where you can act on it.</p>
-  <p class="mb-4" style="font-size:15px;color:#334155;line-height:1.7;">
-    It is built for teams who want to own their WhatsApp channel: a support desk running a shared number, a sales team messaging leads, or any business that needs WhatsApp inside Odoo without routing customer conversations through a third-party SaaS. Deliverability safeguards &mdash; pacing, warm-up ramps, daily caps, opt-out handling, and number validation &mdash; are part of the core, because staying unbanned on the unofficial protocol is the whole game.</p>
+<div id="overview" class="rounded-4 mb-5 p-4 p-md-5" style="background-color:#F4F8FA;border:1px solid #E2EDF1;">
+
+  <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#E4EFF3;color:#35798C;font-size:11px;letter-spacing:1.5px;">OVERVIEW</div>
+  <h2 class="fw-bolder mb-3" style="font-size:28px;color:#003153;line-height:1.25;">Own your WhatsApp channel.<br class="d-none d-md-inline"> End to end.</h2>
+  <p class="mb-3" style="font-size:15px;color:#3D5566;line-height:1.75;max-width:720px;">
+    <strong>Whatsmeow WhatsApp Connector</strong> drives one or more self-hosted whatsmeow gateways straight from Odoo
+    &mdash; send and receive WhatsApp messages without Meta&rsquo;s Cloud API, without template pre-approval, and without a
+    24-hour session window. Each gateway connection is one endpoint, each session is one WhatsApp number paired by QR,
+    and every inbound message is logged, matched to a contact, and posted where you can act on it.</p>
+  <p class="mb-4" style="font-size:15px;color:#3D5566;line-height:1.75;max-width:720px;">
+    It is built for teams who want to own their WhatsApp channel: a support desk running a shared number, a sales team
+    messaging leads, or any business that needs WhatsApp inside Odoo but does not want to route customer conversations
+    through a third-party SaaS. Deliverability safeguards &mdash; pacing, warm-up ramps, daily caps, opt-out handling,
+    and number validation &mdash; are part of the core, because staying unbanned on the unofficial protocol is the whole game.</p>
 
   <div class="row g-3">
 
     <div class="col-12 col-md-4">
-      <div class="bg-white h-100 rounded-3 p-3" style="border:1px solid #D3ADEB;border-top:4px solid #6C5CE7;">
-        <div class="d-inline-flex align-items-center justify-content-center rounded-2 mb-2" style="width:44px;height:44px;background-color:#EEF0FF;font-size:22px;">&#128225;</div>
-        <h3 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">Self-Hosted, No Cloud Middleman</h3>
-        <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">Connect Odoo to your own gateway instead of a paid WhatsApp Business API. No per-message fee, no template approval queue, no session window &mdash; a message is just a message, sent from a number you control.</p>
+      <div class="bg-white h-100 rounded-3 p-4" style="border:1px solid #DCE8EC;border-top:3px solid #4E97AB;">
+        <div class="d-inline-flex align-items-center justify-content-center rounded-3 mb-3" style="width:46px;height:46px;background-color:#E7F1F4;font-size:22px;">&#128225;</div>
+        <h3 class="fw-bold mb-2" style="font-size:15px;color:#003153;">Self-Hosted, No Cloud Middleman</h3>
+        <p class="mb-0" style="color:#6B8494;font-size:13px;line-height:1.65;">Connect Odoo to your own whatsmeow gateway instead of a paid WhatsApp Business API. No per-message fee, no template approval queue, no session window.</p>
       </div>
     </div>
 
     <div class="col-12 col-md-4">
-      <div class="bg-white h-100 rounded-3 p-3" style="border:1px solid #A7E8CF;border-top:4px solid #10B981;">
-        <div class="d-inline-flex align-items-center justify-content-center rounded-2 mb-2" style="width:44px;height:44px;background-color:#EEF0FF;font-size:22px;">&#128737;&#65039;</div>
-        <h3 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">Deliverability Built In</h3>
-        <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">Bursting is what gets a number banned, so the queue paces every send, ramps a new number's daily allowance up over its first weeks, and honours per-contact opt-outs and "not on WhatsApp" answers &mdash; before a single message leaves.</p>
+      <div class="bg-white h-100 rounded-3 p-4" style="border:1px solid #DCE8EC;border-top:3px solid #003153;">
+        <div class="d-inline-flex align-items-center justify-content-center rounded-3 mb-3" style="width:46px;height:46px;background-color:#E7F1F4;font-size:22px;">&#128737;&#65039;</div>
+        <h3 class="fw-bold mb-2" style="font-size:15px;color:#003153;">Deliverability Built In</h3>
+        <p class="mb-0" style="color:#6B8494;font-size:13px;line-height:1.65;">Bursting is what gets a number banned. The queue paces every send, ramps a new number&rsquo;s allowance over its first weeks, and honours opt-outs before a message leaves.</p>
       </div>
     </div>
 
     <div class="col-12 col-md-4">
-      <div class="bg-white h-100 rounded-3 p-3" style="border:1px solid #A5E9F5;border-top:4px solid #00D4FF;">
-        <div class="d-inline-flex align-items-center justify-content-center rounded-2 mb-2" style="width:44px;height:44px;background-color:#EEF0FF;font-size:22px;">&#128229;</div>
-        <h3 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">Inbound That Lands Where You Work</h3>
-        <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">Incoming messages are matched to the right contact by phone number, downloaded with their media, and posted to that contact's chatter. Per-session rules decide what to accept, and read receipts can go out automatically.</p>
+      <div class="bg-white h-100 rounded-3 p-4" style="border:1px solid #DCE8EC;border-top:3px solid #4E97AB;">
+        <div class="d-inline-flex align-items-center justify-content-center rounded-3 mb-3" style="width:46px;height:46px;background-color:#E7F1F4;font-size:22px;">&#128229;</div>
+        <h3 class="fw-bold mb-2" style="font-size:15px;color:#003153;">Inbound That Lands Where You Work</h3>
+        <p class="mb-0" style="color:#6B8494;font-size:13px;line-height:1.65;">Incoming messages are matched to the right contact by phone number, downloaded with their media, and posted to that contact&rsquo;s chatter.</p>
       </div>
     </div>
 
@@ -67,75 +79,110 @@
 
 
 <!-- ═══════════════════════════════════════════════════════════
-     FEATURES
+     FEATURES — 2-col responsive grid
      ═══════════════════════════════════════════════════════════ -->
 
-<div id="features" class="mt-3 mb-5 p-5" style="background-color:#F3F2F1;">
-  <h2 class="fw-bolder mb-4" style="font-size:26px;color:#0F172A;">&#10024; Features</h2>
+<div id="features" class="rounded-4 mb-5 p-4 p-md-5" style="background-color:#003153;">
+
+  <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:rgba(255,255,255,.1);color:#9FC9D6;font-size:11px;letter-spacing:1.5px;border:1px solid rgba(255,255,255,.15);">FEATURES</div>
+  <h2 class="fw-bolder mb-2 text-white" style="font-size:28px;line-height:1.25;">Everything the channel needs,<br class="d-none d-md-inline"> safeguards included.</h2>
+  <p class="mb-4" style="font-size:14px;color:#9FC9D6;line-height:1.6;max-width:640px;">Eight capabilities covering gateways, pairing, sending, pacing, and everything that arrives back.</p>
 
   <div class="row g-3">
 
     <div class="col-12 col-md-6">
-      <div class="bg-white h-100 rounded-3 p-3" style="border:1px solid #E2E8F0;">
-        <div class="d-inline-flex align-items-center justify-content-center rounded-2 text-white mb-2" style="width:46px;height:46px;background-color:#6C5CE7;font-size:22px;">&#128268;</div>
-        <h3 class="fw-bold mb-2" style="font-size:14px;color:#0F172A;">Multi-Gateway &amp; Multi-Number Management</h3>
-        <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">Register any number of gateway endpoints, each with its own URL, API key, and webhook secret, and pair any number of WhatsApp numbers beneath them. A one-click Test button confirms a gateway is reachable and its key is valid.</p>
+      <div class="h-100 rounded-3 p-4" style="background-color:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);">
+        <div class="d-flex align-items-start gap-3">
+          <div class="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0" style="width:46px;height:46px;background-color:#4E97AB;font-size:22px;">&#128268;</div>
+          <div>
+            <h3 class="fw-bold mb-2 text-white" style="font-size:15px;">Multi-Gateway &amp; Multi-Number Management</h3>
+            <p class="mb-0" style="color:#B6D3DC;font-size:13px;line-height:1.65;">Register any number of gateway endpoints as connections, each with its own URL, API key, and webhook secret, and pair any number of WhatsApp numbers as sessions beneath them. A one-click <strong style="color:#BFE0EA;">Test</strong> button validates that a gateway is reachable and its key is valid.</p>
+          </div>
+        </div>
       </div>
     </div>
 
     <div class="col-12 col-md-6">
-      <div class="bg-white h-100 rounded-3 p-3" style="border:1px solid #E2E8F0;">
-        <div class="d-inline-flex align-items-center justify-content-center rounded-2 text-white mb-2" style="width:46px;height:46px;background-color:#A855F7;font-size:22px;">&#128247;</div>
-        <h3 class="fw-bold mb-2" style="font-size:14px;color:#0F172A;">QR Pairing &amp; Live Status</h3>
-        <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">Start a session and Odoo renders the pairing QR right on the form. A scheduled action keeps each session's status current &mdash; Starting, Waiting for QR, Connected, Disconnected, Logged Out &mdash; so you always know which numbers are live.</p>
+      <div class="h-100 rounded-3 p-4" style="background-color:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);">
+        <div class="d-flex align-items-start gap-3">
+          <div class="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0" style="width:46px;height:46px;background-color:#4E97AB;font-size:22px;">&#128247;</div>
+          <div>
+            <h3 class="fw-bold mb-2 text-white" style="font-size:15px;">QR Pairing &amp; Live Status</h3>
+            <p class="mb-0" style="color:#B6D3DC;font-size:13px;line-height:1.65;">Start a session and Odoo renders the WhatsApp pairing QR right on the form. A scheduled action keeps each session&rsquo;s status current &mdash; Starting, Waiting for QR Scan, Connected, Disconnected, or Logged Out.</p>
+          </div>
+        </div>
       </div>
     </div>
 
     <div class="col-12 col-md-6">
-      <div class="bg-white h-100 rounded-3 p-3" style="border:1px solid #E2E8F0;">
-        <div class="d-inline-flex align-items-center justify-content-center rounded-2 text-white mb-2" style="width:46px;height:46px;background-color:#00D4FF;font-size:22px;">&#128172;</div>
-        <h3 class="fw-bold mb-2" style="font-size:14px;color:#0F172A;">Send Text &amp; Media, With Replies</h3>
-        <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">Compose text, images, video, audio, documents, or stickers. Reply to an inbound message to quote it in WhatsApp, send voice notes that play inline, and target either a private chat or a group.</p>
+      <div class="h-100 rounded-3 p-4" style="background-color:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);">
+        <div class="d-flex align-items-start gap-3">
+          <div class="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0" style="width:46px;height:46px;background-color:#4E97AB;font-size:22px;">&#128172;</div>
+          <div>
+            <h3 class="fw-bold mb-2 text-white" style="font-size:15px;">Send Text &amp; Media, With Replies</h3>
+            <p class="mb-0" style="color:#B6D3DC;font-size:13px;line-height:1.65;">Compose text, images, video, audio, documents, or stickers from a message form. Reply to an inbound message to quote it in WhatsApp, and send voice notes that play inline. Sends can target a private chat or a group.</p>
+          </div>
+        </div>
       </div>
     </div>
 
     <div class="col-12 col-md-6">
-      <div class="bg-white h-100 rounded-3 p-3" style="border:1px solid #E2E8F0;">
-        <div class="d-inline-flex align-items-center justify-content-center rounded-2 text-white mb-2" style="width:46px;height:46px;background-color:#10B981;font-size:22px;">&#128678;</div>
-        <h3 class="fw-bold mb-2" style="font-size:14px;color:#0F172A;">Paced Outgoing Queue</h3>
-        <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">Outgoing messages go onto a throttled queue that spaces each number's sends apart, takes turns between numbers so one busy session never stalls another, and carries an idempotency key so a crash can never send the same message twice.</p>
+      <div class="h-100 rounded-3 p-4" style="background-color:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);">
+        <div class="d-flex align-items-start gap-3">
+          <div class="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0" style="width:46px;height:46px;background-color:#4E97AB;font-size:22px;">&#128678;</div>
+          <div>
+            <h3 class="fw-bold mb-2 text-white" style="font-size:15px;">Paced Outgoing Queue</h3>
+            <p class="mb-0" style="color:#B6D3DC;font-size:13px;line-height:1.65;">Outgoing messages go onto a throttled queue that spaces each number&rsquo;s sends apart by a random delay, takes turns between numbers, and carries an idempotency key so a mid-transaction crash can never send the same message twice.</p>
+          </div>
+        </div>
       </div>
     </div>
 
     <div class="col-12 col-md-6">
-      <div class="bg-white h-100 rounded-3 p-3" style="border:1px solid #E2E8F0;">
-        <div class="d-inline-flex align-items-center justify-content-center rounded-2 text-white mb-2" style="width:46px;height:46px;background-color:#F59E0B;font-size:22px;">&#128200;</div>
-        <h3 class="fw-bold mb-2" style="font-size:14px;color:#0F172A;">Warm-Up Ramp &amp; Volume Caps</h3>
-        <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">Cap how many queued messages a session sends per day, starting low for a new number and growing automatically toward a ceiling you set. An hourly cap stops a day's allowance leaving at once, rolling over at the number's own local midnight.</p>
+      <div class="h-100 rounded-3 p-4" style="background-color:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);">
+        <div class="d-flex align-items-start gap-3">
+          <div class="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0" style="width:46px;height:46px;background-color:#4E97AB;font-size:22px;">&#128200;</div>
+          <div>
+            <h3 class="fw-bold mb-2 text-white" style="font-size:15px;">Warm-Up Ramp &amp; Volume Caps</h3>
+            <p class="mb-0" style="color:#B6D3DC;font-size:13px;line-height:1.65;">Each session can cap how many queued messages it sends per day, starting low for a brand-new number and growing automatically as it ages toward a ceiling you set. An hourly cap stops a day&rsquo;s allowance leaving in one burst.</p>
+          </div>
+        </div>
       </div>
     </div>
 
     <div class="col-12 col-md-6">
-      <div class="bg-white h-100 rounded-3 p-3" style="border:1px solid #E2E8F0;">
-        <div class="d-inline-flex align-items-center justify-content-center rounded-2 text-white mb-2" style="width:46px;height:46px;background-color:#6C5CE7;font-size:22px;">&#128683;</div>
-        <h3 class="fw-bold mb-2" style="font-size:14px;color:#0F172A;">Opt-Out &amp; Number Validation</h3>
-        <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">A contact who asks to stop is flagged, and no path can ever message them again &mdash; queue, composer, server action, or Discuss reply. Separately, the gateway is asked which queued numbers are on WhatsApp, so dead numbers are skipped.</p>
+      <div class="h-100 rounded-3 p-4" style="background-color:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);">
+        <div class="d-flex align-items-start gap-3">
+          <div class="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0" style="width:46px;height:46px;background-color:#4E97AB;font-size:22px;">&#128683;</div>
+          <div>
+            <h3 class="fw-bold mb-2 text-white" style="font-size:15px;">Opt-Out &amp; Number Validation</h3>
+            <p class="mb-0" style="color:#B6D3DC;font-size:13px;line-height:1.65;">A contact who asks to stop is flagged, and no path can ever message them again &mdash; not the queue, composer, server action, or Discuss reply. The gateway is also asked which queued numbers are actually on WhatsApp, so dead numbers are skipped.</p>
+          </div>
+        </div>
       </div>
     </div>
 
     <div class="col-12 col-md-6">
-      <div class="bg-white h-100 rounded-3 p-3" style="border:1px solid #E2E8F0;">
-        <div class="d-inline-flex align-items-center justify-content-center rounded-2 text-white mb-2" style="width:46px;height:46px;background-color:#A855F7;font-size:22px;">&#128270;</div>
-        <h3 class="fw-bold mb-2" style="font-size:14px;color:#0F172A;">Inbound Filter Rules</h3>
-        <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">Every session carries ordered accept/reject rules matched on chat type, message kind, sender, phone, chat JID, LID, or a keyword. Accept-by-default with reject rules is a blocklist; reject-by-default with accept rules is an allowlist.</p>
+      <div class="h-100 rounded-3 p-4" style="background-color:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);">
+        <div class="d-flex align-items-start gap-3">
+          <div class="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0" style="width:46px;height:46px;background-color:#4E97AB;font-size:22px;">&#128270;</div>
+          <div>
+            <h3 class="fw-bold mb-2 text-white" style="font-size:15px;">Inbound Filter Rules</h3>
+            <p class="mb-0" style="color:#B6D3DC;font-size:13px;line-height:1.65;">Every session carries an ordered list of accept/reject rules matched on chat type, message kind, sender, phone, chat JID, LID, or a body keyword &mdash; combine them into a blocklist or an allowlist. A dedicated opt-out action flags the sender while keeping the message on file.</p>
+          </div>
+        </div>
       </div>
     </div>
 
     <div class="col-12 col-md-6">
-      <div class="bg-white h-100 rounded-3 p-3" style="border:1px solid #E2E8F0;">
-        <div class="d-inline-flex align-items-center justify-content-center rounded-2 text-white mb-2" style="width:46px;height:46px;background-color:#00D4FF;font-size:22px;">&#129534;</div>
-        <h3 class="fw-bold mb-2" style="font-size:14px;color:#0F172A;">Inbound Delivery to the Chatter</h3>
-        <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">An accepted message is matched on the last ten digits of the number and posted to the contact's chatter with media attached and voice notes playable inline. Group messages are labelled so they never read as a private message.</p>
+      <div class="h-100 rounded-3 p-4" style="background-color:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);">
+        <div class="d-flex align-items-start gap-3">
+          <div class="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0" style="width:46px;height:46px;background-color:#4E97AB;font-size:22px;">&#129534;</div>
+          <div>
+            <h3 class="fw-bold mb-2 text-white" style="font-size:15px;">Inbound Delivery to the Chatter</h3>
+            <p class="mb-0" style="color:#B6D3DC;font-size:13px;line-height:1.65;">An accepted message is matched to a contact on the last ten digits of their number and posted to their chatter with media attached and voice notes flagged to play inline. Group messages are labelled with the group name.</p>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -144,48 +191,69 @@
 
 
 <!-- ═══════════════════════════════════════════════════════════
-     INSTALLATION
+     INSTALLATION — gateway deployment
      ═══════════════════════════════════════════════════════════ -->
 
-<div id="installation" class="mt-3 mb-5 p-5">
-  <h2 class="fw-bolder mb-2" style="font-size:26px;color:#0F172A;">&#128230; Installation</h2>
-  <p class="mb-4" style="font-size:14px;color:#64748B;line-height:1.6;">
-    Installing the add-on from the Apps list is the standard Odoo step. What is specific to this module is deploying the <strong>whatsmeow gateway</strong> first &mdash; the self-hosted service the connector talks to.</p>
+<div id="installation" class="rounded-4 mb-5 p-4 p-md-5" style="background-color:#FFFFFF;border:1px solid #E2EDF1;">
 
-  <div class="bg-white rounded-3 p-4 mb-4" style="border:1px solid #E2E8F0;">
+  <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#E4EFF3;color:#35798C;font-size:11px;letter-spacing:1.5px;">INSTALLATION</div>
+  <h2 class="fw-bolder mb-2" style="font-size:28px;color:#003153;line-height:1.25;">Deploy the gateway first</h2>
+  <p class="mb-4" style="font-size:14px;color:#6B8494;line-height:1.6;max-width:720px;">
+    Installing the add-on from the Apps list is the standard Odoo step. What is specific to this module is deploying the
+    <strong style="color:#35798C;">whatsmeow gateway</strong> &mdash; the self-hosted service the connector talks to.
+    It is a single Go binary that speaks the WhatsApp Web protocol on one side and HTTP+JSON to Odoo on the other.
+    An installer sets it up as a systemd service on Debian 12/13 or Ubuntu 22.04/24.04.</p>
+
+  <div class="row g-3 mb-4">
+
+    <div class="col-12 col-md-4">
+      <div class="h-100 rounded-3 p-4" style="background-color:#F4F8FA;border:1px solid #DCE8EC;">
+        <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder mb-3" style="width:38px;height:38px;background-color:#003153;font-size:15px;">1</div>
+        <h4 class="fw-bold mb-1" style="font-size:15px;color:#003153;">Clone the repository</h4>
+        <p class="mb-0" style="color:#6B8494;font-size:13px;line-height:1.65;">Clone it onto the gateway host &mdash; running it on the same machine as Odoo is the simple case.</p>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-4">
+      <div class="h-100 rounded-3 p-4" style="background-color:#F4F8FA;border:1px solid #DCE8EC;">
+        <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder mb-3" style="width:38px;height:38px;background-color:#35798C;font-size:15px;">2</div>
+        <h4 class="fw-bold mb-1" style="font-size:15px;color:#003153;">Run the installer</h4>
+        <p class="mb-0" style="color:#6B8494;font-size:13px;line-height:1.65;">From the repository root, run
+          <strong style="font-family:Consolas,monospace;color:#35798C;">sudo ./install.sh</strong>.</p>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-4">
+      <div class="h-100 rounded-3 p-4" style="background-color:#F4F8FA;border:1px solid #DCE8EC;">
+        <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder mb-3" style="width:38px;height:38px;background-color:#4E97AB;font-size:15px;">3</div>
+        <h4 class="fw-bold mb-1" style="font-size:15px;color:#003153;">Keep the printed credentials</h4>
+        <p class="mb-0" style="color:#6B8494;font-size:13px;line-height:1.65;">It prints a <strong>Gateway URL</strong>, <strong>API Key</strong>, and <strong>Webhook Secret</strong> &mdash; keep these for the connection record.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="rounded-3 p-4 mb-4" style="background-color:#02243C;border:1px solid #0A3A5C;">
     <div class="d-flex align-items-center gap-2 mb-3">
-      <span style="font-size:22px;">&#128640;</span>
-      <h3 class="fw-bold mb-0" style="font-size:16px;color:#0F172A;">Deploy the whatsmeow Gateway</h3>
+      <span class="d-inline-block rounded-circle" style="width:10px;height:10px;background-color:#FF6B6B;"></span>
+      <span class="d-inline-block rounded-circle" style="width:10px;height:10px;background-color:#FFD166;"></span>
+      <span class="d-inline-block rounded-circle" style="width:10px;height:10px;background-color:#4E97AB;"></span>
+      <span class="ms-2" style="color:#5C86A0;font-family:Consolas,monospace;font-size:11px;">terminal</span>
     </div>
-    <p class="mb-3" style="color:#64748B;font-size:13px;line-height:1.6;">
-      The gateway is a single Go binary that speaks the WhatsApp Web protocol on one side and HTTP+JSON to Odoo on the other. An installer sets it up as a systemd service on Debian 12/13 or Ubuntu 22.04/24.04.</p>
-
-    <div class="d-flex align-items-start gap-3 mb-2">
-      <div class="d-flex align-items-center justify-content-center flex-shrink-0 rounded-circle text-white fw-bolder" style="width:32px;height:32px;background-color:#6C5CE7;font-size:14px;">1</div>
-      <p class="mb-0 pt-1" style="color:#334155;font-size:13px;line-height:1.6;">Clone the repository onto the gateway host &mdash; running it on the same machine as Odoo is the simple case.</p>
-    </div>
-    <div class="d-flex align-items-start gap-3 mb-2">
-      <div class="d-flex align-items-center justify-content-center flex-shrink-0 rounded-circle text-white fw-bolder" style="width:32px;height:32px;background-color:#A855F7;font-size:14px;">2</div>
-      <p class="mb-0 pt-1" style="color:#334155;font-size:13px;line-height:1.6;">From the repository root, run <strong style="font-family:Consolas,monospace;color:#6C5CE7;">sudo ./install.sh</strong>.</p>
-    </div>
-    <div class="d-flex align-items-start gap-3">
-      <div class="d-flex align-items-center justify-content-center flex-shrink-0 rounded-circle text-white fw-bolder" style="width:32px;height:32px;background-color:#00D4FF;font-size:14px;">3</div>
-      <p class="mb-0 pt-1" style="color:#334155;font-size:13px;line-height:1.6;">It prints a <strong>Gateway URL</strong>, <strong>API Key</strong>, and <strong>Webhook Secret</strong> &mdash; keep these for the connection record.</p>
+    <div style="font-family:Consolas,monospace;font-size:13px;color:#DCEAF2;line-height:1.9;">
+      <span style="color:#7CE3A8;">$</span> git clone https://github.com/fasilwdr/whatsmeow-odoo.git<br>
+      <span style="color:#7CE3A8;">$</span> cd whatsmeow-odoo<br>
+      <span style="color:#7CE3A8;">$</span> sudo ./install.sh
     </div>
   </div>
 
-  <p class="mb-3" style="font-size:13px;color:#64748B;line-height:1.6;">
-    One gateway can host several WhatsApp numbers, and one Odoo can drive several gateways. Re-running the installer safely rebuilds and restarts the service, keeping your credentials and paired sessions. See <strong style="font-family:Consolas,monospace;color:#6C5CE7;">DEPLOY.md</strong> for options such as a custom port, a cross-host webhook URL, TLS, and backups.</p>
-
-  <div class="rounded-3 p-3" style="background-color:#0F172A;border:1px solid #1E293B;">
-    <div style="color:#475569;font-family:Consolas,monospace;font-size:13px;" class="mb-2">&#9679; &#9679; &#9679;</div>
-    <div style="font-family:Consolas,monospace;font-size:13px;color:#E2E8F0;line-height:1.9;">
-      <span style="color:#64748B;"># Clone the repo and deploy the gateway</span><br>
-      <span style="color:#7CFFA0;">$</span> git clone https://github.com/fasilwdr/whatsmeow-odoo.git<br>
-      <span style="color:#7CFFA0;">$</span> cd whatsmeow-odoo<br>
-      <span style="color:#7CFFA0;">$</span> sudo ./install.sh<br>
-      <span style="color:#7CFFA0;">$</span> <span style="color:#64748B;"># Then in Odoo: install whatsmeow, and register the printed credentials</span>
-    </div>
+  <div class="rounded-3 p-4" style="background-color:#F4F8FA;border:1px solid #DCE8EC;border-left:4px solid #4E97AB;">
+    <p class="mb-0" style="color:#3D5566;font-size:13px;line-height:1.7;">
+      One gateway can host several WhatsApp numbers, and one Odoo can drive several gateways. Re-running the installer
+      safely rebuilds and restarts the service, keeping your credentials and paired sessions. See
+      <strong style="font-family:Consolas,monospace;color:#35798C;">DEPLOY.md</strong> for options such as a custom port,
+      a cross-host webhook URL, TLS, and backups. With the gateway running, register it under
+      <strong style="color:#35798C;">WhatsApp &rarr; Configuration &rarr; Gateways</strong> using the printed credentials.</p>
   </div>
 </div>
 
@@ -194,35 +262,53 @@
      CONFIGURATION
      ═══════════════════════════════════════════════════════════ -->
 
-<div id="configuration" class="mt-3 mb-5 p-5">
-  <h2 class="fw-bolder mb-2" style="font-size:26px;color:#0F172A;">&#128295; Configuration</h2>
-  <p class="mb-4" style="font-size:14px;color:#64748B;line-height:1.6;">
-    All setup lives under <strong>WhatsApp &rarr; Configuration</strong>, visible to WhatsApp Administrators.</p>
+<div id="configuration" class="rounded-4 mb-5 p-4 p-md-5" style="background-color:#F4F8FA;border:1px solid #E2EDF1;">
 
-  <div class="row g-4 text-center">
+  <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#E4EFF3;color:#35798C;font-size:11px;letter-spacing:1.5px;">CONFIGURATION</div>
+  <h2 class="fw-bolder mb-2" style="font-size:28px;color:#003153;line-height:1.25;">From gateway to live number</h2>
+  <p class="mb-4" style="font-size:14px;color:#6B8494;line-height:1.6;max-width:640px;">
+    All setup lives under the <strong style="color:#35798C;">WhatsApp &rarr; Configuration</strong> menu, visible to WhatsApp Administrators.</p>
 
-    <div class="col-6 col-md-3">
-      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder mx-auto mb-2" style="width:50px;height:50px;background-color:#6C5CE7;font-size:20px;">1</div>
-      <h4 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">Register a Gateway</h4>
-      <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">Gateways &rarr; New: enter the Gateway URL, API Key, and Webhook Secret, then Test.</p>
+  <div class="row g-3">
+
+    <div class="col-6 col-md-4">
+      <div class="bg-white h-100 rounded-3 p-4 text-center" style="border:1px solid #DCE8EC;">
+        <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder mx-auto mb-3" style="width:46px;height:46px;background-color:#003153;font-size:18px;">1</div>
+        <h4 class="fw-bold mb-1" style="font-size:14px;color:#003153;">Register a gateway</h4>
+        <p class="mb-0" style="color:#6B8494;font-size:12px;line-height:1.6;">Under <strong>Gateways</strong>, enter the URL, API Key, and Webhook Secret, then click <strong>Test</strong>.</p>
+      </div>
     </div>
 
-    <div class="col-6 col-md-3">
-      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder mx-auto mb-2" style="width:50px;height:50px;background-color:#A855F7;font-size:20px;">2</div>
-      <h4 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">Point the Webhook</h4>
-      <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">Configure the gateway to POST events to /whatsmeow/webhook with the same secret.</p>
+    <div class="col-6 col-md-4">
+      <div class="bg-white h-100 rounded-3 p-4 text-center" style="border:1px solid #DCE8EC;">
+        <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder mx-auto mb-3" style="width:46px;height:46px;background-color:#12496B;font-size:18px;">2</div>
+        <h4 class="fw-bold mb-1" style="font-size:14px;color:#003153;">Point the webhook at Odoo</h4>
+        <p class="mb-0" style="color:#6B8494;font-size:12px;line-height:1.6;">POST events to <strong style="font-family:Consolas,monospace;color:#35798C;">/whatsmeow/webhook</strong> using the same secret.</p>
+      </div>
     </div>
 
-    <div class="col-6 col-md-3">
-      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder mx-auto mb-2" style="width:50px;height:50px;background-color:#00D4FF;font-size:20px;">3</div>
-      <h4 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">Pair a Number</h4>
-      <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">Sessions &rarr; New: set a Session Key, pick the gateway, Start, and scan the QR.</p>
+    <div class="col-6 col-md-4">
+      <div class="bg-white h-100 rounded-3 p-4 text-center" style="border:1px solid #DCE8EC;">
+        <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder mx-auto mb-3" style="width:46px;height:46px;background-color:#35798C;font-size:18px;">3</div>
+        <h4 class="fw-bold mb-1" style="font-size:14px;color:#003153;">Pair a WhatsApp number</h4>
+        <p class="mb-0" style="color:#6B8494;font-size:12px;line-height:1.6;">Under <strong>Sessions</strong>, add a Session Key, pick the gateway, click <strong>Start</strong>, and scan the QR.</p>
+      </div>
     </div>
 
-    <div class="col-6 col-md-3">
-      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder mx-auto mb-2" style="width:50px;height:50px;background-color:#10B981;font-size:20px;">4</div>
-      <h4 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">Tune &amp; Filter</h4>
-      <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">Set send delays, warm-up caps, inbound filter rules, and auto mark-as-read.</p>
+    <div class="col-6 col-md-4">
+      <div class="bg-white h-100 rounded-3 p-4 text-center" style="border:1px solid #DCE8EC;">
+        <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder mx-auto mb-3" style="width:46px;height:46px;background-color:#4E97AB;font-size:18px;">4</div>
+        <h4 class="fw-bold mb-1" style="font-size:14px;color:#003153;">Tune send pacing</h4>
+        <p class="mb-0" style="color:#6B8494;font-size:12px;line-height:1.6;">Set Min/Max Delay and, under Warm-Up &amp; Daily Cap, the Day-1 Allowance, Growth, Ceiling, Hourly Cap, and Timezone.</p>
+      </div>
+    </div>
+
+    <div class="col-6 col-md-4">
+      <div class="bg-white h-100 rounded-3 p-4 text-center" style="border:1px solid #DCE8EC;">
+        <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder mx-auto mb-3" style="width:46px;height:46px;background-color:#003153;font-size:18px;">5</div>
+        <h4 class="fw-bold mb-1" style="font-size:14px;color:#003153;">Set inbound behaviour</h4>
+        <p class="mb-0" style="color:#6B8494;font-size:12px;line-height:1.6;">Choose what to do with unmatched messages, add Inbound Filter Rules, and optionally enable Auto Mark as Read.</p>
+      </div>
     </div>
 
   </div>
@@ -233,149 +319,210 @@
      SCREENSHOTS
      ═══════════════════════════════════════════════════════════ -->
 
-<div id="screenshots" class="mt-3 mb-5 p-5">
-  <h2 class="fw-bolder mb-2" style="font-size:26px;color:#0F172A;">&#128248; Screenshots</h2>
-  <p class="mb-4" style="font-size:14px;color:#64748B;line-height:1.6;">Connecting a gateway, pairing a number, sending a message, and keeping a number healthy.</p>
+<div id="screenshots" class="rounded-4 mb-5 p-4 p-md-5" style="background-color:#FFFFFF;border:1px solid #E2EDF1;">
 
-  <div class="row g-3">
+  <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#E4EFF3;color:#35798C;font-size:11px;letter-spacing:1.5px;">SCREENSHOTS</div>
+  <h2 class="fw-bolder mb-2" style="font-size:28px;color:#003153;line-height:1.25;">See it in action</h2>
+  <p class="mb-4" style="font-size:14px;color:#6B8494;line-height:1.6;">Connecting a gateway, pairing a number, sending a message, and keeping a number healthy.</p>
 
-    <div class="col-12 col-md-6 mb-4">
-      <div class="bg-white rounded-3 overflow-hidden" style="border:1px solid #E2E8F0;">
-        <div class="p-3 text-white" style="background-color:#6C5CE7;">
-          <h4 class="fw-bold mb-1" style="font-size:13px;">Registering a gateway connection</h4>
-          <p class="mb-0" style="font-size:12px;line-height:1.5;">URL, API key, and webhook secret in one place.</p>
-        </div>
-        <img src="img/gateway.png" alt="Configuring a gateway endpoint" class="w-100 d-block">
+  <!-- Screenshot 01 -->
+  <div class="mb-5">
+    <div class="d-flex align-items-center gap-3 mb-3">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:34px;height:34px;background-color:#003153;font-size:14px;">1</div>
+      <div>
+        <span class="fw-bold d-block" style="font-size:15px;color:#003153;">Registering a gateway connection</span>
+        <span style="font-size:13px;color:#6B8494;">Configure a gateway endpoint and validate it with Test.</span>
       </div>
     </div>
+    <div class="rounded-3 overflow-hidden" style="border:1px solid #DCE8EC;">
+      <div class="d-flex align-items-center gap-2 px-3 py-2" style="background-color:#F4F8FA;border-bottom:1px solid #DCE8EC;">
+        <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background-color:#FF6B6B;"></span>
+        <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background-color:#FFD166;"></span>
+        <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background-color:#4E97AB;"></span>
+      </div>
+      <img src="img/gateway.png" alt="Configure a gateway endpoint with its URL, API key and webhook secret." class="w-100 d-block">
+    </div>
+  </div>
 
-    <div class="col-12 col-md-6 mb-4">
-      <div class="bg-white rounded-3 overflow-hidden" style="border:1px solid #E2E8F0;">
-        <div class="p-3 text-white" style="background-color:#A855F7;">
-          <h4 class="fw-bold mb-1" style="font-size:13px;">Pairing a WhatsApp number</h4>
-          <p class="mb-0" style="font-size:12px;line-height:1.5;">Scan the QR and the session comes online.</p>
-        </div>
-        <img src="img/connecting_whatsapp.gif" alt="Connecting a WhatsApp session by scanning the pairing QR" class="w-100 d-block">
+  <!-- Screenshot 02 -->
+  <div class="mb-5">
+    <div class="d-flex align-items-center gap-3 mb-3">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:34px;height:34px;background-color:#12496B;font-size:14px;">2</div>
+      <div>
+        <span class="fw-bold d-block" style="font-size:15px;color:#003153;">Pairing a WhatsApp number by QR</span>
+        <span style="font-size:13px;color:#6B8494;">Start the session and scan the pairing code with the phone.</span>
       </div>
     </div>
+    <div class="rounded-3 overflow-hidden" style="border:1px solid #DCE8EC;">
+      <div class="d-flex align-items-center gap-2 px-3 py-2" style="background-color:#F4F8FA;border-bottom:1px solid #DCE8EC;">
+        <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background-color:#FF6B6B;"></span>
+        <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background-color:#FFD166;"></span>
+        <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background-color:#4E97AB;"></span>
+      </div>
+      <img src="img/connecting_whatsapp.gif" alt="Animation of connecting a WhatsApp session by scanning the pairing QR code." class="w-100 d-block">
+    </div>
+  </div>
 
-    <div class="col-12 col-md-6 mb-4">
-      <div class="bg-white rounded-3 overflow-hidden" style="border:1px solid #E2E8F0;">
-        <div class="p-3 text-white" style="background-color:#00D4FF;">
-          <h4 class="fw-bold mb-1" style="font-size:13px;">Composing a message</h4>
-          <p class="mb-0" style="font-size:12px;line-height:1.5;">Text or media, from any session.</p>
-        </div>
-        <img src="img/send_message.png" alt="Composing and sending a WhatsApp message" class="w-100 d-block">
+  <!-- Screenshot 03 -->
+  <div class="mb-5">
+    <div class="d-flex align-items-center gap-3 mb-3">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:34px;height:34px;background-color:#35798C;font-size:14px;">3</div>
+      <div>
+        <span class="fw-bold d-block" style="font-size:15px;color:#003153;">Composing and sending a message</span>
+        <span style="font-size:13px;color:#6B8494;">Pick a session, enter the recipient, and send text or media.</span>
       </div>
     </div>
+    <div class="rounded-3 overflow-hidden" style="border:1px solid #DCE8EC;">
+      <div class="d-flex align-items-center gap-2 px-3 py-2" style="background-color:#F4F8FA;border-bottom:1px solid #DCE8EC;">
+        <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background-color:#FF6B6B;"></span>
+        <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background-color:#FFD166;"></span>
+        <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background-color:#4E97AB;"></span>
+      </div>
+      <img src="img/send_message.png" alt="Sending a WhatsApp message from the message form." class="w-100 d-block">
+    </div>
+  </div>
 
-    <div class="col-12 col-md-6 mb-4">
-      <div class="bg-white rounded-3 overflow-hidden" style="border:1px solid #E2E8F0;">
-        <div class="p-3 text-white" style="background-color:#F59E0B;">
-          <h4 class="fw-bold mb-1" style="font-size:13px;">Warm-up &amp; volume caps</h4>
-          <p class="mb-0" style="font-size:12px;line-height:1.5;">Ramp a new number's daily allowance safely.</p>
-        </div>
-        <img src="img/volume_and_warm_up.png" alt="Warm-up ramp and daily and hourly volume caps on a session" class="w-100 d-block">
+  <!-- Screenshot 04 -->
+  <div class="mb-5">
+    <div class="d-flex align-items-center gap-3 mb-3">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:34px;height:34px;background-color:#4E97AB;font-size:14px;">4</div>
+      <div>
+        <span class="fw-bold d-block" style="font-size:15px;color:#003153;">Warm-up ramp and volume caps</span>
+        <span style="font-size:13px;color:#6B8494;">Daily and hourly limits that grow as the number ages.</span>
       </div>
     </div>
+    <div class="rounded-3 overflow-hidden" style="border:1px solid #DCE8EC;">
+      <div class="d-flex align-items-center gap-2 px-3 py-2" style="background-color:#F4F8FA;border-bottom:1px solid #DCE8EC;">
+        <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background-color:#FF6B6B;"></span>
+        <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background-color:#FFD166;"></span>
+        <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background-color:#4E97AB;"></span>
+      </div>
+      <img src="img/volume_and_warm_up.png" alt="Warm-up ramp and daily and hourly volume controls on a session." class="w-100 d-block">
+    </div>
+  </div>
 
-    <div class="col-12 col-md-6 mb-4">
-      <div class="bg-white rounded-3 overflow-hidden" style="border:1px solid #E2E8F0;">
-        <div class="p-3 text-white" style="background-color:#10B981;">
-          <h4 class="fw-bold mb-1" style="font-size:13px;">Inbound filter rules</h4>
-          <p class="mb-0" style="font-size:12px;line-height:1.5;">Allowlist or blocklist, per session.</p>
-        </div>
-        <img src="img/inbound_filtering.png" alt="Per-session inbound filter rules" class="w-100 d-block">
+  <!-- Screenshot 05 -->
+  <div class="mb-0">
+    <div class="d-flex align-items-center gap-3 mb-3">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:34px;height:34px;background-color:#003153;font-size:14px;">5</div>
+      <div>
+        <span class="fw-bold d-block" style="font-size:15px;color:#003153;">Per-session inbound filter rules</span>
+        <span style="font-size:13px;color:#6B8494;">Ordered accept/reject rules forming an allowlist or blocklist.</span>
       </div>
     </div>
-
+    <div class="rounded-3 overflow-hidden" style="border:1px solid #DCE8EC;">
+      <div class="d-flex align-items-center gap-2 px-3 py-2" style="background-color:#F4F8FA;border-bottom:1px solid #DCE8EC;">
+        <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background-color:#FF6B6B;"></span>
+        <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background-color:#FFD166;"></span>
+        <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background-color:#4E97AB;"></span>
+      </div>
+      <img src="img/inbound_filtering.png" alt="Per-session inbound filtering rules list." class="w-100 d-block">
+    </div>
   </div>
 </div>
 
 
 <!-- ═══════════════════════════════════════════════════════════
-     USAGE
+     USAGE — workflow cards
      ═══════════════════════════════════════════════════════════ -->
 
-<div id="usage" class="mt-3 mb-5 p-5">
-  <h2 class="fw-bolder mb-2" style="font-size:26px;color:#0F172A;">&#128161; Usage</h2>
-  <p class="mb-4" style="font-size:14px;color:#64748B;line-height:1.6;">From connecting a gateway to keeping a number healthy.</p>
+<div id="usage" class="rounded-4 mb-5 p-4 p-md-5" style="background-color:#F4F8FA;border:1px solid #E2EDF1;">
 
-<!-- Workflow 01 -->
-<div class="bg-white rounded-4 mb-3 p-4" style="border:1px solid #E2E8F0;">
-  <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#EEF0FF;color:#6C5CE7;font-size:11px;letter-spacing:.4px;">WORKFLOW &middot; 01</div>
-  <h3 class="fw-bolder mb-2" style="font-size:18px;color:#0F172A;">&#128279; Connect a Gateway</h3>
-  <p class="mb-3" style="color:#334155;font-size:14px;line-height:1.65;">Register your self-hosted gateway so Odoo can talk to WhatsApp through it.</p>
-  <div class="d-flex align-items-center gap-2 mb-2">
-    <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#A855F7;font-size:12px;">&#10003;</div>
-    <span style="font-size:13px;color:#334155;">Go to WhatsApp &rarr; Configuration &rarr; Gateways and click New</span>
-  </div>
-  <div class="d-flex align-items-center gap-2 mb-2">
-    <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#A855F7;font-size:12px;">&#10003;</div>
-    <span style="font-size:13px;color:#334155;">Enter the Gateway URL, API Key, and Webhook Secret as configured on the gateway</span>
-  </div>
-  <div class="d-flex align-items-center gap-2 mb-0">
-    <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#A855F7;font-size:12px;">&#10003;</div>
-    <span style="font-size:13px;color:#334155;">Save, click Test, and point the gateway's webhook at /whatsmeow/webhook</span>
-  </div>
-</div>
+  <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#E4EFF3;color:#35798C;font-size:11px;letter-spacing:1.5px;">USAGE</div>
+  <h2 class="fw-bolder mb-2" style="font-size:28px;color:#003153;line-height:1.25;">From zero to a live channel</h2>
+  <p class="mb-4" style="font-size:14px;color:#6B8494;line-height:1.6;">Four workflows covering setup, sending, and keeping the number healthy.</p>
 
-<!-- Workflow 02 -->
-<div class="bg-white rounded-4 mb-3 p-4" style="border:1px solid #E2E8F0;">
-  <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#EEF0FF;color:#6C5CE7;font-size:11px;letter-spacing:.4px;">WORKFLOW &middot; 02</div>
-  <h3 class="fw-bolder mb-2" style="font-size:18px;color:#0F172A;">&#128241; Pair a WhatsApp Number</h3>
-  <p class="mb-3" style="color:#334155;font-size:14px;line-height:1.65;">Bring a WhatsApp number online as a session you can send and receive from.</p>
-  <div class="d-flex align-items-center gap-2 mb-2">
-    <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#00D4FF;font-size:12px;">&#10003;</div>
-    <span style="font-size:13px;color:#334155;">Go to WhatsApp &rarr; Configuration &rarr; Sessions and click New</span>
+  <!-- Workflow 01 -->
+  <div class="bg-white rounded-3 mb-3 p-4 p-md-5" style="border:1px solid #DCE8EC;border-left:4px solid #003153;">
+    <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#E4EFF3;color:#003153;font-size:11px;letter-spacing:1px;">WORKFLOW &middot; 01</div>
+    <h3 class="fw-bolder mb-2" style="font-size:19px;color:#003153;">Connect a Gateway</h3>
+    <p class="mb-3" style="color:#3D5566;font-size:14px;line-height:1.7;">
+      Register your self-hosted gateway so Odoo can talk to WhatsApp through it.</p>
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+      <span style="font-size:13px;color:#3D5566;">Go to <strong>WhatsApp &rarr; Configuration &rarr; Gateways</strong> and click <strong>New</strong></span>
+    </div>
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+      <span style="font-size:13px;color:#3D5566;">Enter the <strong>Gateway URL</strong>, <strong>API Key</strong>, and <strong>Webhook Secret</strong> exactly as configured on the gateway</span>
+    </div>
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+      <span style="font-size:13px;color:#3D5566;">Click <strong>Save</strong>, then <strong>Test</strong> &mdash; a green notification confirms it is reachable</span>
+    </div>
+    <div class="d-flex align-items-center gap-2 mb-0">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+      <span style="font-size:13px;color:#3D5566;">Configure the gateway to send webhooks to <strong style="font-family:Consolas,monospace;color:#35798C;">/whatsmeow/webhook</strong> with the same secret</span>
+    </div>
   </div>
-  <div class="d-flex align-items-center gap-2 mb-2">
-    <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#00D4FF;font-size:12px;">&#10003;</div>
-    <span style="font-size:13px;color:#334155;">Enter a Session Key, choose the Gateway, and Save</span>
-  </div>
-  <div class="d-flex align-items-center gap-2 mb-0">
-    <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#00D4FF;font-size:12px;">&#10003;</div>
-    <span style="font-size:13px;color:#334155;">Click Start, scan the QR, and watch the status turn to Connected</span>
-  </div>
-</div>
 
-<!-- Workflow 03 -->
-<div class="bg-white rounded-4 mb-3 p-4" style="border:1px solid #E2E8F0;">
-  <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#EEF0FF;color:#6C5CE7;font-size:11px;letter-spacing:.4px;">WORKFLOW &middot; 03</div>
-  <h3 class="fw-bolder mb-2" style="font-size:18px;color:#0F172A;">&#128233; Send a Message</h3>
-  <p class="mb-3" style="color:#334155;font-size:14px;line-height:1.65;">Send a text or a file to a WhatsApp contact.</p>
-  <div class="d-flex align-items-center gap-2 mb-2">
-    <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#10B981;font-size:12px;">&#10003;</div>
-    <span style="font-size:13px;color:#334155;">Go to WhatsApp &rarr; Messages and click New</span>
+  <!-- Workflow 02 -->
+  <div class="bg-white rounded-3 mb-3 p-4 p-md-5" style="border:1px solid #DCE8EC;border-left:4px solid #35798C;">
+    <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#E4EFF3;color:#003153;font-size:11px;letter-spacing:1px;">WORKFLOW &middot; 02</div>
+    <h3 class="fw-bolder mb-2" style="font-size:19px;color:#003153;">Pair a WhatsApp Number</h3>
+    <p class="mb-3" style="color:#3D5566;font-size:14px;line-height:1.7;">
+      Bring a WhatsApp number online as a session you can send and receive from.</p>
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+      <span style="font-size:13px;color:#3D5566;">Go to <strong>WhatsApp &rarr; Configuration &rarr; Sessions</strong> and click <strong>New</strong></span>
+    </div>
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+      <span style="font-size:13px;color:#3D5566;">Enter a <strong>Session Key</strong>, choose the <strong>Gateway</strong>, and click <strong>Save</strong></span>
+    </div>
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+      <span style="font-size:13px;color:#3D5566;">Click <strong>Start</strong>, then scan the pairing QR with WhatsApp on the phone</span>
+    </div>
+    <div class="d-flex align-items-center gap-2 mb-0">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+      <span style="font-size:13px;color:#3D5566;">Watch the status turn to <strong>Connected</strong> &mdash; the number is now live</span>
+    </div>
   </div>
-  <div class="d-flex align-items-center gap-2 mb-2">
-    <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#10B981;font-size:12px;">&#10003;</div>
-    <span style="font-size:13px;color:#334155;">Pick the Session, enter the Recipient, and type a message or attach a file</span>
-  </div>
-  <div class="d-flex align-items-center gap-2 mb-0">
-    <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#10B981;font-size:12px;">&#10003;</div>
-    <span style="font-size:13px;color:#334155;">Click Send &mdash; or open an inbound message and Reply to quote it</span>
-  </div>
-</div>
 
-<!-- Workflow 04 -->
-<div class="bg-white rounded-4 mb-3 p-4" style="border:1px solid #E2E8F0;">
-  <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#EEF0FF;color:#6C5CE7;font-size:11px;letter-spacing:.4px;">WORKFLOW &middot; 04</div>
-  <h3 class="fw-bolder mb-2" style="font-size:18px;color:#0F172A;">&#129658; Keep a Number Healthy</h3>
-  <p class="mb-3" style="color:#334155;font-size:14px;line-height:1.65;">Protect a number's reputation so it keeps sending.</p>
-  <div class="d-flex align-items-center gap-2 mb-2">
-    <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#F59E0B;font-size:12px;">&#10003;</div>
-    <span style="font-size:13px;color:#334155;">Enable Warm-Up &amp; Daily Cap and set the Day-1 Allowance, Growth, and Ceiling</span>
+  <!-- Workflow 03 -->
+  <div class="bg-white rounded-3 mb-3 p-4 p-md-5" style="border:1px solid #DCE8EC;border-left:4px solid #4E97AB;">
+    <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#E4EFF3;color:#003153;font-size:11px;letter-spacing:1px;">WORKFLOW &middot; 03</div>
+    <h3 class="fw-bolder mb-2" style="font-size:19px;color:#003153;">Send a Message</h3>
+    <p class="mb-3" style="color:#3D5566;font-size:14px;line-height:1.7;">
+      Send a text or a file to a WhatsApp contact.</p>
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+      <span style="font-size:13px;color:#3D5566;">Go to <strong>WhatsApp &rarr; Messages</strong> and click <strong>New</strong></span>
+    </div>
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+      <span style="font-size:13px;color:#3D5566;">Pick the <strong>Session</strong>, enter the <strong>Recipient</strong>, and type your message &mdash; or attach a file</span>
+    </div>
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+      <span style="font-size:13px;color:#3D5566;">Click <strong>Send</strong>; it joins the paced queue and updates as WhatsApp confirms delivery and read</span>
+    </div>
+    <div class="d-flex align-items-center gap-2 mb-0">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+      <span style="font-size:13px;color:#3D5566;">To answer an incoming message, open it and click <strong>Reply</strong> &mdash; the response quotes the original</span>
+    </div>
   </div>
-  <div class="d-flex align-items-center gap-2 mb-2">
-    <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#F59E0B;font-size:12px;">&#10003;</div>
-    <span style="font-size:13px;color:#334155;">Add inbound filter rules, including an "Opt the sender out" rule for your stop-word</span>
+
+  <!-- Workflow 04 -->
+  <div class="bg-white rounded-3 mb-0 p-4 p-md-5" style="border:1px solid #DCE8EC;border-left:4px solid #003153;">
+    <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#E4EFF3;color:#003153;font-size:11px;letter-spacing:1px;">WORKFLOW &middot; 04</div>
+    <h3 class="fw-bolder mb-2" style="font-size:19px;color:#003153;">Keep a Number Healthy</h3>
+    <p class="mb-3" style="color:#3D5566;font-size:14px;line-height:1.7;">
+      Protect a number&rsquo;s reputation so it keeps sending.</p>
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+      <span style="font-size:13px;color:#3D5566;">Enable <strong>Warm-Up &amp; Daily Cap</strong> and set the Day-1 Allowance, Growth, and Ceiling</span>
+    </div>
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+      <span style="font-size:13px;color:#3D5566;">Add <strong>Inbound Filter Rules</strong>, including an <strong>Opt the sender out</strong> rule keyed on your stop-word</span>
+    </div>
+    <div class="d-flex align-items-center gap-2 mb-0">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+      <span style="font-size:13px;color:#3D5566;">Leave number validation to run in the background &mdash; numbers not on WhatsApp are skipped</span>
+    </div>
   </div>
-  <div class="d-flex align-items-center gap-2 mb-0">
-    <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#F59E0B;font-size:12px;">&#10003;</div>
-    <span style="font-size:13px;color:#334155;">Let background number validation skip queued sends to numbers not on WhatsApp</span>
-  </div>
-</div>
 
 </div>
 
@@ -384,23 +531,32 @@
      KNOWN ISSUES
      ═══════════════════════════════════════════════════════════ -->
 
-<div id="known-issues" class="mt-3 mb-5 p-5">
-  <h2 class="fw-bolder mb-2" style="font-size:26px;color:#0F172A;">&#9888;&#65039; Known Issues</h2>
-  <p class="mb-4" style="font-size:14px;color:#64748B;line-height:1.6;">This module talks to an unofficial WhatsApp protocol through a self-hosted gateway, so a few things are outside Odoo's control by design.</p>
+<div id="known-issues" class="rounded-4 mb-5 p-4 p-md-5" style="background-color:#FFFFFF;border:1px solid #E2EDF1;">
 
-  <div class="d-flex align-items-start gap-3 rounded-3 p-4 mb-3" style="background-color:#FFFBEB;border:1px solid #FDE68A;border-left:4px solid #F59E0B;">
-    <span style="font-size:20px;color:#F59E0B;line-height:1.4;">&#9888;&#65039;</span>
+  <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#E4EFF3;color:#35798C;font-size:11px;letter-spacing:1.5px;">KNOWN ISSUES</div>
+  <h2 class="fw-bolder mb-2" style="font-size:28px;color:#003153;line-height:1.25;">Full transparency</h2>
+  <p class="mb-4" style="font-size:14px;color:#6B8494;line-height:1.6;max-width:720px;">
+    This module talks to an unofficial WhatsApp protocol through a self-hosted gateway, so a few things are outside
+    Odoo&rsquo;s control by design.</p>
+
+  <div class="d-flex align-items-start gap-3 rounded-3 p-4 mb-3" style="background-color:#FFF8E9;border:1px solid #F0E2BC;border-left:4px solid #D9A521;">
+    <span style="font-size:20px;line-height:1.4;">&#9888;&#65039;</span>
     <div>
-      <h4 class="fw-bold mb-1" style="font-size:15px;color:#78350F;">Bans are never fully preventable</h4>
-      <p class="mb-0" style="color:#92400E;font-size:13px;line-height:1.6;">WhatsApp can rate-limit or ban a number that behaves like a bulk sender. Pacing, warm-up, opt-out, and number validation reduce that risk, but no safeguard can guarantee a number is never restricted &mdash; warm up new numbers slowly and keep your lists clean.</p>
+      <h4 class="fw-bold mb-1" style="font-size:15px;color:#7A5B12;">A number can still be rate-limited or banned</h4>
+      <p class="mb-0" style="color:#7A5B12;font-size:13px;line-height:1.65;">
+        WhatsApp can restrict a number that behaves like a bulk sender. The pacing, warm-up, opt-out, and
+        number-validation features exist to reduce that risk, but no safeguard can guarantee a number is never
+        restricted &mdash; warm up new numbers slowly and keep your lists clean.</p>
     </div>
   </div>
 
-  <div class="d-flex align-items-start gap-3 rounded-3 p-4" style="background-color:#FFFBEB;border:1px solid #FDE68A;border-left:4px solid #F59E0B;">
-    <span style="font-size:20px;color:#F59E0B;line-height:1.4;">&#9888;&#65039;</span>
+  <div class="d-flex align-items-start gap-3 rounded-3 p-4" style="background-color:#FFF8E9;border:1px solid #F0E2BC;border-left:4px solid #D9A521;">
+    <span style="font-size:20px;line-height:1.4;">&#9888;&#65039;</span>
     <div>
-      <h4 class="fw-bold mb-1" style="font-size:15px;color:#78350F;">Validation lookups are rationed</h4>
-      <p class="mb-0" style="color:#92400E;font-size:13px;line-height:1.6;">Number-registration lookups are rationed by the gateway on purpose. A number Odoo has not yet been able to check is treated as sendable, not as invalid, so a fresh contact is never permanently blocked by a missing answer.</p>
+      <h4 class="fw-bold mb-1" style="font-size:15px;color:#7A5B12;">Validation lookups are rationed on purpose</h4>
+      <p class="mb-0" style="color:#7A5B12;font-size:13px;line-height:1.65;">
+        Number-registration and validation lookups are rationed by the gateway. A number Odoo has not yet been able to
+        check is treated as sendable, not as invalid, so a fresh contact is never permanently blocked by a missing answer.</p>
     </div>
   </div>
 </div>
@@ -410,30 +566,61 @@
      FAQ
      ═══════════════════════════════════════════════════════════ -->
 
-<div id="faq" class="mt-3 mb-5 p-5">
-  <h2 class="fw-bolder mb-2" style="font-size:26px;color:#0F172A;">&#10067; FAQ</h2>
-  <p class="mb-4" style="font-size:14px;color:#64748B;line-height:1.6;">Quick answers to the most common questions.</p>
+<div id="faq" class="rounded-4 mb-5 p-4 p-md-5" style="background-color:#F4F8FA;border:1px solid #E2EDF1;">
 
-<div class="bg-white rounded-3 p-3 mb-2" style="border:1px solid #E2E8F0;border-left:3px solid #6C5CE7;">
-  <h4 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">&#10068; Do I need a WhatsApp Business API account or Meta approval?</h4>
-  <p class="mb-0" style="color:#334155;font-size:13px;line-height:1.6;">No. This module connects to your own self-hosted whatsmeow gateway over the unofficial Web protocol. There is no template approval, no per-message fee, and no 24-hour session window.</p>
-</div>
-<div class="bg-white rounded-3 p-3 mb-2" style="border:1px solid #E2E8F0;border-left:3px solid #A855F7;">
-  <h4 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">&#10068; Can I run more than one WhatsApp number?</h4>
-  <p class="mb-0" style="color:#334155;font-size:13px;line-height:1.6;">Yes. Register as many gateway connections as you like and pair as many sessions beneath them as you need. Each session has its own pacing, warm-up, and inbound rules &mdash; one number's reputation never affects another's.</p>
-</div>
-<div class="bg-white rounded-3 p-3 mb-2" style="border:1px solid #E2E8F0;border-left:3px solid #00D4FF;">
-  <h4 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">&#10068; How are incoming messages matched to my contacts?</h4>
-  <p class="mb-0" style="color:#334155;font-size:13px;line-height:1.6;">By the last ten digits of the sender's phone number, compared against your contacts' phone fields regardless of formatting. A message from an unknown number is still stored; it simply has no contact attached.</p>
-</div>
-<div class="bg-white rounded-3 p-3 mb-2" style="border:1px solid #E2E8F0;border-left:3px solid #10B981;">
-  <h4 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">&#10068; Who can configure gateways and see the API keys?</h4>
-  <p class="mb-0" style="color:#334155;font-size:13px;line-height:1.6;">Only members of the WhatsApp / Administrator group. The API key and webhook secret are restricted fields &mdash; a regular WhatsApp user can send and receive without ever being able to read a gateway's credentials.</p>
-</div>
-<div class="bg-white rounded-3 p-3 mb-2" style="border:1px solid #E2E8F0;border-left:3px solid #F59E0B;">
-  <h4 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">&#10068; What happens if a send fails or the gateway is down?</h4>
-  <p class="mb-0" style="color:#334155;font-size:13px;line-height:1.6;">The message is marked in error with the reason, and the rest of the queue keeps moving. You can retry it once the gateway is healthy; the idempotency key ensures a message that already reached WhatsApp is never sent twice.</p>
-</div>
+  <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#E4EFF3;color:#35798C;font-size:11px;letter-spacing:1.5px;">FAQ</div>
+  <h2 class="fw-bolder mb-2" style="font-size:28px;color:#003153;line-height:1.25;">Questions, answered</h2>
+  <p class="mb-4" style="font-size:14px;color:#6B8494;line-height:1.6;">Quick answers to the most common questions.</p>
+
+  <div class="bg-white rounded-3 p-4 mb-2" style="border:1px solid #DCE8EC;">
+    <div class="d-flex align-items-start gap-3">
+      <div class="d-flex align-items-center justify-content-center rounded-circle fw-bolder flex-shrink-0" style="width:28px;height:28px;background-color:#E4EFF3;color:#003153;font-size:13px;">Q</div>
+      <div>
+        <h4 class="fw-bold mb-1" style="font-size:14px;color:#003153;">Do I need a WhatsApp Business API account or Meta approval?</h4>
+        <p class="mb-0" style="color:#3D5566;font-size:13px;line-height:1.65;">No. This module connects to your own self-hosted whatsmeow gateway over the unofficial Web protocol. There is no template approval, no per-message fee, and no 24-hour session window.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-3 p-4 mb-2" style="border:1px solid #DCE8EC;">
+    <div class="d-flex align-items-start gap-3">
+      <div class="d-flex align-items-center justify-content-center rounded-circle fw-bolder flex-shrink-0" style="width:28px;height:28px;background-color:#E4EFF3;color:#003153;font-size:13px;">Q</div>
+      <div>
+        <h4 class="fw-bold mb-1" style="font-size:14px;color:#003153;">Can I run more than one WhatsApp number?</h4>
+        <p class="mb-0" style="color:#3D5566;font-size:13px;line-height:1.65;">Yes. Register as many gateway connections as you like and pair as many sessions (numbers) beneath them as you need. Each session has its own pacing, warm-up, and inbound rules &mdash; one number&rsquo;s reputation never affects another&rsquo;s.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-3 p-4 mb-2" style="border:1px solid #DCE8EC;">
+    <div class="d-flex align-items-start gap-3">
+      <div class="d-flex align-items-center justify-content-center rounded-circle fw-bolder flex-shrink-0" style="width:28px;height:28px;background-color:#E4EFF3;color:#003153;font-size:13px;">Q</div>
+      <div>
+        <h4 class="fw-bold mb-1" style="font-size:14px;color:#003153;">How are incoming messages matched to my contacts?</h4>
+        <p class="mb-0" style="color:#3D5566;font-size:13px;line-height:1.65;">By the last ten digits of the sender&rsquo;s phone number, compared against your contacts&rsquo; phone fields regardless of how they are formatted. A message from an unknown number is still stored; it simply has no contact attached.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-3 p-4 mb-2" style="border:1px solid #DCE8EC;">
+    <div class="d-flex align-items-start gap-3">
+      <div class="d-flex align-items-center justify-content-center rounded-circle fw-bolder flex-shrink-0" style="width:28px;height:28px;background-color:#E4EFF3;color:#003153;font-size:13px;">Q</div>
+      <div>
+        <h4 class="fw-bold mb-1" style="font-size:14px;color:#003153;">Who can configure gateways and see the API keys?</h4>
+        <p class="mb-0" style="color:#3D5566;font-size:13px;line-height:1.65;">Only members of the <strong>WhatsApp / Administrator</strong> group. The API key and webhook secret are restricted fields &mdash; a regular WhatsApp user can send and receive messages without ever being able to read a gateway&rsquo;s credentials.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-3 p-4 mb-0" style="border:1px solid #DCE8EC;">
+    <div class="d-flex align-items-start gap-3">
+      <div class="d-flex align-items-center justify-content-center rounded-circle fw-bolder flex-shrink-0" style="width:28px;height:28px;background-color:#E4EFF3;color:#003153;font-size:13px;">Q</div>
+      <div>
+        <h4 class="fw-bold mb-1" style="font-size:14px;color:#003153;">What happens if a send fails or the gateway is down?</h4>
+        <p class="mb-0" style="color:#3D5566;font-size:13px;line-height:1.65;">The message is marked in error with the reason, and the rest of the queue keeps moving &mdash; one bad send never stalls the others. You can retry it once the gateway is healthy; the idempotency key ensures a message that already reached WhatsApp is never sent twice.</p>
+      </div>
+    </div>
+  </div>
 </div>
 
 
@@ -441,25 +628,26 @@
      CHANGELOG
      ═══════════════════════════════════════════════════════════ -->
 
-<div id="changelog" class="mt-3 mb-5 p-5">
-  <h2 class="fw-bolder mb-2" style="font-size:26px;color:#0F172A;">&#128221; Changelog</h2>
-  <p class="mb-4" style="font-size:14px;color:#64748B;line-height:1.6;">A clean record of every release.</p>
+<div id="changelog" class="rounded-4 mb-5 p-4 p-md-5" style="background-color:#FFFFFF;border:1px solid #E2EDF1;">
 
-<div class="d-flex gap-3 mb-4">
-  <div class="text-end flex-shrink-0 pt-1" style="width:30px;border-right:2px solid #6C5CE7;">
-    <div class="d-inline-block rounded-circle" style="width:14px;height:14px;background-color:#6C5CE7;margin-right:-9px;border:3px solid #F7F8FC;"></div>
+  <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#E4EFF3;color:#35798C;font-size:11px;letter-spacing:1.5px;">CHANGELOG</div>
+  <h2 class="fw-bolder mb-2" style="font-size:28px;color:#003153;line-height:1.25;">Release history</h2>
+  <p class="mb-4" style="font-size:14px;color:#6B8494;line-height:1.6;">A clean record of every release.</p>
+
+  <div class="d-flex gap-3">
+    <div class="text-end flex-shrink-0 pt-1" style="width:24px;border-right:2px solid #4E97AB;">
+      <div class="d-inline-block rounded-circle" style="width:14px;height:14px;background-color:#003153;margin-right:-9px;border:3px solid #E7F1F4;"></div>
+    </div>
+    <div class="ps-2 pb-2">
+      <div class="fw-semibold mb-2" style="font-size:12px;color:#6B8494;">2026-07-19 &middot; Latest release</div>
+      <div class="d-inline-block px-3 py-1 rounded-2 fw-bold mb-3" style="background-color:#E4EFF3;color:#003153;font-size:12px;font-family:Consolas,monospace;">v19.0.1.5.0</div>
+      <div class="mb-1"><span style="color:#4E97AB;font-weight:700;font-size:13px;">&#9656;</span>&nbsp;<span style="font-size:13px;color:#3D5566;">Warm-up ramp with per-session daily and hourly volume caps, rolling over at the number&rsquo;s own local midnight</span></div>
+      <div class="mb-1"><span style="color:#4E97AB;font-weight:700;font-size:13px;">&#9656;</span>&nbsp;<span style="font-size:13px;color:#3D5566;">Per-contact opt-out honoured across every send path, with opt-out keyword rules on inbound</span></div>
+      <div class="mb-1"><span style="color:#4E97AB;font-weight:700;font-size:13px;">&#9656;</span>&nbsp;<span style="font-size:13px;color:#3D5566;">Background number validation that skips queued sends to numbers not on WhatsApp</span></div>
+      <div class="mb-1"><span style="color:#4E97AB;font-weight:700;font-size:13px;">&#9656;</span>&nbsp;<span style="font-size:13px;color:#3D5566;">Per-session inbound filter rules (allowlist/blocklist) and optional automatic read receipts</span></div>
+      <div class="mb-1"><span style="color:#4E97AB;font-weight:700;font-size:13px;">&#9656;</span>&nbsp;<span style="font-size:13px;color:#3D5566;">Reply-with-quote, group messaging, and inline voice notes</span></div>
+    </div>
   </div>
-  <div class="ps-2">
-    <div class="fw-semibold mb-1" style="font-size:12px;color:#64748B;">&#128467;&#65039; 2026-07-19</div>
-    <div class="d-inline-block px-3 py-1 rounded-2 fw-bold mb-2" style="background-color:#EEF0FF;color:#6C5CE7;font-size:12px;font-family:Consolas,monospace;">v19.0.1.5.0</div>
-    <h4 class="fw-bold mb-2" style="font-size:15px;color:#0F172A;">Deliverability &amp; inbound controls</h4>
-    <div class="mb-1"><span style="color:#6C5CE7;font-weight:700;font-size:13px;">&#9656;</span>&nbsp;<span style="font-size:13px;color:#334155;">Warm-up ramp with per-session daily and hourly caps, rolling over at the number's own local midnight</span></div>
-    <div class="mb-1"><span style="color:#6C5CE7;font-weight:700;font-size:13px;">&#9656;</span>&nbsp;<span style="font-size:13px;color:#334155;">Per-contact opt-out honoured across every send path, with opt-out keyword rules on inbound</span></div>
-    <div class="mb-1"><span style="color:#6C5CE7;font-weight:700;font-size:13px;">&#9656;</span>&nbsp;<span style="font-size:13px;color:#334155;">Background number validation that skips queued sends to numbers not on WhatsApp</span></div>
-    <div class="mb-1"><span style="color:#6C5CE7;font-weight:700;font-size:13px;">&#9656;</span>&nbsp;<span style="font-size:13px;color:#334155;">Per-session inbound filter rules (allowlist/blocklist) and optional automatic read receipts</span></div>
-    <div class="mb-1"><span style="color:#6C5CE7;font-weight:700;font-size:13px;">&#9656;</span>&nbsp;<span style="font-size:13px;color:#334155;">Reply-with-quote, group messaging, and inline voice notes</span></div>
-  </div>
-</div>
 </div>
 
 
@@ -467,26 +655,112 @@
      FOOTER
      ═══════════════════════════════════════════════════════════ -->
 
-<div class="rounded-4 mt-5 p-4 p-md-5" style="background-color:#0F172A;">
+<div class="rounded-4 mt-5 p-4 p-md-5" style="background-color:#02243C;border:1px solid #0A3A5C;">
 
-  <div class="d-flex align-items-center gap-3 mb-4">
-    <img src="https://www.bytesraw.com/bytesraw_base/static/img/logo_white.png" class="rounded-circle flex-shrink-0" style="width:72px;height:72px;background-color:#6C5CE7;border:3px solid #1E1B4B;object-fit:cover;" alt="Bytesraw logo">
-    <div>
-      <h3 class="fw-bolder text-white mb-1" style="font-size:20px;">Bytesraw</h3>
-      <div style="color:#A5B4FC;font-size:13px;font-weight:500;">Automate you success</div>
+  <div class="row g-4 align-items-center mb-4">
+    <div class="col-12 col-md-7">
+      <div class="d-flex align-items-center gap-3">
+        <img src="https://www.bytesraw.com/bytesraw_base/static/img/logo_white.png" class="rounded-3 flex-shrink-0 p-2" style="width:68px;height:68px;background-color:#003153;border:1px solid #0A3A5C;object-fit:contain;" alt="Bytesraw logo">
+        <div>
+          <h3 class="fw-bolder text-white mb-1" style="font-size:22px;letter-spacing:.3px;">Bytesraw</h3>
+          <div style="color:#7FB3C4;font-size:13px;font-weight:500;">Automate your success</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-5 text-md-end">
+      <a href="https://www.bytesraw.com" target="_blank" class="d-inline-block px-4 py-2 rounded-pill fw-bold text-decoration-none text-white" style="background-color:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);font-size:13px;">
+        &#127760; www.bytesraw.com</a>
     </div>
   </div>
 
-  <div class="rounded-3 p-4 mb-4" style="background-color:#1E1B4B;border:1px solid #312E81;">
-    <h4 class="fw-bold text-white mb-2" style="font-size:16px;">&#128737; Need help?</h4>
-    <p class="mb-3" style="color:#CBD5E1;font-size:13px;line-height:1.6;">
-      Got a question, found a bug, or need a custom enhancement?
-      Get in touch &mdash; happy to help.</p>
-    <a href="https://www.bytesraw.com/contactus" class="d-inline-block px-4 py-2 rounded-pill fw-bold text-decoration-none" style="background-color:#FFF;color:#6C5CE7;font-size:13px;">
-      Contact Support &rarr;</a>
+  <div class="row g-3 mb-4">
+
+    <div class="col-12 col-md-6">
+      <div class="rounded-3 p-4 h-100" style="background-color:#003153;border:1px solid #0A3A5C;">
+        <h4 class="fw-bold text-white mb-2" style="font-size:15px;">&#128736;&#65039; Need help?</h4>
+        <p class="mb-3" style="color:#9FC9D6;font-size:13px;line-height:1.65;">
+          Got a question, found a bug, or need a custom enhancement?
+          Our support team responds within 24 hours on business days.</p>
+        <a href="mailto:help@bytesraw.com" class="d-inline-block px-4 py-2 rounded-pill fw-bold text-decoration-none" style="background-color:#4E97AB;color:#FFFFFF;font-size:13px;">
+          help@bytesraw.com &rarr;</a>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6">
+      <div class="rounded-3 p-4 h-100" style="background-color:#003153;border:1px solid #0A3A5C;">
+        <h4 class="fw-bold text-white mb-2" style="font-size:15px;">&#128188; Custom development</h4>
+        <p class="mb-3" style="color:#9FC9D6;font-size:13px;line-height:1.65;">
+          Need this module tailored to your workflow, or a brand-new Odoo solution?
+          Let&rsquo;s talk about your project.</p>
+        <a href="mailto:info@bytesraw.com" class="d-inline-block px-4 py-2 rounded-pill fw-bold text-decoration-none" style="background-color:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);color:#FFFFFF;font-size:13px;">
+          info@bytesraw.com &rarr;</a>
+      </div>
+    </div>
+
   </div>
 
-  <div class="text-center pt-4" style="color:#475569;font-size:12px;border-top:1px solid #1E293B;">
-    &copy; 2026 Bytesraw &middot; Whatsmeow WhatsApp Connector &middot; Licensed under LGPL-3
+  <div class="rounded-3 p-4 mb-4" style="background-color:#003153;border:1px solid #0A3A5C;">
+    <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:rgba(78,151,171,.2);border:1px solid rgba(78,151,171,.5);color:#BFE0EA;font-size:11px;letter-spacing:1.5px;">OUR EXPERTISE</div>
+
+    <div class="row g-2">
+      <div class="col-12 col-sm-6 col-md-4">
+        <div class="d-flex align-items-center gap-2">
+          <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+          <span style="font-size:13px;color:#C9DFE7;">Odoo Development</span>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-md-4">
+        <div class="d-flex align-items-center gap-2">
+          <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+          <span style="font-size:13px;color:#C9DFE7;">Functional Training</span>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-md-4">
+        <div class="d-flex align-items-center gap-2">
+          <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+          <span style="font-size:13px;color:#C9DFE7;">Community Upgradations</span>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-md-4">
+        <div class="d-flex align-items-center gap-2">
+          <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+          <span style="font-size:13px;color:#C9DFE7;">Python &amp; PostgreSQL</span>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-md-4">
+        <div class="d-flex align-items-center gap-2">
+          <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+          <span style="font-size:13px;color:#C9DFE7;">Hosting Solutions</span>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-md-4">
+        <div class="d-flex align-items-center gap-2">
+          <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+          <span style="font-size:13px;color:#C9DFE7;">Automation</span>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-md-4">
+        <div class="d-flex align-items-center gap-2">
+          <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+          <span style="font-size:13px;color:#C9DFE7;">Security</span>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-md-4">
+        <div class="d-flex align-items-center gap-2">
+          <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+          <span style="font-size:13px;color:#C9DFE7;">API &amp; 3rd-Party Integrations</span>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-md-4">
+        <div class="d-flex align-items-center gap-2">
+          <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+          <span style="font-size:13px;color:#C9DFE7;">E-commerce &amp; POS Solutions</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="text-center pt-4" style="color:#5C86A0;font-size:12px;border-top:1px solid #0A3A5C;">
+    &copy; 2026 Bytesraw &middot; All rights reserved &middot; Licensed under LGPL-3
   </div>
 </div>

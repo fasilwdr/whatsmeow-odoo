@@ -2,24 +2,29 @@
      HEADER
      ═══════════════════════════════════════════════════════════ -->
 
-<div id="module_summary" class="rounded-4 mt-3 mb-5 p-5 text-white" style="background-color:#6C5CE7;">
+<div id="module_summary" class="rounded-4 mt-3 mb-5 p-5 text-white" style="background-color:#003153;border:1px solid #0A3A5C;">
 
-  <div class="d-inline-block px-3 py-2 rounded-pill fw-semibold mb-3" style="background-color:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.35);font-size:13px;">
-    &#9679;&nbsp; Available for Odoo 19.0
+  <div class="d-inline-block px-3 py-2 rounded-pill fw-semibold mb-3" style="background-color:rgba(78,151,171,.2);border:1px solid rgba(78,151,171,.55);color:#BFE0EA;font-size:13px;">
+    <span style="color:#4E97AB;">&#9679;</span>&nbsp; Available for Odoo 19.0
   </div>
 
   <h1 class="fw-bolder mb-3 text-white" style="font-size:32px;line-height:1.2;">Whatsmeow Templates &amp; Composer</h1>
 
-  <p class="mb-4" style="font-size:15px;color:#E8E5FF;line-height:1.65;">Send templated WhatsApp messages from a record of any model &mdash; with placeholders, attachments, generated PDF reports, and no-code automation.</p>
+  <p class="mb-4" style="font-size:15px;color:#9FC9D6;line-height:1.65;">
+    Send templated WhatsApp messages from a record of any model &mdash; with placeholders,
+    attachments, generated PDF reports, and no-code automation.</p>
 
   <div class="mb-4">
-    <span class="d-inline-block px-3 py-2 rounded-pill fw-semibold text-white me-2 mb-2" style="background-color:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);font-size:12px;">&#11088; <strong>19.0.1.0.0</strong></span>
-    <span class="d-inline-block px-3 py-2 rounded-pill fw-semibold text-white me-2 mb-2" style="background-color:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);font-size:12px;">&#128220; <strong>LGPL-3</strong></span>
-    <span class="d-inline-block px-3 py-2 rounded-pill fw-semibold text-white mb-2" style="background-color:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);font-size:12px;">&#127991;&#65039; <strong>Discuss</strong></span>
+    <span class="d-inline-block px-3 py-2 rounded-pill fw-semibold text-white me-2 mb-2" style="background-color:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.22);font-size:12px;">&#11088; <strong>19.0.1.0.0</strong></span>
+    <span class="d-inline-block px-3 py-2 rounded-pill fw-semibold text-white me-2 mb-2" style="background-color:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.22);font-size:12px;">&#128220; <strong>LGPL-3</strong></span>
+    <span class="d-inline-block px-3 py-2 rounded-pill fw-semibold text-white me-2 mb-2" style="background-color:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.22);font-size:12px;">&#128994; <strong>Open Source</strong></span>
+    <span class="d-inline-block px-3 py-2 rounded-pill fw-semibold text-white mb-2" style="background-color:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.22);font-size:12px;">&#127991;&#65039; <strong>Discuss</strong></span>
   </div>
 
-  <a href="#features" class="d-inline-block px-4 py-3 rounded-pill fw-bold text-decoration-none" style="background-color:#FFF;color:#6C5CE7;font-size:14px;">
+  <a href="#features" class="d-inline-block px-4 py-3 rounded-pill fw-bold text-decoration-none text-white me-2 mb-2" style="background-color:#4E97AB;font-size:14px;">
     Explore Features &rarr;</a>
+  <a href="mailto:help@bytesraw.com" class="d-inline-block px-4 py-3 rounded-pill fw-bold text-decoration-none text-white mb-2" style="background-color:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.25);font-size:14px;">
+    Contact Support</a>
 
 </div>
 
@@ -28,36 +33,45 @@
      OVERVIEW
      ═══════════════════════════════════════════════════════════ -->
 
-<div id="overview" class="rounded-4 mt-3 mb-5 p-5" style="background-color:#F3F2F1;">
-  <h2 class="fw-bolder mb-3" style="font-size:26px;color:#0F172A;">&#128203; Overview</h2>
-  <p class="mb-3" style="font-size:15px;color:#334155;line-height:1.7;">
-    <strong>Whatsmeow Templates &amp; Composer</strong> lets you send templated WhatsApp messages from a record of any model. A template is a saved message body &mdash; interpolated against the record with <strong style="font-family:Consolas,monospace;color:#6C5CE7;">{{ object.name }}</strong> placeholders &mdash; that can carry static attachments or a freshly generated PDF report. Operators launch it from the chatter's WhatsApp button, from a record's Action menu, or automation fires it through a "Send WhatsApp" server action.</p>
-  <p class="mb-4" style="font-size:15px;color:#334155;line-height:1.7;">
-    Unlike Meta's Cloud API there is no template approval and no 24-hour session window, so a template here is simply a saved, field-interpolated message. Sending reuses the core connector's queue untouched: the composer only creates outgoing messages, so every send inherits the same pacing, warm-up caps, retries, opt-out checks, and idempotency for free &mdash; this module adds no transport code of its own.</p>
+<div id="overview" class="rounded-4 mb-5 p-4 p-md-5" style="background-color:#F4F8FA;border:1px solid #E2EDF1;">
+
+  <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#E4EFF3;color:#35798C;font-size:11px;letter-spacing:1.5px;">OVERVIEW</div>
+  <h2 class="fw-bolder mb-3" style="font-size:28px;color:#003153;line-height:1.25;">Write it once.<br class="d-none d-md-inline"> Send it from anywhere.</h2>
+  <p class="mb-3" style="font-size:15px;color:#3D5566;line-height:1.75;max-width:720px;">
+    <strong>Whatsmeow Templates &amp; Composer</strong> lets you send templated WhatsApp messages from a record of any
+    model. A template is a saved message body &mdash; interpolated against the record with
+    <strong style="font-family:Consolas,monospace;color:#35798C;">{{ object.name }}</strong> placeholders &mdash; that can
+    carry static attachments or a freshly generated PDF report. Operators launch it from the chatter&rsquo;s WhatsApp button,
+    from a record&rsquo;s Action menu, or automation fires it through a <strong>Send WhatsApp</strong> server action.</p>
+  <p class="mb-4" style="font-size:15px;color:#3D5566;line-height:1.75;max-width:720px;">
+    Unlike Meta&rsquo;s Cloud API there is no template approval and no 24-hour session window, so a template here is simply a
+    saved, field-interpolated message. Sending reuses the core connector&rsquo;s queue untouched: the composer only creates
+    outgoing messages, so every send inherits the same pacing, warm-up caps, retries, opt-out checks, and idempotency for
+    free &mdash; this module adds no transport code of its own.</p>
 
   <div class="row g-3">
 
     <div class="col-12 col-md-4">
-      <div class="bg-white h-100 rounded-3 p-3" style="border:1px solid #D3ADEB;border-top:4px solid #6C5CE7;">
-        <div class="d-inline-flex align-items-center justify-content-center rounded-2 mb-2" style="width:44px;height:44px;background-color:#EEF0FF;font-size:22px;">&#129513;</div>
-        <h3 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">Send From Any Model</h3>
-        <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">Point a template at any Odoo model and it becomes available on that model's records &mdash; a sales order, an invoice, a contact. The recipient number is resolved from the record or its contact, with no per-model setup.</p>
+      <div class="bg-white h-100 rounded-3 p-4" style="border:1px solid #DCE8EC;border-top:3px solid #4E97AB;">
+        <div class="d-inline-flex align-items-center justify-content-center rounded-3 mb-3" style="width:46px;height:46px;background-color:#E7F1F4;font-size:22px;">&#129513;</div>
+        <h3 class="fw-bold mb-2" style="font-size:15px;color:#003153;">Send From Any Model</h3>
+        <p class="mb-0" style="color:#6B8494;font-size:13px;line-height:1.65;">Point a template at any Odoo model and it becomes available on that model&rsquo;s records &mdash; a sales order, an invoice, a contact. The recipient number is resolved automatically.</p>
       </div>
     </div>
 
     <div class="col-12 col-md-4">
-      <div class="bg-white h-100 rounded-3 p-3" style="border:1px solid #E7ADEB;border-top:4px solid #A855F7;">
-        <div class="d-inline-flex align-items-center justify-content-center rounded-2 mb-2" style="width:44px;height:44px;background-color:#EEF0FF;font-size:22px;">&#128394;&#65039;</div>
-        <h3 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">Placeholders, Attachments &amp; PDFs</h3>
-        <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">Write the body once with placeholders and it renders per record. Attach static files, or name a report and each recipient gets their own generated PDF &mdash; an invoice, a quotation &mdash; with the right filename.</p>
+      <div class="bg-white h-100 rounded-3 p-4" style="border:1px solid #DCE8EC;border-top:3px solid #003153;">
+        <div class="d-inline-flex align-items-center justify-content-center rounded-3 mb-3" style="width:46px;height:46px;background-color:#E7F1F4;font-size:22px;">&#128394;&#65039;</div>
+        <h3 class="fw-bold mb-2" style="font-size:15px;color:#003153;">Placeholders, Attachments &amp; PDF Reports</h3>
+        <p class="mb-0" style="color:#6B8494;font-size:13px;line-height:1.65;">Write the body once with placeholders and it renders per record. Attach static files, or name a report and each recipient gets their own generated PDF.</p>
       </div>
     </div>
 
     <div class="col-12 col-md-4">
-      <div class="bg-white h-100 rounded-3 p-3" style="border:1px solid #A7E8CF;border-top:4px solid #10B981;">
-        <div class="d-inline-flex align-items-center justify-content-center rounded-2 mb-2" style="width:44px;height:44px;background-color:#EEF0FF;font-size:22px;">&#9851;&#65039;</div>
-        <h3 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">Rides the Core Queue</h3>
-        <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">The composer creates ordinary outgoing messages and hands them to the paced queue. A bulk send is exactly the traffic that queue smooths, so pacing, daily caps, opt-out enforcement, and retries all apply automatically.</p>
+      <div class="bg-white h-100 rounded-3 p-4" style="border:1px solid #DCE8EC;border-top:3px solid #4E97AB;">
+        <div class="d-inline-flex align-items-center justify-content-center rounded-3 mb-3" style="width:46px;height:46px;background-color:#E7F1F4;font-size:22px;">&#9851;</div>
+        <h3 class="fw-bold mb-2" style="font-size:15px;color:#003153;">Rides the Core Queue</h3>
+        <p class="mb-0" style="color:#6B8494;font-size:13px;line-height:1.65;">The composer creates ordinary outgoing messages and hands them to the core connector&rsquo;s paced queue, so pacing, daily caps, opt-out enforcement, and retries all apply automatically.</p>
       </div>
     </div>
 
@@ -66,67 +80,98 @@
 
 
 <!-- ═══════════════════════════════════════════════════════════
-     FEATURES
+     FEATURES — 2-col responsive grid
      ═══════════════════════════════════════════════════════════ -->
 
-<div id="features" class="mt-3 mb-5 p-5" style="background-color:#F3F2F1;">
-  <h2 class="fw-bolder mb-4" style="font-size:26px;color:#0F172A;">&#10024; Features</h2>
+<div id="features" class="rounded-4 mb-5 p-4 p-md-5" style="background-color:#003153;">
+
+  <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:rgba(255,255,255,.1);color:#9FC9D6;font-size:11px;letter-spacing:1.5px;border:1px solid rgba(255,255,255,.15);">FEATURES</div>
+  <h2 class="fw-bolder mb-2 text-white" style="font-size:28px;line-height:1.25;">One template,<br class="d-none d-md-inline"> every way to send it.</h2>
+  <p class="mb-4" style="font-size:14px;color:#9FC9D6;line-height:1.6;max-width:640px;">Seven capabilities covering authoring, recipients, attachments, and automation.</p>
 
   <div class="row g-3">
 
     <div class="col-12 col-md-6">
-      <div class="bg-white h-100 rounded-3 p-3" style="border:1px solid #E2E8F0;">
-        <div class="d-inline-flex align-items-center justify-content-center rounded-2 text-white mb-2" style="width:46px;height:46px;background-color:#6C5CE7;font-size:22px;">&#128221;</div>
-        <h3 class="fw-bold mb-2" style="font-size:14px;color:#0F172A;">Templates for Any Model</h3>
-        <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">Create a template against any model, with an optional default sending number. It is automatically published in that model's contextual Action menu, so operators launch it from a record without touching the model's views.</p>
+      <div class="h-100 rounded-3 p-4" style="background-color:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);">
+        <div class="d-flex align-items-start gap-3">
+          <div class="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0" style="width:46px;height:46px;background-color:#4E97AB;font-size:22px;">&#128221;</div>
+          <div>
+            <h3 class="fw-bold mb-2 text-white" style="font-size:15px;">Templates for Any Model</h3>
+            <p class="mb-0" style="color:#B6D3DC;font-size:13px;line-height:1.65;">Create a template against any model, with an optional default sending number. It is automatically published in that model&rsquo;s contextual <strong style="color:#BFE0EA;">Action</strong> menu, so operators can launch it from a record without touching the model&rsquo;s views.</p>
+          </div>
+        </div>
       </div>
     </div>
 
     <div class="col-12 col-md-6">
-      <div class="bg-white h-100 rounded-3 p-3" style="border:1px solid #E2E8F0;">
-        <div class="d-inline-flex align-items-center justify-content-center rounded-2 text-white mb-2" style="width:46px;height:46px;background-color:#A855F7;font-size:22px;">&#128499;&#65039;</div>
-        <h3 class="fw-bold mb-2" style="font-size:14px;color:#0F172A;">Field Interpolation</h3>
-        <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">The body renders against each record with {{ object.name }}, {{ object.partner_id.name }}, {{ user.name }}, and {{ company.name }}. WhatsApp's formatting markers inside a rendered value are neutralised, so a customer name never italicises part of the message.</p>
+      <div class="h-100 rounded-3 p-4" style="background-color:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);">
+        <div class="d-flex align-items-start gap-3">
+          <div class="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0" style="width:46px;height:46px;background-color:#4E97AB;font-size:22px;">&#128288;</div>
+          <div>
+            <h3 class="fw-bold mb-2 text-white" style="font-size:15px;">Field Interpolation</h3>
+            <p class="mb-0" style="color:#B6D3DC;font-size:13px;line-height:1.65;">The body renders against each record with <strong style="font-family:Consolas,monospace;color:#BFE0EA;">{{ object.name }}</strong>, <strong style="font-family:Consolas,monospace;color:#BFE0EA;">{{ user.name }}</strong>, and <strong style="font-family:Consolas,monospace;color:#BFE0EA;">{{ company.name }}</strong> placeholders. WhatsApp&rsquo;s own formatting markers inside a rendered value are neutralised, so a customer name never accidentally italicises the message.</p>
+          </div>
+        </div>
       </div>
     </div>
 
     <div class="col-12 col-md-6">
-      <div class="bg-white h-100 rounded-3 p-3" style="border:1px solid #E2E8F0;">
-        <div class="d-inline-flex align-items-center justify-content-center rounded-2 text-white mb-2" style="width:46px;height:46px;background-color:#00D4FF;font-size:22px;">&#128206;</div>
-        <h3 class="fw-bold mb-2" style="font-size:14px;color:#0F172A;">Attachments &amp; Generated Reports</h3>
-        <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">Attach static files that go with every send, and/or name a report rendered to a PDF per record &mdash; each with a sensible filename. A configuration check makes sure the report actually belongs to the template's model.</p>
+      <div class="h-100 rounded-3 p-4" style="background-color:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);">
+        <div class="d-flex align-items-start gap-3">
+          <div class="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0" style="width:46px;height:46px;background-color:#4E97AB;font-size:22px;">&#128206;</div>
+          <div>
+            <h3 class="fw-bold mb-2 text-white" style="font-size:15px;">Attachments &amp; Generated Reports</h3>
+            <p class="mb-0" style="color:#B6D3DC;font-size:13px;line-height:1.65;">Attach static files that go with every send, and/or name a report that is rendered to a PDF per record and attached &mdash; each with a sensible filename derived from the record. A configuration check makes sure the report actually belongs to the template&rsquo;s model.</p>
+          </div>
+        </div>
       </div>
     </div>
 
     <div class="col-12 col-md-6">
-      <div class="bg-white h-100 rounded-3 p-3" style="border:1px solid #E2E8F0;">
-        <div class="d-inline-flex align-items-center justify-content-center rounded-2 text-white mb-2" style="width:46px;height:46px;background-color:#10B981;font-size:22px;">&#127919;</div>
-        <h3 class="fw-bold mb-2" style="font-size:14px;color:#0F172A;">Smart Recipient Resolution</h3>
-        <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">Set an explicit recipient field path, or leave it blank to probe the record's own phone fields and then its contact's. Typos in a path are caught while editing the template, not at send time when a batch is already going out.</p>
+      <div class="h-100 rounded-3 p-4" style="background-color:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);">
+        <div class="d-flex align-items-start gap-3">
+          <div class="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0" style="width:46px;height:46px;background-color:#4E97AB;font-size:22px;">&#127919;</div>
+          <div>
+            <h3 class="fw-bold mb-2 text-white" style="font-size:15px;">Smart Recipient Resolution</h3>
+            <p class="mb-0" style="color:#B6D3DC;font-size:13px;line-height:1.65;">Set an explicit recipient field path (e.g. <strong style="font-family:Consolas,monospace;color:#BFE0EA;">partner_id.phone</strong>), or leave it blank to probe the record&rsquo;s own phone fields and then its contact&rsquo;s. Typos in a field path are caught while editing the template, not at send time.</p>
+          </div>
+        </div>
       </div>
     </div>
 
     <div class="col-12 col-md-6">
-      <div class="bg-white h-100 rounded-3 p-3" style="border:1px solid #E2E8F0;">
-        <div class="d-inline-flex align-items-center justify-content-center rounded-2 text-white mb-2" style="width:46px;height:46px;background-color:#F59E0B;font-size:22px;">&#128065;&#65039;</div>
-        <h3 class="fw-bold mb-2" style="font-size:14px;color:#0F172A;">Composer With Live Preview</h3>
-        <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">The composer opens preloaded with the template, shows the rendered message and resolved number for a single record, and lets the operator edit before sending. In batch mode each record renders its own body and resolves its own number.</p>
+      <div class="h-100 rounded-3 p-4" style="background-color:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);">
+        <div class="d-flex align-items-start gap-3">
+          <div class="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0" style="width:46px;height:46px;background-color:#4E97AB;font-size:22px;">&#128444;&#65039;</div>
+          <div>
+            <h3 class="fw-bold mb-2 text-white" style="font-size:15px;">Composer With Live Preview</h3>
+            <p class="mb-0" style="color:#B6D3DC;font-size:13px;line-height:1.65;">The composer opens preloaded with the template, shows the rendered message and resolved number for a single record, and lets the operator edit before sending. In batch mode each record renders its own body, and records with no number are reported, never silently dropped.</p>
+          </div>
+        </div>
       </div>
     </div>
 
     <div class="col-12 col-md-6">
-      <div class="bg-white h-100 rounded-3 p-3" style="border:1px solid #E2E8F0;">
-        <div class="d-inline-flex align-items-center justify-content-center rounded-2 text-white mb-2" style="width:46px;height:46px;background-color:#6C5CE7;font-size:22px;">&#129302;</div>
-        <h3 class="fw-bold mb-2" style="font-size:14px;color:#0F172A;">"Send WhatsApp" Server Action</h3>
-        <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">Wire a template into an automation with a Send WhatsApp server action &mdash; "on order confirmed, WhatsApp the customer" &mdash; with no code. It composes and queues for every record it runs on, by the same rules as a hand-launched send.</p>
+      <div class="h-100 rounded-3 p-4" style="background-color:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);">
+        <div class="d-flex align-items-start gap-3">
+          <div class="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0" style="width:46px;height:46px;background-color:#4E97AB;font-size:22px;">&#129302;</div>
+          <div>
+            <h3 class="fw-bold mb-2 text-white" style="font-size:15px;">&ldquo;Send WhatsApp&rdquo; Server Action</h3>
+            <p class="mb-0" style="color:#B6D3DC;font-size:13px;line-height:1.65;">Wire a template into an automation with a <strong style="color:#BFE0EA;">Send WhatsApp</strong> server action &mdash; &ldquo;on order confirmed, WhatsApp the customer&rdquo; &mdash; with no code. It composes and queues for every record it runs on, by exactly the same rules as a hand-launched send.</p>
+          </div>
+        </div>
       </div>
     </div>
 
     <div class="col-12 col-md-6">
-      <div class="bg-white h-100 rounded-3 p-3" style="border:1px solid #E2E8F0;">
-        <div class="d-inline-flex align-items-center justify-content-center rounded-2 text-white mb-2" style="width:46px;height:46px;background-color:#A855F7;font-size:22px;">&#128227;</div>
-        <h3 class="fw-bold mb-2" style="font-size:14px;color:#0F172A;">Send to One or Many</h3>
-        <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">Launch a template on a single record from its chatter, or select many records in a list and send to all at once. Every message goes on the paced queue, so a batch to fifty contacts is spaced out rather than fired in a burst.</p>
+      <div class="h-100 rounded-3 p-4" style="background-color:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);">
+        <div class="d-flex align-items-start gap-3">
+          <div class="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0" style="width:46px;height:46px;background-color:#4E97AB;font-size:22px;">&#128227;</div>
+          <div>
+            <h3 class="fw-bold mb-2 text-white" style="font-size:15px;">Send to One or Many</h3>
+            <p class="mb-0" style="color:#B6D3DC;font-size:13px;line-height:1.65;">Launch a template on a single record from its chatter, or select many records in a list and send to all of them at once. Every message goes on the paced queue, so a batch to fifty contacts is spaced out rather than fired in a burst.</p>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -138,17 +183,34 @@
      INSTALLATION
      ═══════════════════════════════════════════════════════════ -->
 
-<div id="installation" class="mt-3 mb-5 p-5">
-  <h2 class="fw-bolder mb-2" style="font-size:26px;color:#0F172A;">&#128230; Installation</h2>
-  <p class="mb-4" style="font-size:14px;color:#64748B;line-height:1.6;">
-    This module extends the core connector, so it has one prerequisite before the standard Apps-list install.</p>
+<div id="installation" class="rounded-4 mb-5 p-4 p-md-5" style="background-color:#FFFFFF;border:1px solid #E2EDF1;">
 
-  <div class="bg-white rounded-3 p-4 d-flex align-items-start gap-3" style="border:1px solid #E2E8F0;border-left:4px solid #6C5CE7;">
-    <span style="font-size:22px;line-height:1.3;">&#128274;</span>
-    <div>
-      <h4 class="fw-bold mb-1" style="font-size:15px;color:#0F172A;">Install the core connector first</h4>
-      <p class="mb-0" style="color:#64748B;font-size:13px;line-height:1.6;"><strong>Whatsmeow WhatsApp Connector</strong> (<strong style="font-family:Consolas,monospace;color:#6C5CE7;">whatsmeow</strong>) must be installed first &mdash; with its gateway deployed and at least one session paired. Once the core module is in place, install <strong>Whatsmeow Templates &amp; Composer</strong> from the Apps list like any other add-on.</p>
+  <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#E4EFF3;color:#35798C;font-size:11px;letter-spacing:1.5px;">INSTALLATION</div>
+  <h2 class="fw-bolder mb-2" style="font-size:28px;color:#003153;line-height:1.25;">Install the core connector first</h2>
+  <p class="mb-4" style="font-size:14px;color:#6B8494;line-height:1.6;max-width:720px;">
+    This module extends the core connector, so the order matters.</p>
+
+  <div class="row g-3">
+
+    <div class="col-12 col-md-6">
+      <div class="h-100 rounded-3 p-4" style="background-color:#F4F8FA;border:1px solid #DCE8EC;">
+        <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder mb-3" style="width:38px;height:38px;background-color:#003153;font-size:15px;">1</div>
+        <h4 class="fw-bold mb-1" style="font-size:15px;color:#003153;">Install Whatsmeow WhatsApp Connector</h4>
+        <p class="mb-0" style="color:#6B8494;font-size:13px;line-height:1.65;">
+          <strong style="font-family:Consolas,monospace;color:#35798C;">whatsmeow</strong> must be installed first &mdash;
+          with its gateway deployed and at least one session paired.</p>
+      </div>
     </div>
+
+    <div class="col-12 col-md-6">
+      <div class="h-100 rounded-3 p-4" style="background-color:#F4F8FA;border:1px solid #DCE8EC;">
+        <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder mb-3" style="width:38px;height:38px;background-color:#4E97AB;font-size:15px;">2</div>
+        <h4 class="fw-bold mb-1" style="font-size:15px;color:#003153;">Install this module</h4>
+        <p class="mb-0" style="color:#6B8494;font-size:13px;line-height:1.65;">
+          Once the core module is in place, install this one from the Apps list like any other add-on.</p>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -157,35 +219,53 @@
      CONFIGURATION
      ═══════════════════════════════════════════════════════════ -->
 
-<div id="configuration" class="mt-3 mb-5 p-5">
-  <h2 class="fw-bolder mb-2" style="font-size:26px;color:#0F172A;">&#128295; Configuration</h2>
-  <p class="mb-4" style="font-size:14px;color:#64748B;line-height:1.6;">
-    Templates are managed under <strong>WhatsApp &rarr; Configuration &rarr; Templates</strong>, visible to WhatsApp Administrators.</p>
+<div id="configuration" class="rounded-4 mb-5 p-4 p-md-5" style="background-color:#F4F8FA;border:1px solid #E2EDF1;">
 
-  <div class="row g-4 text-center">
+  <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#E4EFF3;color:#35798C;font-size:11px;letter-spacing:1.5px;">CONFIGURATION</div>
+  <h2 class="fw-bolder mb-2" style="font-size:28px;color:#003153;line-height:1.25;">Build your first template</h2>
+  <p class="mb-4" style="font-size:14px;color:#6B8494;line-height:1.6;max-width:640px;">
+    Templates are managed under <strong style="color:#35798C;">WhatsApp &rarr; Configuration &rarr; Templates</strong>, visible to WhatsApp Administrators.</p>
 
-    <div class="col-6 col-md-3">
-      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder mx-auto mb-2" style="width:50px;height:50px;background-color:#6C5CE7;font-size:20px;">1</div>
-      <h4 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">Create a Template</h4>
-      <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">Templates &rarr; New, then choose the model under "Applies to".</p>
+  <div class="row g-3">
+
+    <div class="col-6 col-md-4">
+      <div class="bg-white h-100 rounded-3 p-4 text-center" style="border:1px solid #DCE8EC;">
+        <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder mx-auto mb-3" style="width:46px;height:46px;background-color:#003153;font-size:18px;">1</div>
+        <h4 class="fw-bold mb-1" style="font-size:14px;color:#003153;">Create a template</h4>
+        <p class="mb-0" style="color:#6B8494;font-size:12px;line-height:1.6;">Click <strong>New</strong> and choose the model under <strong>Applies to</strong>.</p>
+      </div>
     </div>
 
-    <div class="col-6 col-md-3">
-      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder mx-auto mb-2" style="width:50px;height:50px;background-color:#A855F7;font-size:20px;">2</div>
-      <h4 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">Write the Body</h4>
-      <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">Enter the message with {{ object.field }} placeholders; a live preview shows the result.</p>
+    <div class="col-6 col-md-4">
+      <div class="bg-white h-100 rounded-3 p-4 text-center" style="border:1px solid #DCE8EC;">
+        <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder mx-auto mb-3" style="width:46px;height:46px;background-color:#12496B;font-size:18px;">2</div>
+        <h4 class="fw-bold mb-1" style="font-size:14px;color:#003153;">Write the body</h4>
+        <p class="mb-0" style="color:#6B8494;font-size:12px;line-height:1.6;">Enter the message with <strong style="font-family:Consolas,monospace;color:#35798C;">{{ object.field }}</strong> placeholders; a live preview shows how it renders.</p>
+      </div>
     </div>
 
-    <div class="col-6 col-md-3">
-      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder mx-auto mb-2" style="width:50px;height:50px;background-color:#00D4FF;font-size:20px;">3</div>
-      <h4 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">Sender &amp; Recipient</h4>
-      <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">Pick a default Send From number and a Recipient Field, or leave blank to auto-probe.</p>
+    <div class="col-6 col-md-4">
+      <div class="bg-white h-100 rounded-3 p-4 text-center" style="border:1px solid #DCE8EC;">
+        <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder mx-auto mb-3" style="width:46px;height:46px;background-color:#35798C;font-size:18px;">3</div>
+        <h4 class="fw-bold mb-1" style="font-size:14px;color:#003153;">Set sender and recipient</h4>
+        <p class="mb-0" style="color:#6B8494;font-size:12px;line-height:1.6;">Optionally pick a default <strong>Send From</strong> number and a <strong>Recipient Field</strong> path.</p>
+      </div>
     </div>
 
-    <div class="col-6 col-md-3">
-      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder mx-auto mb-2" style="width:50px;height:50px;background-color:#10B981;font-size:20px;">4</div>
-      <h4 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">Files &amp; Report</h4>
-      <p class="mb-0" style="color:#64748B;font-size:12px;line-height:1.6;">Add static Attachments and/or a Report for a per-record generated PDF.</p>
+    <div class="col-6 col-md-4">
+      <div class="bg-white h-100 rounded-3 p-4 text-center" style="border:1px solid #DCE8EC;">
+        <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder mx-auto mb-3" style="width:46px;height:46px;background-color:#4E97AB;font-size:18px;">4</div>
+        <h4 class="fw-bold mb-1" style="font-size:14px;color:#003153;">Attach files or a report</h4>
+        <p class="mb-0" style="color:#6B8494;font-size:12px;line-height:1.6;">Add static <strong>Attachments</strong>, and/or pick a <strong>Report</strong> to generate a per-record PDF.</p>
+      </div>
+    </div>
+
+    <div class="col-6 col-md-4">
+      <div class="bg-white h-100 rounded-3 p-4 text-center" style="border:1px solid #DCE8EC;">
+        <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder mx-auto mb-3" style="width:46px;height:46px;background-color:#003153;font-size:18px;">5</div>
+        <h4 class="fw-bold mb-1" style="font-size:14px;color:#003153;">Wire an automation <span class="fw-normal" style="color:#6B8494;">(optional)</span></h4>
+        <p class="mb-0" style="color:#6B8494;font-size:12px;line-height:1.6;">Create a <strong>Send WhatsApp</strong> server action, choose the model and template, and trigger it however you like.</p>
+      </div>
     </div>
 
   </div>
@@ -196,129 +276,164 @@
      SCREENSHOTS
      ═══════════════════════════════════════════════════════════ -->
 
-<div id="screenshots" class="mt-3 mb-5 p-5">
-  <h2 class="fw-bolder mb-2" style="font-size:26px;color:#0F172A;">&#128248; Screenshots</h2>
-  <p class="mb-4" style="font-size:14px;color:#64748B;line-height:1.6;">Building a template, adding a report and attachments, and sending it from a record.</p>
+<div id="screenshots" class="rounded-4 mb-5 p-4 p-md-5" style="background-color:#FFFFFF;border:1px solid #E2EDF1;">
 
-  <div class="row g-3">
+  <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#E4EFF3;color:#35798C;font-size:11px;letter-spacing:1.5px;">SCREENSHOTS</div>
+  <h2 class="fw-bolder mb-2" style="font-size:28px;color:#003153;line-height:1.25;">See it in action</h2>
+  <p class="mb-4" style="font-size:14px;color:#6B8494;line-height:1.6;">Building a template, adding a report and attachments, and sending it from a record.</p>
 
-    <div class="col-12 col-md-6 mb-4">
-      <div class="bg-white rounded-3 overflow-hidden" style="border:1px solid #E2E8F0;">
-        <div class="p-3 text-white" style="background-color:#6C5CE7;">
-          <h4 class="fw-bold mb-1" style="font-size:13px;">Template with live preview</h4>
-          <p class="mb-0" style="font-size:12px;line-height:1.5;">See exactly how the body renders.</p>
-        </div>
-        <img src="img/create_template_with_preview.png" alt="Creating a template with a live rendered preview" class="w-100 d-block">
+  <!-- Screenshot 01 -->
+  <div class="mb-5">
+    <div class="d-flex align-items-center gap-3 mb-3">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:34px;height:34px;background-color:#003153;font-size:14px;">1</div>
+      <div>
+        <span class="fw-bold d-block" style="font-size:15px;color:#003153;">Creating a template with a live preview</span>
+        <span style="font-size:13px;color:#6B8494;">Write the body with placeholders and watch it render.</span>
       </div>
     </div>
+    <div class="rounded-3 overflow-hidden" style="border:1px solid #DCE8EC;">
+      <div class="d-flex align-items-center gap-2 px-3 py-2" style="background-color:#F4F8FA;border-bottom:1px solid #DCE8EC;">
+        <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background-color:#FF6B6B;"></span>
+        <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background-color:#FFD166;"></span>
+        <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background-color:#4E97AB;"></span>
+      </div>
+      <img src="img/create_template_with_preview.png" alt="Creating a WhatsApp template with a live rendered preview of the message body." class="w-100 d-block">
+    </div>
+  </div>
 
-    <div class="col-12 col-md-6 mb-4">
-      <div class="bg-white rounded-3 overflow-hidden" style="border:1px solid #E2E8F0;">
-        <div class="p-3 text-white" style="background-color:#A855F7;">
-          <h4 class="fw-bold mb-1" style="font-size:13px;">Report &amp; attachments</h4>
-          <p class="mb-0" style="font-size:12px;line-height:1.5;">A generated PDF plus static files.</p>
-        </div>
-        <img src="img/add_report_and_attachments.png" alt="Attaching a generated PDF report and static files to a template" class="w-100 d-block">
+  <!-- Screenshot 02 -->
+  <div class="mb-5">
+    <div class="d-flex align-items-center gap-3 mb-3">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:34px;height:34px;background-color:#35798C;font-size:14px;">2</div>
+      <div>
+        <span class="fw-bold d-block" style="font-size:15px;color:#003153;">Attaching a report and static files</span>
+        <span style="font-size:13px;color:#6B8494;">A generated per-record PDF plus fixed attachments.</span>
       </div>
     </div>
+    <div class="rounded-3 overflow-hidden" style="border:1px solid #DCE8EC;">
+      <div class="d-flex align-items-center gap-2 px-3 py-2" style="background-color:#F4F8FA;border-bottom:1px solid #DCE8EC;">
+        <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background-color:#FF6B6B;"></span>
+        <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background-color:#FFD166;"></span>
+        <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background-color:#4E97AB;"></span>
+      </div>
+      <img src="img/add_report_and_attachments.png" alt="Adding a generated PDF report and static attachments to a template." class="w-100 d-block">
+    </div>
+  </div>
 
-    <div class="col-12 col-md-6 mb-4">
-      <div class="bg-white rounded-3 overflow-hidden" style="border:1px solid #E2E8F0;">
-        <div class="p-3 text-white" style="background-color:#00D4FF;">
-          <h4 class="fw-bold mb-1" style="font-size:13px;">Send from any model</h4>
-          <p class="mb-0" style="font-size:12px;line-height:1.5;">Launch a template right from a record.</p>
-        </div>
-        <img src="img/send_from_models.png" alt="Launching a template from a record of any model" class="w-100 d-block">
+  <!-- Screenshot 03 -->
+  <div class="mb-0">
+    <div class="d-flex align-items-center gap-3 mb-3">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:34px;height:34px;background-color:#4E97AB;font-size:14px;">3</div>
+      <div>
+        <span class="fw-bold d-block" style="font-size:15px;color:#003153;">Launching a template from a record</span>
+        <span style="font-size:13px;color:#6B8494;">Available on the records of any model you point it at.</span>
       </div>
     </div>
-
+    <div class="rounded-3 overflow-hidden" style="border:1px solid #DCE8EC;">
+      <div class="d-flex align-items-center gap-2 px-3 py-2" style="background-color:#F4F8FA;border-bottom:1px solid #DCE8EC;">
+        <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background-color:#FF6B6B;"></span>
+        <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background-color:#FFD166;"></span>
+        <span class="d-inline-block rounded-circle" style="width:9px;height:9px;background-color:#4E97AB;"></span>
+      </div>
+      <img src="img/send_from_models.png" alt="Sending a WhatsApp template from a record of any model." class="w-100 d-block">
+    </div>
   </div>
 </div>
 
 
 <!-- ═══════════════════════════════════════════════════════════
-     USAGE
+     USAGE — workflow cards
      ═══════════════════════════════════════════════════════════ -->
 
-<div id="usage" class="mt-3 mb-5 p-5">
-  <h2 class="fw-bolder mb-2" style="font-size:26px;color:#0F172A;">&#128161; Usage</h2>
-  <p class="mb-4" style="font-size:14px;color:#64748B;line-height:1.6;">From building a template to automating a send.</p>
+<div id="usage" class="rounded-4 mb-5 p-4 p-md-5" style="background-color:#F4F8FA;border:1px solid #E2EDF1;">
 
-<!-- Workflow 01 -->
-<div class="bg-white rounded-4 mb-3 p-4" style="border:1px solid #E2E8F0;">
-  <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#EEF0FF;color:#6C5CE7;font-size:11px;letter-spacing:.4px;">WORKFLOW &middot; 01</div>
-  <h3 class="fw-bolder mb-2" style="font-size:18px;color:#0F172A;">&#129521; Build a Template</h3>
-  <p class="mb-3" style="color:#334155;font-size:14px;line-height:1.65;">Create a reusable WhatsApp message for a model.</p>
-  <div class="d-flex align-items-center gap-2 mb-2">
-    <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#A855F7;font-size:12px;">&#10003;</div>
-    <span style="font-size:13px;color:#334155;">Go to WhatsApp &rarr; Configuration &rarr; Templates and click New</span>
-  </div>
-  <div class="d-flex align-items-center gap-2 mb-2">
-    <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#A855F7;font-size:12px;">&#10003;</div>
-    <span style="font-size:13px;color:#334155;">Choose the model under "Applies to" and write the body with {{ object.field }} placeholders</span>
-  </div>
-  <div class="d-flex align-items-center gap-2 mb-0">
-    <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#A855F7;font-size:12px;">&#10003;</div>
-    <span style="font-size:13px;color:#334155;">Optionally set a Send From number, Recipient Field, Attachments, and a Report, then Save</span>
-  </div>
-</div>
+  <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#E4EFF3;color:#35798C;font-size:11px;letter-spacing:1.5px;">USAGE</div>
+  <h2 class="fw-bolder mb-2" style="font-size:28px;color:#003153;line-height:1.25;">Build, send, automate</h2>
+  <p class="mb-4" style="font-size:14px;color:#6B8494;line-height:1.6;">Four workflows from authoring a template to firing it automatically.</p>
 
-<!-- Workflow 02 -->
-<div class="bg-white rounded-4 mb-3 p-4" style="border:1px solid #E2E8F0;">
-  <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#EEF0FF;color:#6C5CE7;font-size:11px;letter-spacing:.4px;">WORKFLOW &middot; 02</div>
-  <h3 class="fw-bolder mb-2" style="font-size:18px;color:#0F172A;">&#128228; Send From a Record</h3>
-  <p class="mb-3" style="color:#334155;font-size:14px;line-height:1.65;">Send a templated message to one contact.</p>
-  <div class="d-flex align-items-center gap-2 mb-2">
-    <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#00D4FF;font-size:12px;">&#10003;</div>
-    <span style="font-size:13px;color:#334155;">Open a record and click the WhatsApp button on its chatter, or pick the template from the Action menu</span>
+  <!-- Workflow 01 -->
+  <div class="bg-white rounded-3 mb-3 p-4 p-md-5" style="border:1px solid #DCE8EC;border-left:4px solid #003153;">
+    <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#E4EFF3;color:#003153;font-size:11px;letter-spacing:1px;">WORKFLOW &middot; 01</div>
+    <h3 class="fw-bolder mb-2" style="font-size:19px;color:#003153;">Build a Template</h3>
+    <p class="mb-3" style="color:#3D5566;font-size:14px;line-height:1.7;">
+      Create a reusable WhatsApp message for a model.</p>
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+      <span style="font-size:13px;color:#3D5566;">Go to <strong>WhatsApp &rarr; Configuration &rarr; Templates</strong> and click <strong>New</strong></span>
+    </div>
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+      <span style="font-size:13px;color:#3D5566;">Choose the model under <strong>Applies to</strong> and write the body with <strong style="font-family:Consolas,monospace;color:#35798C;">{{ object.field }}</strong> placeholders</span>
+    </div>
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+      <span style="font-size:13px;color:#3D5566;">Optionally set a <strong>Send From</strong> number, <strong>Recipient Field</strong>, <strong>Attachments</strong>, and a <strong>Report</strong></span>
+    </div>
+    <div class="d-flex align-items-center gap-2 mb-0">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+      <span style="font-size:13px;color:#3D5566;">Save &mdash; the template is now available in that model&rsquo;s <strong>Action</strong> menu</span>
+    </div>
   </div>
-  <div class="d-flex align-items-center gap-2 mb-2">
-    <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#00D4FF;font-size:12px;">&#10003;</div>
-    <span style="font-size:13px;color:#334155;">Review the rendered Message and resolved Recipient, and edit if needed</span>
-  </div>
-  <div class="d-flex align-items-center gap-2 mb-0">
-    <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#00D4FF;font-size:12px;">&#10003;</div>
-    <span style="font-size:13px;color:#334155;">Choose the Send From number and click Send &mdash; the message joins the paced queue</span>
-  </div>
-</div>
 
-<!-- Workflow 03 -->
-<div class="bg-white rounded-4 mb-3 p-4" style="border:1px solid #E2E8F0;">
-  <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#EEF0FF;color:#6C5CE7;font-size:11px;letter-spacing:.4px;">WORKFLOW &middot; 03</div>
-  <h3 class="fw-bolder mb-2" style="font-size:18px;color:#0F172A;">&#128230; Send in Bulk</h3>
-  <p class="mb-3" style="color:#334155;font-size:14px;line-height:1.65;">Message many records at once.</p>
-  <div class="d-flex align-items-center gap-2 mb-2">
-    <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#10B981;font-size:12px;">&#10003;</div>
-    <span style="font-size:13px;color:#334155;">Open a list view of the template's model and select the records you want to reach</span>
+  <!-- Workflow 02 -->
+  <div class="bg-white rounded-3 mb-3 p-4 p-md-5" style="border:1px solid #DCE8EC;border-left:4px solid #35798C;">
+    <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#E4EFF3;color:#003153;font-size:11px;letter-spacing:1px;">WORKFLOW &middot; 02</div>
+    <h3 class="fw-bolder mb-2" style="font-size:19px;color:#003153;">Send From a Record</h3>
+    <p class="mb-3" style="color:#3D5566;font-size:14px;line-height:1.7;">
+      Send a templated message to one contact.</p>
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+      <span style="font-size:13px;color:#3D5566;">Open a record and click the <strong>WhatsApp</strong> button on its chatter, or pick the template from the <strong>Action</strong> menu</span>
+    </div>
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+      <span style="font-size:13px;color:#3D5566;">Review the rendered <strong>Message</strong> and resolved <strong>Recipient</strong> in the composer, and edit if needed</span>
+    </div>
+    <div class="d-flex align-items-center gap-2 mb-0">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+      <span style="font-size:13px;color:#3D5566;">Choose the <strong>Send From</strong> number if you have more than one, and click <strong>Send</strong></span>
+    </div>
   </div>
-  <div class="d-flex align-items-center gap-2 mb-2">
-    <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#10B981;font-size:12px;">&#10003;</div>
-    <span style="font-size:13px;color:#334155;">From the Action menu, choose the template's Send WhatsApp entry</span>
-  </div>
-  <div class="d-flex align-items-center gap-2 mb-0">
-    <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#10B981;font-size:12px;">&#10003;</div>
-    <span style="font-size:13px;color:#334155;">Click Send; each record renders its own message, numberless records are reported, the rest are queued</span>
-  </div>
-</div>
 
-<!-- Workflow 04 -->
-<div class="bg-white rounded-4 mb-3 p-4" style="border:1px solid #E2E8F0;">
-  <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#EEF0FF;color:#6C5CE7;font-size:11px;letter-spacing:.4px;">WORKFLOW &middot; 04</div>
-  <h3 class="fw-bolder mb-2" style="font-size:18px;color:#0F172A;">&#9881;&#65039; Automate a Send</h3>
-  <p class="mb-3" style="color:#334155;font-size:14px;line-height:1.65;">Fire a template automatically when something happens.</p>
-  <div class="d-flex align-items-center gap-2 mb-2">
-    <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#F59E0B;font-size:12px;">&#10003;</div>
-    <span style="font-size:13px;color:#334155;">Create a Send WhatsApp server action (or automation rule) on the template's model</span>
+  <!-- Workflow 03 -->
+  <div class="bg-white rounded-3 mb-3 p-4 p-md-5" style="border:1px solid #DCE8EC;border-left:4px solid #4E97AB;">
+    <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#E4EFF3;color:#003153;font-size:11px;letter-spacing:1px;">WORKFLOW &middot; 03</div>
+    <h3 class="fw-bolder mb-2" style="font-size:19px;color:#003153;">Send in Bulk</h3>
+    <p class="mb-3" style="color:#3D5566;font-size:14px;line-height:1.7;">
+      Message many records at once.</p>
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+      <span style="font-size:13px;color:#3D5566;">Open a list view of the template&rsquo;s model and select the records you want to reach</span>
+    </div>
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+      <span style="font-size:13px;color:#3D5566;">From the <strong>Action</strong> menu, choose the template&rsquo;s <strong>Send WhatsApp</strong> entry</span>
+    </div>
+    <div class="d-flex align-items-center gap-2 mb-0">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+      <span style="font-size:13px;color:#3D5566;">Click <strong>Send</strong>; each record renders its own message, records without a number are reported, and the rest are queued and paced apart</span>
+    </div>
   </div>
-  <div class="d-flex align-items-center gap-2 mb-2">
-    <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#F59E0B;font-size:12px;">&#10003;</div>
-    <span style="font-size:13px;color:#334155;">Select the template and trigger it on a status change, a schedule, or a button</span>
+
+  <!-- Workflow 04 -->
+  <div class="bg-white rounded-3 mb-0 p-4 p-md-5" style="border:1px solid #DCE8EC;border-left:4px solid #003153;">
+    <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#E4EFF3;color:#003153;font-size:11px;letter-spacing:1px;">WORKFLOW &middot; 04</div>
+    <h3 class="fw-bolder mb-2" style="font-size:19px;color:#003153;">Automate a Send</h3>
+    <p class="mb-3" style="color:#3D5566;font-size:14px;line-height:1.7;">
+      Fire a template automatically when something happens.</p>
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+      <span style="font-size:13px;color:#3D5566;">Create a <strong>Send WhatsApp</strong> server action (or automation rule) on the template&rsquo;s model and select the template</span>
+    </div>
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+      <span style="font-size:13px;color:#3D5566;">Trigger it however you like &mdash; on a status change, on a schedule, from a button</span>
+    </div>
+    <div class="d-flex align-items-center gap-2 mb-0">
+      <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+      <span style="font-size:13px;color:#3D5566;">Every record the action runs on is composed and queued by the same rules as a manual send</span>
+    </div>
   </div>
-  <div class="d-flex align-items-center gap-2 mb-0">
-    <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#F59E0B;font-size:12px;">&#10003;</div>
-    <span style="font-size:13px;color:#334155;">Every record the action runs on is composed and queued by the same rules as a manual send</span>
-  </div>
-</div>
 
 </div>
 
@@ -327,23 +442,31 @@
      KNOWN ISSUES
      ═══════════════════════════════════════════════════════════ -->
 
-<div id="known-issues" class="mt-3 mb-5 p-5">
-  <h2 class="fw-bolder mb-2" style="font-size:26px;color:#0F172A;">&#9888;&#65039; Known Issues</h2>
-  <p class="mb-4" style="font-size:14px;color:#64748B;line-height:1.6;">This module only composes and queues; the actual delivery, pacing, and safeguards all live in the core connector.</p>
+<div id="known-issues" class="rounded-4 mb-5 p-4 p-md-5" style="background-color:#FFFFFF;border:1px solid #E2EDF1;">
 
-  <div class="d-flex align-items-start gap-3 rounded-3 p-4 mb-3" style="background-color:#FFFBEB;border:1px solid #FDE68A;border-left:4px solid #F59E0B;">
-    <span style="font-size:20px;color:#F59E0B;line-height:1.4;">&#9888;&#65039;</span>
+  <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#E4EFF3;color:#35798C;font-size:11px;letter-spacing:1.5px;">KNOWN ISSUES</div>
+  <h2 class="fw-bolder mb-2" style="font-size:28px;color:#003153;line-height:1.25;">Full transparency</h2>
+  <p class="mb-4" style="font-size:14px;color:#6B8494;line-height:1.6;max-width:720px;">
+    This module only composes and queues; the actual delivery, pacing, and safeguards all live in the core connector.</p>
+
+  <div class="d-flex align-items-start gap-3 rounded-3 p-4 mb-3" style="background-color:#FFF8E9;border:1px solid #F0E2BC;border-left:4px solid #D9A521;">
+    <span style="font-size:20px;line-height:1.4;">&#9888;&#65039;</span>
     <div>
-      <h4 class="fw-bold mb-1" style="font-size:15px;color:#78350F;">A big batch is spread over days</h4>
-      <p class="mb-0" style="color:#92400E;font-size:13px;line-height:1.6;">A template send obeys every core safeguard: an opted-out contact is skipped, a number known not to be on WhatsApp is not sent to, and a session's daily cap still bounds how many of a large batch go out today. The rest stay queued for the following days &mdash; a big blast is spread out on purpose.</p>
+      <h4 class="fw-bold mb-1" style="font-size:15px;color:#7A5B12;">A big batch is spread out on purpose</h4>
+      <p class="mb-0" style="color:#7A5B12;font-size:13px;line-height:1.65;">
+        A template send obeys every core safeguard: a contact who has opted out is skipped, a number known not to be on
+        WhatsApp is not sent to, and a session&rsquo;s daily cap still bounds how many of a large batch go out today. The rest
+        stay queued for the following days &mdash; not delivered all at once.</p>
     </div>
   </div>
 
-  <div class="d-flex align-items-start gap-3 rounded-3 p-4" style="background-color:#FFFBEB;border:1px solid #FDE68A;border-left:4px solid #F59E0B;">
-    <span style="font-size:20px;color:#F59E0B;line-height:1.4;">&#9888;&#65039;</span>
+  <div class="d-flex align-items-start gap-3 rounded-3 p-4" style="background-color:#FFF8E9;border:1px solid #F0E2BC;border-left:4px solid #D9A521;">
+    <span style="font-size:20px;line-height:1.4;">&#9888;&#65039;</span>
     <div>
-      <h4 class="fw-bold mb-1" style="font-size:15px;color:#78350F;">Numberless records are reported, not dropped</h4>
-      <p class="mb-0" style="color:#92400E;font-size:13px;line-height:1.6;">Records with no resolvable WhatsApp number are skipped and reported (a notification and a server-log line), never silently dropped, so you always know a batch did not reach everyone.</p>
+      <h4 class="fw-bold mb-1" style="font-size:15px;color:#7A5B12;">Records with no number are reported, not dropped</h4>
+      <p class="mb-0" style="color:#7A5B12;font-size:13px;line-height:1.65;">
+        Records with no resolvable WhatsApp number are skipped and reported (a notification and a server-log line),
+        never silently dropped, so you always know a batch did not reach everyone.</p>
     </div>
   </div>
 </div>
@@ -353,30 +476,61 @@
      FAQ
      ═══════════════════════════════════════════════════════════ -->
 
-<div id="faq" class="mt-3 mb-5 p-5">
-  <h2 class="fw-bolder mb-2" style="font-size:26px;color:#0F172A;">&#10067; FAQ</h2>
-  <p class="mb-4" style="font-size:14px;color:#64748B;line-height:1.6;">Quick answers to the most common questions.</p>
+<div id="faq" class="rounded-4 mb-5 p-4 p-md-5" style="background-color:#F4F8FA;border:1px solid #E2EDF1;">
 
-<div class="bg-white rounded-3 p-3 mb-2" style="border:1px solid #E2E8F0;border-left:3px solid #6C5CE7;">
-  <h4 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">&#10068; Do I need to get templates approved like on the WhatsApp Cloud API?</h4>
-  <p class="mb-0" style="color:#334155;font-size:13px;line-height:1.6;">No. There is no template approval and no 24-hour session window here. A template is just a saved, field-interpolated message you can send at any time.</p>
-</div>
-<div class="bg-white rounded-3 p-3 mb-2" style="border:1px solid #E2E8F0;border-left:3px solid #A855F7;">
-  <h4 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">&#10068; Which models can I send from?</h4>
-  <p class="mb-0" style="color:#334155;font-size:13px;line-height:1.6;">Any model. Point the template's "Applies to" at the model you want, and it becomes available on that model's records. The recipient number is resolved from the record or its contact automatically.</p>
-</div>
-<div class="bg-white rounded-3 p-3 mb-2" style="border:1px solid #E2E8F0;border-left:3px solid #00D4FF;">
-  <h4 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">&#10068; Can I attach an invoice or quotation PDF?</h4>
-  <p class="mb-0" style="color:#334155;font-size:13px;line-height:1.6;">Yes. Name a Report on the template and each recipient gets their own generated PDF, with the same filename you would see in the Print menu. You can also add static attachments that go with every send.</p>
-</div>
-<div class="bg-white rounded-3 p-3 mb-2" style="border:1px solid #E2E8F0;border-left:3px solid #10B981;">
-  <h4 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">&#10068; How does a bulk send avoid getting my number banned?</h4>
-  <p class="mb-0" style="color:#334155;font-size:13px;line-height:1.6;">The composer only creates outgoing messages and hands them to the core connector's paced queue, so a batch is spaced out and bounded by that session's warm-up and daily caps &mdash; it is not fired all at once.</p>
-</div>
-<div class="bg-white rounded-3 p-3 mb-2" style="border:1px solid #E2E8F0;border-left:3px solid #F59E0B;">
-  <h4 class="fw-bold mb-1" style="font-size:14px;color:#0F172A;">&#10068; Can automation send a template without any code?</h4>
-  <p class="mb-0" style="color:#334155;font-size:13px;line-height:1.6;">Yes. Create a Send WhatsApp server action on the model, choose the template, and trigger it from an automation rule, a button, or a schedule.</p>
-</div>
+  <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#E4EFF3;color:#35798C;font-size:11px;letter-spacing:1.5px;">FAQ</div>
+  <h2 class="fw-bolder mb-2" style="font-size:28px;color:#003153;line-height:1.25;">Questions, answered</h2>
+  <p class="mb-4" style="font-size:14px;color:#6B8494;line-height:1.6;">Quick answers to the most common questions.</p>
+
+  <div class="bg-white rounded-3 p-4 mb-2" style="border:1px solid #DCE8EC;">
+    <div class="d-flex align-items-start gap-3">
+      <div class="d-flex align-items-center justify-content-center rounded-circle fw-bolder flex-shrink-0" style="width:28px;height:28px;background-color:#E4EFF3;color:#003153;font-size:13px;">Q</div>
+      <div>
+        <h4 class="fw-bold mb-1" style="font-size:14px;color:#003153;">Do I need to get templates approved like on the WhatsApp Cloud API?</h4>
+        <p class="mb-0" style="color:#3D5566;font-size:13px;line-height:1.65;">No. There is no template approval and no 24-hour session window here. A template is just a saved, field-interpolated message you can send at any time.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-3 p-4 mb-2" style="border:1px solid #DCE8EC;">
+    <div class="d-flex align-items-start gap-3">
+      <div class="d-flex align-items-center justify-content-center rounded-circle fw-bolder flex-shrink-0" style="width:28px;height:28px;background-color:#E4EFF3;color:#003153;font-size:13px;">Q</div>
+      <div>
+        <h4 class="fw-bold mb-1" style="font-size:14px;color:#003153;">Which models can I send from?</h4>
+        <p class="mb-0" style="color:#3D5566;font-size:13px;line-height:1.65;">Any model. Point the template&rsquo;s <strong>Applies to</strong> at the model you want, and it becomes available on that model&rsquo;s records. The recipient number is resolved from the record or its contact automatically.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-3 p-4 mb-2" style="border:1px solid #DCE8EC;">
+    <div class="d-flex align-items-start gap-3">
+      <div class="d-flex align-items-center justify-content-center rounded-circle fw-bolder flex-shrink-0" style="width:28px;height:28px;background-color:#E4EFF3;color:#003153;font-size:13px;">Q</div>
+      <div>
+        <h4 class="fw-bold mb-1" style="font-size:14px;color:#003153;">Can I attach an invoice or quotation PDF?</h4>
+        <p class="mb-0" style="color:#3D5566;font-size:13px;line-height:1.65;">Yes. Name a <strong>Report</strong> on the template and each recipient gets their own generated PDF, with the same filename you would see in the Print menu. You can also add static attachments that go with every send.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-3 p-4 mb-2" style="border:1px solid #DCE8EC;">
+    <div class="d-flex align-items-start gap-3">
+      <div class="d-flex align-items-center justify-content-center rounded-circle fw-bolder flex-shrink-0" style="width:28px;height:28px;background-color:#E4EFF3;color:#003153;font-size:13px;">Q</div>
+      <div>
+        <h4 class="fw-bold mb-1" style="font-size:14px;color:#003153;">How does a bulk send avoid getting my number banned?</h4>
+        <p class="mb-0" style="color:#3D5566;font-size:13px;line-height:1.65;">The composer only creates outgoing messages and hands them to the core connector&rsquo;s paced queue, so a batch is spaced out and bounded by that session&rsquo;s warm-up and daily caps &mdash; it is not fired all at once.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-3 p-4 mb-0" style="border:1px solid #DCE8EC;">
+    <div class="d-flex align-items-start gap-3">
+      <div class="d-flex align-items-center justify-content-center rounded-circle fw-bolder flex-shrink-0" style="width:28px;height:28px;background-color:#E4EFF3;color:#003153;font-size:13px;">Q</div>
+      <div>
+        <h4 class="fw-bold mb-1" style="font-size:14px;color:#003153;">Can automation send a template without any code?</h4>
+        <p class="mb-0" style="color:#3D5566;font-size:13px;line-height:1.65;">Yes. Create a <strong>Send WhatsApp</strong> server action on the model, choose the template, and trigger it from an automation rule, a button, or a schedule.</p>
+      </div>
+    </div>
+  </div>
 </div>
 
 
@@ -384,25 +538,27 @@
      CHANGELOG
      ═══════════════════════════════════════════════════════════ -->
 
-<div id="changelog" class="mt-3 mb-5 p-5">
-  <h2 class="fw-bolder mb-2" style="font-size:26px;color:#0F172A;">&#128221; Changelog</h2>
-  <p class="mb-4" style="font-size:14px;color:#64748B;line-height:1.6;">A clean record of every release.</p>
+<div id="changelog" class="rounded-4 mb-5 p-4 p-md-5" style="background-color:#FFFFFF;border:1px solid #E2EDF1;">
 
-<div class="d-flex gap-3 mb-4">
-  <div class="text-end flex-shrink-0 pt-1" style="width:30px;border-right:2px solid #6C5CE7;">
-    <div class="d-inline-block rounded-circle" style="width:14px;height:14px;background-color:#6C5CE7;margin-right:-9px;border:3px solid #F7F8FC;"></div>
+  <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:#E4EFF3;color:#35798C;font-size:11px;letter-spacing:1.5px;">CHANGELOG</div>
+  <h2 class="fw-bolder mb-2" style="font-size:28px;color:#003153;line-height:1.25;">Release history</h2>
+  <p class="mb-4" style="font-size:14px;color:#6B8494;line-height:1.6;">A clean record of every release.</p>
+
+  <div class="d-flex gap-3">
+    <div class="text-end flex-shrink-0 pt-1" style="width:24px;border-right:2px solid #4E97AB;">
+      <div class="d-inline-block rounded-circle" style="width:14px;height:14px;background-color:#003153;margin-right:-9px;border:3px solid #E7F1F4;"></div>
+    </div>
+    <div class="ps-2 pb-2">
+      <div class="fw-semibold mb-2" style="font-size:12px;color:#6B8494;">2026-07-19 &middot; Latest release</div>
+      <div class="d-inline-block px-3 py-1 rounded-2 fw-bold mb-3" style="background-color:#E4EFF3;color:#003153;font-size:12px;font-family:Consolas,monospace;">v19.0.1.0.0</div>
+      <h4 class="fw-bold mb-2" style="font-size:15px;color:#003153;">Initial release</h4>
+      <div class="mb-1"><span style="color:#4E97AB;font-weight:700;font-size:13px;">&#9656;</span>&nbsp;<span style="font-size:13px;color:#3D5566;">Templates for any model, with <strong style="font-family:Consolas,monospace;color:#35798C;">{{ object.field }}</strong> placeholders and WhatsApp markup escaping</span></div>
+      <div class="mb-1"><span style="color:#4E97AB;font-weight:700;font-size:13px;">&#9656;</span>&nbsp;<span style="font-size:13px;color:#3D5566;">Static attachments and per-record generated PDF reports</span></div>
+      <div class="mb-1"><span style="color:#4E97AB;font-weight:700;font-size:13px;">&#9656;</span>&nbsp;<span style="font-size:13px;color:#3D5566;">Composer with live preview for single sends and batch mode for many records</span></div>
+      <div class="mb-1"><span style="color:#4E97AB;font-weight:700;font-size:13px;">&#9656;</span>&nbsp;<span style="font-size:13px;color:#3D5566;">&ldquo;Send WhatsApp&rdquo; server action for no-code automation</span></div>
+      <div class="mb-1"><span style="color:#4E97AB;font-weight:700;font-size:13px;">&#9656;</span>&nbsp;<span style="font-size:13px;color:#3D5566;">Sending reuses the core paced queue, inheriting pacing, caps, opt-out, and retries</span></div>
+    </div>
   </div>
-  <div class="ps-2">
-    <div class="fw-semibold mb-1" style="font-size:12px;color:#64748B;">&#128467;&#65039; 2026-07-19</div>
-    <div class="d-inline-block px-3 py-1 rounded-2 fw-bold mb-2" style="background-color:#EEF0FF;color:#6C5CE7;font-size:12px;font-family:Consolas,monospace;">v19.0.1.0.0</div>
-    <h4 class="fw-bold mb-2" style="font-size:15px;color:#0F172A;">Initial release</h4>
-    <div class="mb-1"><span style="color:#6C5CE7;font-weight:700;font-size:13px;">&#9656;</span>&nbsp;<span style="font-size:13px;color:#334155;">Templates for any model, with {{ object.field }} placeholders and WhatsApp markup escaping</span></div>
-    <div class="mb-1"><span style="color:#6C5CE7;font-weight:700;font-size:13px;">&#9656;</span>&nbsp;<span style="font-size:13px;color:#334155;">Static attachments and per-record generated PDF reports</span></div>
-    <div class="mb-1"><span style="color:#6C5CE7;font-weight:700;font-size:13px;">&#9656;</span>&nbsp;<span style="font-size:13px;color:#334155;">Composer with live preview for single sends and batch mode for many records</span></div>
-    <div class="mb-1"><span style="color:#6C5CE7;font-weight:700;font-size:13px;">&#9656;</span>&nbsp;<span style="font-size:13px;color:#334155;">"Send WhatsApp" server action for no-code automation</span></div>
-    <div class="mb-1"><span style="color:#6C5CE7;font-weight:700;font-size:13px;">&#9656;</span>&nbsp;<span style="font-size:13px;color:#334155;">Sending reuses the core paced queue, inheriting pacing, caps, opt-out, and retries</span></div>
-  </div>
-</div>
 </div>
 
 
@@ -410,26 +566,112 @@
      FOOTER
      ═══════════════════════════════════════════════════════════ -->
 
-<div class="rounded-4 mt-5 p-4 p-md-5" style="background-color:#0F172A;">
+<div class="rounded-4 mt-5 p-4 p-md-5" style="background-color:#02243C;border:1px solid #0A3A5C;">
 
-  <div class="d-flex align-items-center gap-3 mb-4">
-    <img src="https://www.bytesraw.com/bytesraw_base/static/img/logo_white.png" class="rounded-circle flex-shrink-0" style="width:72px;height:72px;background-color:#6C5CE7;border:3px solid #1E1B4B;object-fit:cover;" alt="Bytesraw logo">
-    <div>
-      <h3 class="fw-bolder text-white mb-1" style="font-size:20px;">Bytesraw</h3>
-      <div style="color:#A5B4FC;font-size:13px;font-weight:500;">Automate you success</div>
+  <div class="row g-4 align-items-center mb-4">
+    <div class="col-12 col-md-7">
+      <div class="d-flex align-items-center gap-3">
+        <img src="https://www.bytesraw.com/bytesraw_base/static/img/logo_white.png" class="rounded-3 flex-shrink-0 p-2" style="width:68px;height:68px;background-color:#003153;border:1px solid #0A3A5C;object-fit:contain;" alt="Bytesraw logo">
+        <div>
+          <h3 class="fw-bolder text-white mb-1" style="font-size:22px;letter-spacing:.3px;">Bytesraw</h3>
+          <div style="color:#7FB3C4;font-size:13px;font-weight:500;">Automate your success</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-5 text-md-end">
+      <a href="https://www.bytesraw.com" target="_blank" class="d-inline-block px-4 py-2 rounded-pill fw-bold text-decoration-none text-white" style="background-color:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);font-size:13px;">
+        &#127760; www.bytesraw.com</a>
     </div>
   </div>
 
-  <div class="rounded-3 p-4 mb-4" style="background-color:#1E1B4B;border:1px solid #312E81;">
-    <h4 class="fw-bold text-white mb-2" style="font-size:16px;">&#128737; Need help?</h4>
-    <p class="mb-3" style="color:#CBD5E1;font-size:13px;line-height:1.6;">
-      Got a question, found a bug, or need a custom enhancement?
-      Get in touch &mdash; happy to help.</p>
-    <a href="https://www.bytesraw.com/contactus" class="d-inline-block px-4 py-2 rounded-pill fw-bold text-decoration-none" style="background-color:#FFF;color:#6C5CE7;font-size:13px;">
-      Contact Support &rarr;</a>
+  <div class="row g-3 mb-4">
+
+    <div class="col-12 col-md-6">
+      <div class="rounded-3 p-4 h-100" style="background-color:#003153;border:1px solid #0A3A5C;">
+        <h4 class="fw-bold text-white mb-2" style="font-size:15px;">&#128736;&#65039; Need help?</h4>
+        <p class="mb-3" style="color:#9FC9D6;font-size:13px;line-height:1.65;">
+          Got a question, found a bug, or need a custom enhancement?
+          Our support team responds within 24 hours on business days.</p>
+        <a href="mailto:help@bytesraw.com" class="d-inline-block px-4 py-2 rounded-pill fw-bold text-decoration-none" style="background-color:#4E97AB;color:#FFFFFF;font-size:13px;">
+          help@bytesraw.com &rarr;</a>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6">
+      <div class="rounded-3 p-4 h-100" style="background-color:#003153;border:1px solid #0A3A5C;">
+        <h4 class="fw-bold text-white mb-2" style="font-size:15px;">&#128188; Custom development</h4>
+        <p class="mb-3" style="color:#9FC9D6;font-size:13px;line-height:1.65;">
+          Need this module tailored to your workflow, or a brand-new Odoo solution?
+          Let&rsquo;s talk about your project.</p>
+        <a href="mailto:info@bytesraw.com" class="d-inline-block px-4 py-2 rounded-pill fw-bold text-decoration-none" style="background-color:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);color:#FFFFFF;font-size:13px;">
+          info@bytesraw.com &rarr;</a>
+      </div>
+    </div>
+
   </div>
 
-  <div class="text-center pt-4" style="color:#475569;font-size:12px;border-top:1px solid #1E293B;">
-    &copy; 2026 Bytesraw &middot; Whatsmeow Templates &amp; Composer &middot; Licensed under LGPL-3
+  <div class="rounded-3 p-4 mb-4" style="background-color:#003153;border:1px solid #0A3A5C;">
+    <div class="d-inline-block px-3 py-1 rounded-pill fw-bold mb-3" style="background-color:rgba(78,151,171,.2);border:1px solid rgba(78,151,171,.5);color:#BFE0EA;font-size:11px;letter-spacing:1.5px;">OUR EXPERTISE</div>
+
+    <div class="row g-2">
+      <div class="col-12 col-sm-6 col-md-4">
+        <div class="d-flex align-items-center gap-2">
+          <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+          <span style="font-size:13px;color:#C9DFE7;">Odoo Development</span>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-md-4">
+        <div class="d-flex align-items-center gap-2">
+          <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+          <span style="font-size:13px;color:#C9DFE7;">Functional Training</span>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-md-4">
+        <div class="d-flex align-items-center gap-2">
+          <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+          <span style="font-size:13px;color:#C9DFE7;">Community Upgradations</span>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-md-4">
+        <div class="d-flex align-items-center gap-2">
+          <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+          <span style="font-size:13px;color:#C9DFE7;">Python &amp; PostgreSQL</span>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-md-4">
+        <div class="d-flex align-items-center gap-2">
+          <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+          <span style="font-size:13px;color:#C9DFE7;">Hosting Solutions</span>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-md-4">
+        <div class="d-flex align-items-center gap-2">
+          <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+          <span style="font-size:13px;color:#C9DFE7;">Automation</span>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-md-4">
+        <div class="d-flex align-items-center gap-2">
+          <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+          <span style="font-size:13px;color:#C9DFE7;">Security</span>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-md-4">
+        <div class="d-flex align-items-center gap-2">
+          <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+          <span style="font-size:13px;color:#C9DFE7;">API &amp; 3rd-Party Integrations</span>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-md-4">
+        <div class="d-flex align-items-center gap-2">
+          <div class="d-flex align-items-center justify-content-center rounded-circle text-white fw-bolder flex-shrink-0" style="width:20px;height:20px;background-color:#4E97AB;font-size:11px;">&#10003;</div>
+          <span style="font-size:13px;color:#C9DFE7;">E-commerce &amp; POS Solutions</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="text-center pt-4" style="color:#5C86A0;font-size:12px;border-top:1px solid #0A3A5C;">
+    &copy; 2026 Bytesraw &middot; All rights reserved &middot; Licensed under LGPL-3
   </div>
 </div>
