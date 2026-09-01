@@ -4,8 +4,8 @@ from markupsafe import Markup
 from psycopg2 import IntegrityError
 
 from odoo import _, fields, models
-from odoo.tools import plaintext2html
 
+from odoo.addons.whatsmeow.models.whatsmeow_markup import render_markup
 from odoo.addons.whatsmeow.models.whatsmeow_match_mixin import _phone_tail
 
 _logger = logging.getLogger(__name__)
@@ -247,8 +247,9 @@ class WhatsmeowMessage(models.Model):
         body = self.body or ""
         if not body and self.message_type != "text":
             body = _("sent %s", self.message_type)
-        # Inbound WhatsApp text is untrusted; plaintext2html escapes it (and
-        # renders newlines), the same guarantee as the chatter's Markup(...) % .
+        # Inbound WhatsApp text is untrusted; `render_markup` escapes it before
+        # turning WhatsApp's own markers into formatting, the same guarantee as
+        # the chatter's Markup(...) % and the same rendering as its preview.
         # A WhatsApp reply quotes the message it answers; Discuss shows the same
         # thing as parent_id, so an inbound reply renders in the native reply
         # style instead of arriving as an unrelated bubble. Only a parent in
@@ -259,7 +260,7 @@ class WhatsmeowMessage(models.Model):
         if parent.model != "mail.channel" or parent.res_id != channel.id:
             parent = self.env["mail.message"]
         posted = channel.with_context(whatsmeow_skip_send=True).message_post(
-            body=plaintext2html(body) if body else Markup(""),
+            body=(Markup("<p>%s</p>") % render_markup(body)) if body else Markup(""),
             author_id=author.id or False,
             message_type="comment",
             subtype_xmlid="mail.mt_comment",

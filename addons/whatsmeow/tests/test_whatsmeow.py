@@ -1699,3 +1699,57 @@ class TestRecipientValidation(WhatsmeowCommon):
                 mute_logger("odoo.addons.whatsmeow.models.whatsmeow_message"):
             self.env["whatsmeow.message"].cron_check_numbers()
         self.assertFalse(self.alice.whatsmeow_registered)
+
+
+@tagged("post_install", "-at_install")
+class TestMarkupRendering(TransactionCase):
+    """WhatsApp's markers, as the chatter draws them.
+
+    The same grammar the composer's preview renders in JavaScript
+    (`whatsmeow_template/static/tests/whatsmeow_markup.test.js`): an author
+    formats a message, checks it in the preview, and must find the same thing
+    in the log. The cases below are that file's, so a change on one side that
+    is not made on the other fails here.
+    """
+
+    def _render(self, text):
+        from odoo.addons.whatsmeow.models.whatsmeow_markup import render_markup
+        return str(render_markup(text))
+
+    def test_renders_the_four_marks(self):
+        self.assertEqual(self._render("*a*"), "<strong>a</strong>")
+        self.assertEqual(self._render("_a_"), "<em>a</em>")
+        self.assertEqual(self._render("~a~"), "<s>a</s>")
+        self.assertEqual(self._render("```a```"), "<code>a</code>")
+
+    def test_marks_nest(self):
+        self.assertEqual(self._render("*bold _and italic_*"),
+                         "<strong>bold <em>and italic</em></strong>")
+
+    def test_leaves_markers_a_phone_would_not_render(self):
+        # Whitespace inside the marker, and a marker spanning a line break:
+        # neither renders on a phone, so neither may render here.
+        self.assertEqual(self._render("*a *"), "*a *")
+        self.assertEqual(self._render("*a\nb*"), "*a<br/>b*")
+
+    def test_monospace_spans_lines_and_suppresses_other_marks(self):
+        self.assertEqual(self._render("```*a*\nb```"), "<code>*a*<br/>b</code>")
+
+    def test_unterminated_fence_stays_literal(self):
+        self.assertEqual(self._render("```a"), "```a")
+
+    def test_escapes_the_body_so_it_can_never_be_markup(self):
+        """Inbound text is untrusted and lands in a chatter entry."""
+        self.assertEqual(self._render("<b>&</b>"), "&lt;b&gt;&amp;&lt;/b&gt;")
+        self.assertNotIn("<script", self._render("<script>alert(1)</script>"))
+
+    def test_empty_body(self):
+        self.assertEqual(self._render(""), "")
+        self.assertEqual(self._render(False), "")
+
+    def test_a_real_message(self):
+        self.assertEqual(
+            self._render("Hello _ACME Ltd_,\n\n*Quotation S05504* is ready."),
+            "Hello <em>ACME Ltd</em>,<br/><br/>"
+            "<strong>Quotation S05504</strong> is ready.",
+        )
