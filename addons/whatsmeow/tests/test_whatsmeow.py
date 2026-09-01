@@ -810,6 +810,24 @@ class TestSecurity(WhatsmeowCommon):
         with self.assertRaises(AccessError):
             self.connection.with_user(self.user).write({"name": "hacked"})
 
+    def test_the_app_menu_is_for_administrators(self):
+        """The menu is an administrator's tool — the message log and the gateway
+        configuration both are — so a plain user does not get the app. It costs
+        them nothing: sending goes through the chatter, a Discuss conversation
+        or a campaign, and the ACLs, not the menu, are what allow it (as
+        `test_user_can_send_without_seeing_the_key` shows)."""
+        manager = self.env["res.users"].create({
+            "name": "WA Admin", "login": "wm_manager",
+            "group_ids": [(6, 0, [
+                self.env.ref("base.group_user").id,
+                self.env.ref("whatsmeow.group_whatsmeow_manager").id,
+            ])],
+        })
+        root = self.env.ref("whatsmeow.menu_whatsmeow_root")
+        Menu = self.env["ir.ui.menu"]
+        self.assertNotIn(root.id, Menu.with_user(self.user)._visible_menu_ids())
+        self.assertIn(root.id, Menu.with_user(manager)._visible_menu_ids())
+
 
 @tagged("post_install", "-at_install")
 class TestInboundFilterMatcher(WhatsmeowCommon):

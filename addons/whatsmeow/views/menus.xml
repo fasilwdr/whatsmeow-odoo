@@ -1,12 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+  <!-- Administrators only. A plain WhatsApp user still sends and receives —
+       from a record's chatter, from a Discuss conversation, or from a marketing
+       campaign — because none of that goes through this menu: the ACLs and
+       record rules decide what may be done, and the menu only decides what is
+       worth showing. The message log and the gateway configuration are an
+       administrator's tools, so this whole app is one.
+
+       The leading '-' matters. A menuitem's `groups` is applied as a *link*,
+       never as a replacement (odoo/tools/convert.py), so simply naming the
+       manager group here would leave the user group attached on every install
+       that already had it — and the menu would stay visible to exactly the
+       people it is being hidden from. The '-' form unlinks it, and is a no-op
+       on a fresh install where it was never linked. -->
   <menuitem id="menu_whatsmeow_root" name="WhatsApp"
             web_icon="whatsmeow,static/description/icon.png"
-            groups="whatsmeow.group_whatsmeow_user" sequence="60"/>
+            groups="whatsmeow.group_whatsmeow_manager,-whatsmeow.group_whatsmeow_user"
+            sequence="60"/>
 
   <menuitem id="menu_whatsmeow_messages" name="Messages" parent="menu_whatsmeow_root"
             action="whatsmeow_message_action"
-            groups="whatsmeow.group_whatsmeow_user" sequence="10"/>
+            groups="whatsmeow.group_whatsmeow_manager,-whatsmeow.group_whatsmeow_user"
+            sequence="10"/>
 
   <menuitem id="menu_whatsmeow_config" name="Configuration" parent="menu_whatsmeow_root"
             groups="whatsmeow.group_whatsmeow_manager" sequence="90"/>
