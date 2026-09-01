@@ -1,6 +1,6 @@
 {
     "name": "Whatsmeow Templates & Composer",
-    "version": "19.0.1.0.0",
+    "version": "16.0.1.0.0",
     "summary": "Send templated WhatsApp messages from a record of any model",
     "description": """
 Send WhatsApp from any Odoo record.
@@ -17,7 +17,7 @@ whatsmeow.message rows, which inherit pacing, retries and idempotency for free.
 """,
     "author": "Fasil, Bytesraw",
     "category": "Discuss",
-    "depends": ["whatsmeow", "mail"],
+    "depends": ["whatsmeow", "mail", "web"],
     "data": [
         "security/ir.model.access.csv",
         "views/whatsmeow_template_views.xml",
@@ -34,15 +34,13 @@ whatsmeow.message rows, which inherit pacing, retries and idempotency for free.
             "whatsmeow_template/static/src/whatsmeow_markup.js",
             "whatsmeow_template/static/src/whatsmeow_body_field.js",
             "whatsmeow_template/static/src/whatsmeow_body_field.xml",
-            # whatsmeow_message.scss first: it defines the %o-whatsmeow-bubble
-            # placeholder that the body field's preview extends.
-            "whatsmeow_template/static/src/whatsmeow_message.scss",
+            # The %o-whatsmeow-bubble placeholder this extends is defined by
+            # whatsmeow's own stylesheet, which the dependency order loads first.
             "whatsmeow_template/static/src/whatsmeow_body_field.scss",
             "whatsmeow_template/static/src/chatter_patch.xml",
-            "whatsmeow_template/static/src/message_patch.xml",
         ],
-        "web.assets_unit_tests": [
-            "whatsmeow_template/static/tests/**/*",
+        "web.qunit_suite_tests": [
+            "whatsmeow_template/static/tests/**/*.js",
         ],
     },
     "license": "LGPL-3",

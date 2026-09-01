@@ -139,10 +139,10 @@ class WhatsmeowSession(models.Model):
              "this off if the number is also watched from a handset.",
     )
 
-    _code_conn_uniq = models.Constraint(
-        "UNIQUE (code, connection_id)",
-        "Session key must be unique per gateway connection.",
-    )
+    _sql_constraints = [
+        ("code_conn_uniq", "UNIQUE (code, connection_id)",
+         "Session key must be unique per gateway connection."),
+    ]
 
     @api.constrains("code")
     def _check_code(self):
@@ -218,7 +218,7 @@ class WhatsmeowSession(models.Model):
             return False
         for rule in self._sorted_inbound_rules():
             if rule.action == "optout" and rule._matches(facts):
-                partner.sudo()._whatsmeow_optout(self.env._(
+                partner.sudo()._whatsmeow_optout(_(
                     "Asked to stop over WhatsApp (%s)", rule.display_name or self.name))
                 _logger.info("whatsmeow: session %s opted partner %s out by rule %s",
                              self.code, partner.id, rule.id)
@@ -229,9 +229,9 @@ class WhatsmeowSession(models.Model):
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",
-            "name": self.env._("Inbound Filter Rules"),
+            "name": _("Inbound Filter Rules"),
             "res_model": "whatsmeow.session.rule",
-            "view_mode": "list,form",
+            "view_mode": "tree,form",
             "domain": [("session_id", "=", self.id)],
             "context": {"default_session_id": self.id},
         }

@@ -2,7 +2,7 @@ import logging
 
 from markupsafe import Markup
 
-from odoo import fields, models
+from odoo import _, fields, models
 from odoo.exceptions import AccessError
 
 _logger = logging.getLogger(__name__)
@@ -60,7 +60,8 @@ class WhatsmeowMessage(models.Model):
             # sudo with the real user as author, so the chatter still shows who
             # sent it.
             try:
-                record.check_access("read")
+                record.check_access_rights("read")
+                record.check_access_rule("read")
             except AccessError:
                 _logger.info(
                     "whatsmeow.message %s: no read access to %s(%s), not logged",
@@ -87,7 +88,7 @@ class WhatsmeowMessage(models.Model):
         body = (self.body or "").strip()
         if not body:
             # A media-only send still deserves a trace of what went out.
-            return Markup("<p>%s</p>") % self.env._(
+            return Markup("<p>%s</p>") % _(
                 "Sent %(kind)s: %(filename)s",
                 kind=self.message_type, filename=self.media_filename or "",
             )

@@ -4,29 +4,39 @@ from odoo import models
 class MailMessage(models.Model):
     _inherit = "mail.message"
 
-    def _message_reaction(self, content, action, partner, guest, store=None):
-        """Relay an operator's Discuss reaction out over WhatsApp.
+    # Odoo 16 has no single `_message_reaction` choke point (that arrived in
+    # 17): the controller calls `_message_add_reaction` / `_message_remove_
+    # reaction`, one per gesture, and both act for the *current* user. That is
+    # exactly the gesture we want to relay, so each is hooked separately.
 
-        `_message_reaction` is the single choke point every reaction passes
-        through (the controller calls it as sudo). We let it persist normally,
-        then send WhatsApp — but only for a real operator gesture: a reaction we
-        applied from an inbound event carries `whatsmeow_skip_send`, and the
-        correspondent's reaction is not an internal user, so neither loops out.
-        """
-        res = super()._message_reaction(content, action, partner, guest, store=store)
+    def _message_add_reaction(self, content):
+        res = super()._message_add_reaction(content)
         if not self.env.context.get("whatsmeow_skip_send"):
-            self._whatsmeow_relay_reaction(content, action, partner)
+            self._whatsmeow_relay_reaction(content, "add")
         return res
 
-    def _whatsmeow_relay_reaction(self, content, action, partner):
+    def _message_remove_reaction(self, content):
+        res = super()._message_remove_reaction(content)
+        if not self.env.context.get("whatsmeow_skip_send"):
+            self._whatsmeow_relay_reaction(content, "remove")
+        return res
+
+    def _whatsmeow_relay_reaction(self, content, action):
+        """Relay an operator's Discuss reaction out over WhatsApp.
+
+        A reaction we applied from an inbound event carries
+        `whatsmeow_skip_send` and never reaches here; the correspondent is not
+        an internal user and cannot react in Discuss at all, so nothing loops.
+        """
         self.ensure_one()
-        if self.model != "discuss.channel" or not self.res_id:
+        if self.model != "mail.channel" or not self.res_id:
             return
-        channel = self.env["discuss.channel"].browse(self.res_id)
+        channel = self.env["mail.channel"].sudo().browse(self.res_id)
         if channel.channel_type != "whatsmeow":
             return
         # only an internal operator's reaction is an outgoing gesture
-        if not partner or not any(not user.share for user in partner.user_ids):
+        partner = self.env.user.partner_id
+        if not partner or self.env.user.share:
             return
         wa = self.env["whatsmeow.message"].sudo().search(
             [("mail_message_id", "=", self.id)], limit=1)

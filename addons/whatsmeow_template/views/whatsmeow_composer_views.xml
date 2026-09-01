@@ -11,7 +11,7 @@
         <field name="batch_mode" invisible="1"/>
         <field name="record_count" invisible="1"/>
 
-        <div class="alert alert-info" role="status" invisible="not batch_mode">
+        <div class="alert alert-info" role="status" attrs="{'invisible': [('batch_mode', '=', False)]}">
           Each message is rendered from the template against its own record and
           queued; the recipient number is resolved per record. Records with no
           WhatsApp number are skipped and reported.
@@ -21,7 +21,7 @@
           <field name="template_id" options='{"no_open": True, "no_create": True}'
                  placeholder="Optional — write freely without one"/>
           <field name="session_id" options='{"no_open": True, "no_create": True}'/>
-          <field name="phone" invisible="batch_mode"
+          <field name="phone" attrs="{'invisible': [('batch_mode', '=', True)]}"
                  placeholder="e.g. 447700900123"/>
         </group>
         <!--
@@ -30,10 +30,10 @@
           a field value were neutralised at render time — so the operator is
           formatting the literal text that will go on the wire.
         -->
-        <field name="body" invisible="batch_mode" nolabel="1"
+        <field name="body" attrs="{'invisible': [('batch_mode', '=', True)]}" nolabel="1"
                widget="whatsmeow_body" class="w-100"
                placeholder="Your message…"/>
-        <div class="text-muted" invisible="not batch_mode">
+        <div class="text-muted" attrs="{'invisible': [('batch_mode', '=', False)]}">
           The message body comes from the template and cannot be edited for a
           batch — pick a single record to preview and tweak it.
         </div>

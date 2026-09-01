@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+  <!--
+    A WhatsApp conversation is not a chat with a colleague, and in the sidebar
+    it sits among them: without its own icon there is nothing to say the person
+    on the other end is on WhatsApp and cannot be @-mentioned, called, or
+    emailed. Core draws an online/offline dot for a chat and a hashtag for a
+    channel; ours draws WhatsApp's own mark, in WhatsApp's own green.
+
+    Inserted before the mailbox branch so it joins the same t-if chain rather
+    than shadowing the channel/chat cases above it.
+  -->
+  <t t-inherit="mail.ThreadIcon" t-inherit-mode="extension">
+    <xpath expr="//t[@t-elif='thread.mailbox']" position="before">
+      <t t-elif="thread.channel and thread.channel.channel_type === 'whatsmeow'">
+        <div class="o_ThreadIcon_whatsmeow fa fa-fw fa-whatsapp" title="WhatsApp conversation"/>
+      </t>
+    </xpath>
+  </t>
+
+</templates>

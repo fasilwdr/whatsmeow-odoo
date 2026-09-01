@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-  <record id="whatsmeow_template_view_list" model="ir.ui.view">
-    <field name="name">whatsmeow.template.list</field>
+  <record id="whatsmeow_template_view_tree" model="ir.ui.view">
+    <field name="name">whatsmeow.template.tree</field>
     <field name="model">whatsmeow.template</field>
     <field name="arch" type="xml">
-      <list string="WhatsApp Templates">
+      <tree string="WhatsApp Templates">
         <field name="sequence" widget="handle"/>
         <field name="name"/>
         <field name="model_id"/>
         <field name="session_id"/>
         <field name="phone_field" optional="hide"/>
-        <field name="active" column_invisible="1"/>
-      </list>
+        <field name="active" invisible="1"/>
+      </tree>
     </field>
   </record>
 
@@ -23,18 +23,18 @@
       <form string="WhatsApp Template">
         <header>
           <button name="action_unarchive" type="object" string="Activate"
-                  class="btn-primary" invisible="active"
+                  class="btn-primary" attrs="{'invisible': [('active', '=', True)]}"
                   help="Publish this template: it becomes available in the composer and in the record's Action menu."/>
           <button name="action_open_composer" type="object" string="Test Send"
-                  class="btn-secondary" invisible="not active"
+                  class="btn-secondary" attrs="{'invisible': [('active', '=', False)]}"
                   help="Open the composer on the first record of this model."/>
           <button name="action_archive" type="object" string="Archive"
-                  invisible="not active"
+                  attrs="{'invisible': [('active', '=', False)]}"
                   help="Withdraw this template until it is ready to use."/>
         </header>
         <sheet>
-          <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
-                  invisible="active"/>
+          <widget name="web_ribbon" title="Archived" bg_color="bg-danger"
+                  attrs="{'invisible': [('active', '=', True)]}"/>
           <div class="oe_title">
             <label for="name"/>
             <h1><field name="name" placeholder="e.g. Order Confirmation"/></h1>
@@ -48,7 +48,7 @@
             </group>
             <group>
               <field name="phone_field"
-                     placeholder="phone — leave empty to auto-detect" widget="field_selector" class="oe_inline" options="{'model': 'model', 'allow_properties': False}"/>
+                     placeholder="phone — leave empty to auto-detect"/>
             </group>
           </group>
           <notebook>
@@ -100,7 +100,7 @@
   <record id="whatsmeow_template_action" model="ir.actions.act_window">
     <field name="name">WhatsApp Templates</field>
     <field name="res_model">whatsmeow.template</field>
-    <field name="view_mode">list,form</field>
+    <field name="view_mode">tree,form</field>
     <field name="help" type="html">
       <p class="o_view_nocontent_smiling_face">Create a WhatsApp template</p>
       <p>

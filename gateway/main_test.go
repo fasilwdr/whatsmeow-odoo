@@ -473,6 +473,32 @@ func TestDescribeMessage(t *testing.T) {
 	}
 }
 
+// WhatsApp's own bookkeeping (ephemeral-timer syncs, revokes, app-state
+// notifications) has no body and no media, so it would otherwise reach Odoo as
+// an "[unsupported message type: protocol/...]" line an operator has to read
+// and dismiss. The handler drops those; this is the predicate it drops them by.
+func TestIsProtocolKind(t *testing.T) {
+	tests := []struct {
+		kind string
+		want bool
+	}{
+		{"protocol/EPHEMERAL_SYNC_RESPONSE", true},
+		{"protocol/REVOKE", true},
+		{"location", false},
+		{"contact", false},
+		{"poll", false},
+		{"text", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.kind, func(t *testing.T) {
+			if got := isProtocolKind(tt.kind); got != tt.want {
+				t.Errorf("isProtocolKind(%q) = %v, want %v", tt.kind, got, tt.want)
+			}
+		})
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Send idempotency
 // ---------------------------------------------------------------------------

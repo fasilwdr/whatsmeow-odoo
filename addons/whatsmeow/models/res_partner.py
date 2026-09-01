@@ -1,4 +1,4 @@
-from odoo import api, fields, models
+from odoo import _, api, fields, models
 
 
 class ResPartner(models.Model):
@@ -64,7 +64,7 @@ class ResPartner(models.Model):
         for rec in self:
             if rec.whatsmeow_optout and not rec.whatsmeow_optout_date:
                 rec.whatsmeow_optout_date = fields.Datetime.now()
-                rec.whatsmeow_optout_reason = self.env._("Set by hand")
+                rec.whatsmeow_optout_reason = _("Set by hand")
 
     def _whatsmeow_optout(self, reason):
         """Record an opt-out, keeping the first one's date and reason.

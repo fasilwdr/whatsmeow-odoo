@@ -98,7 +98,7 @@ The conversation-to-channel mapping is race-safe, so both messages land in the s
 
 ## Changelog
 
-### v19.0.1.1.0 — 2026-07-19
+### v16.0.1.1.0 — 2026-07-19
 - Map each WhatsApp conversation to a native Discuss channel, opt-in per session
 - Rule-based routing to operators, with default operators for unmatched conversations
 - Operator replies (with quoting and attachments) relayed live back to WhatsApp

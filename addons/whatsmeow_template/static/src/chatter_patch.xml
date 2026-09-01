@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
 
-  <t t-inherit="mail.Chatter" t-inherit-mode="extension">
-    <xpath expr="//button[hasclass('o-mail-Chatter-logNote')]" position="after">
-      <button t-if="hasWhatsmeowButton"
-              class="o-mail-Chatter-whatsmeow btn btn-secondary text-nowrap me-1"
-              t-att-class="{ 'my-2': !props.compactHeight }"
+  <t t-inherit="mail.ChatterTopbar" t-inherit-mode="extension">
+    <xpath expr="//button[hasclass('o_ChatterTopbar_buttonLogNote')]" position="after">
+      <button t-if="chatterTopbar.chatter.hasWhatsmeowButton"
+              class="o_ChatterTopbar_button o_ChatterTopbar_buttonWhatsmeow btn btn-light text-nowrap ms-2"
+              type="button"
               title="Send a WhatsApp message"
-              t-on-click="onClickWhatsmeow">
+              t-on-click="() => chatterTopbar.chatter.onClickWhatsmeow()">
         <i class="fa fa-whatsapp me-1" role="img"/>
         <span>WhatsApp</span>
       </button>

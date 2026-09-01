@@ -1,12 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+  <!-- Odoo 16 counts calls: `numbercall` defaults to 1, which would run each of
+       these exactly once and then deactivate it. -1 is "no limit". -->
   <record id="cron_whatsmeow_send_queue" model="ir.cron">
     <field name="name">Whatsmeow: process outgoing queue</field>
     <field name="model_id" ref="model_whatsmeow_message"/>
     <field name="state">code</field>
     <field name="code">model.cron_process_outgoing()</field>
+    <field name="user_id" ref="base.user_root"/>
     <field name="interval_number">1</field>
     <field name="interval_type">minutes</field>
+    <field name="numbercall">-1</field>
+    <field name="doall" eval="False"/>
     <field name="active" eval="True"/>
   </record>
 
@@ -15,8 +20,11 @@
     <field name="model_id" ref="model_whatsmeow_message"/>
     <field name="state">code</field>
     <field name="code">model.cron_fetch_media()</field>
+    <field name="user_id" ref="base.user_root"/>
     <field name="interval_number">1</field>
     <field name="interval_type">minutes</field>
+    <field name="numbercall">-1</field>
+    <field name="doall" eval="False"/>
     <field name="active" eval="True"/>
   </record>
 
@@ -25,8 +33,11 @@
     <field name="model_id" ref="model_whatsmeow_message"/>
     <field name="state">code</field>
     <field name="code">model.cron_check_numbers()</field>
+    <field name="user_id" ref="base.user_root"/>
     <field name="interval_number">15</field>
     <field name="interval_type">minutes</field>
+    <field name="numbercall">-1</field>
+    <field name="doall" eval="False"/>
     <field name="active" eval="True"/>
   </record>
 
@@ -35,8 +46,11 @@
     <field name="model_id" ref="model_whatsmeow_session"/>
     <field name="state">code</field>
     <field name="code">model.cron_refresh_all()</field>
+    <field name="user_id" ref="base.user_root"/>
     <field name="interval_number">5</field>
     <field name="interval_type">minutes</field>
+    <field name="numbercall">-1</field>
+    <field name="doall" eval="False"/>
     <field name="active" eval="True"/>
   </record>
 </odoo>

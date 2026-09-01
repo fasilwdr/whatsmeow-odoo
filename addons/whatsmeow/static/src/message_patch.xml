@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+  <t t-inherit="mail.Message" t-inherit-mode="extension">
+    <!-- Tag the root so the stylesheet can tint the bubble; the chatter's own
+         notes and comments are already colour-coded, so WhatsApp gets its own. -->
+    <xpath expr="//div[hasclass('o_Message')]" position="attributes">
+      <attribute name="t-att-data-whatsmeow">messageView.message.message_type === 'whatsmeow' ? '1' : undefined</attribute>
+    </xpath>
+
+    <!-- Badge the author, so a WhatsApp entry is distinguishable from an
+         ordinary note at a glance. It sits between the author name and the
+         timestamp — where a reader already looks to tell one message from
+         another, and where Odoo puts a message's own delivery icon.
+
+         Anchored on the date rather than on the name: the name is a
+         t-if/t-elif chain (partner, guest, bare email, anonymous) and slipping
+         an element between its branches would break the chain, so the badge
+         goes after the whole chain instead.
+
+         Wording is direction-neutral: core badges the inbound messages it
+         posts to a contact's chatter, and whatsmeow_template badges the
+         outgoing sends it logs on a record. -->
+    <xpath expr="//t[@t-if='messageView.message.date']" position="before">
+      <i t-if="messageView.message.message_type === 'whatsmeow'"
+         class="fa fa-whatsapp o-whatsmeow-badge me-1"
+         title="Via WhatsApp" role="img" aria-label="Via WhatsApp"/>
+    </xpath>
+  </t>
+
+</templates>

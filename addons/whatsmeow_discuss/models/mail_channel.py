@@ -1,12 +1,14 @@
 import logging
 
-from odoo import fields, models, tools
+from odoo import _, api, fields, models, tools
 
 _logger = logging.getLogger(__name__)
 
 
-class DiscussChannel(models.Model):
-    _inherit = "discuss.channel"
+class MailChannel(models.Model):
+    # Odoo 16 calls the model `mail.channel`; it was renamed to
+    # `discuss.channel` in 17.
+    _inherit = "mail.channel"
 
     channel_type = fields.Selection(
         selection_add=[("whatsmeow", "WhatsApp")],
@@ -22,20 +24,40 @@ class DiscussChannel(models.Model):
              "never a channel member, so they receive no Odoo notification.",
     )
 
-    # A conversation is (session, chat_jid). The partial unique index makes
-    # find-or-create race-safe, the same discipline as `_inbound_wa_id_uniq`:
-    # two inbound webhooks racing yield exactly one channel.
-    _wa_conversation_uniq = models.UniqueIndex(
-        "(whatsmeow_session_id, whatsmeow_chat_jid) WHERE channel_type = 'whatsmeow'",
-    )
+    def init(self):
+        super().init()
+        # A conversation is (session, chat_jid). The partial unique index makes
+        # find-or-create race-safe, the same discipline as the core module's
+        # inbound `wa_message_id` index. Odoo 16 has no declarative index, so it
+        # is created by hand — as `mail.message.reaction` does in core.
+        self.env.cr.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS mail_channel_wa_conversation_uniq
+                ON mail_channel (whatsmeow_session_id, whatsmeow_chat_jid)
+             WHERE channel_type = 'whatsmeow'
+        """)
 
-    def _types_allowing_unfollow(self):
-        # Operators may leave a conversation (reassignment); the channel unpins.
-        return super()._types_allowing_unfollow() + ["whatsmeow"]
+    # Odoo 16 gates neither unfollow nor read markers on the channel type:
+    # `_action_unfollow` works for any type, and `channel_info` sends the member
+    # list and `seen_partners_info` for every type but 'channel'. A WhatsApp
+    # conversation therefore already behaves like a private conversation, and
+    # the 17+ `_types_allowing_unfollow` / `_types_allowing_seen_infos` seams
+    # have no counterpart to override here.
 
-    def _types_allowing_seen_infos(self):
-        # Behave like a private conversation: members see read markers.
-        return super()._types_allowing_seen_infos() + ["whatsmeow"]
+    @api.returns("mail.message", lambda value: value.id)
+    def message_post(self, *, message_type="notification", **kwargs):
+        """Keep a conversation pinned for the operators attending it.
+
+        Core does this for chats and groups only (`is_chat or channel_type ==
+        'group'`), so without it an operator who unpinned a conversation would
+        never see it come back when the contact writes again — which is exactly
+        when they need it.
+        """
+        conversations = self.filtered(lambda c: c.channel_type == "whatsmeow")
+        conversations.mapped("channel_member_ids").sudo().write({
+            "is_pinned": True,
+            "last_interest_dt": fields.Datetime.now(),
+        })
+        return super().message_post(message_type=message_type, **kwargs)
 
     def _notify_thread(self, message, msg_vals=False, **kwargs):
         """Relay an operator's reply out over WhatsApp.
@@ -46,6 +68,18 @@ class DiscussChannel(models.Model):
         """
         rdata = super()._notify_thread(message, msg_vals=msg_vals, **kwargs)
         for channel in self.filtered(lambda c: c.channel_type == "whatsmeow"):
+            # Same nudge core sends for a chat: tell each operator's client the
+            # conversation just moved, so it surfaces (and re-sorts) live.
+            notifications = [
+                (member.partner_id, "mail.channel/last_interest_dt_changed", {
+                    "id": channel.id,
+                    "isServerPinned": member.is_pinned,
+                    "last_interest_dt": member.last_interest_dt,
+                })
+                for member in channel.channel_member_ids.filtered("partner_id")
+            ]
+            if notifications:
+                self.env["bus.bus"].sudo()._sendmany(notifications)
             channel._whatsmeow_relay(message)
         return rdata
 
@@ -126,7 +160,7 @@ class DiscussChannel(models.Model):
         (only comments do), so this cannot loop."""
         self.ensure_one()
         self.with_context(whatsmeow_skip_send=True).message_post(
-            body=self.env._("⚠️ WhatsApp could not send this reply: %s", error),
+            body=_("⚠️ WhatsApp could not send this reply: %s", error),
             message_type="notification",
             subtype_xmlid="mail.mt_note",
         )

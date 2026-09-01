@@ -125,7 +125,7 @@ Yes. Create a **Send WhatsApp** server action on the model, choose the template,
 
 ## Changelog
 
-### v19.0.1.0.0 — 2026-07-19
+### v16.0.1.0.0 — 2026-07-19
 - Initial release
 - Templates for any model, with `{{ object.field }}` placeholders and WhatsApp markup escaping
 - Static attachments and per-record generated PDF reports

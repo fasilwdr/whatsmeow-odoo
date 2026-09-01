@@ -26,6 +26,6 @@ $o-whatsmeow-border-base: mix($success, $body-color, 75%);
     padding: map-get($spacers, 2) map-get($spacers, 3);
 }
 
-.o-mail-Message[data-whatsmeow="1"] .o-mail-Message-body {
+.o_Message[data-whatsmeow="1"] .o_Message_prettyBody {
     @extend %o-whatsmeow-bubble;
 }

@@ -1,7 +1,7 @@
-# WhatsApp for Odoo 19 — whatsmeow connector
+# WhatsApp for Odoo 16 — whatsmeow connector
 
 [![License: LGPL-3.0](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)](LICENSE)
-[![Odoo](https://img.shields.io/badge/Odoo-19.0-714B67.svg)](https://github.com/odoo/odoo/tree/19.0)
+[![Odoo](https://img.shields.io/badge/Odoo-16.0-714B67.svg)](https://github.com/odoo/odoo/tree/16.0)
 [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8.svg)](https://go.dev)
 
 Send and receive WhatsApp messages from Odoo through a self-hosted gateway — no
@@ -40,7 +40,7 @@ One Odoo can drive several gateways; one gateway can hold several WhatsApp numbe
 
 ```mermaid
 flowchart LR
-    subgraph odoo["Odoo 19"]
+    subgraph odoo["Odoo 16"]
         C["whatsmeow.connection<br/><i>one gateway endpoint</i>"]
         S["whatsmeow.session<br/><i>one WhatsApp number</i>"]
         M["whatsmeow.message<br/><i>the message log</i>"]
@@ -80,7 +80,7 @@ first-match-wins: by chat, contact, phone, LID, chat type, message type, keyword
 whether the sender is new. A rejected message is never stored.
 
 **Discuss routing** *(bridge)* — an accepted message opens or continues a
-`discuss.channel`; operators reply by typing in the thread. Routing rules pick who
+`mail.channel`; operators reply by typing in the thread. Routing rules pick who
 attends. Reactions sync both ways.
 
 **Templates** *(bridge)* — send from any record via the chatter button, the Action
@@ -96,8 +96,8 @@ duplicate-with-empty-body quirk is merged so the real copy wins.
 
 | | |
 |---|---|
-| Odoo | 19.0 |
-| Python | 3.10+ (Odoo 19's minimum), with `qrcode` and `requests` |
+| Odoo | 16.0 |
+| Python | 3.8+ (Odoo 16's minimum), with `qrcode` and `requests` |
 | Gateway host | Debian 12/13 or Ubuntu 22.04/24.04 (systemd + apt), root access |
 | Go | 1.26+ — the installer provisions it if missing |
 | Build | a C compiler; `go-sqlite3` needs CGO |

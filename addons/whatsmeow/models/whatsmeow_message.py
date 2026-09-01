@@ -7,17 +7,16 @@ from datetime import timedelta
 
 from markupsafe import Markup
 
-from odoo import api, fields, models, modules
+from odoo import _, api, fields, models, modules
 from odoo.exceptions import UserError, ValidationError
-from odoo.tools import SQL
 
 from .whatsmeow_connection import MEDIA_TIMEOUT
 
 _logger = logging.getLogger(__name__)
 DIGITS = re.compile(r"\D")
 
-# Odoo 19's res.partner has no `mobile` field (it was merged into `phone`), but
-# localisation/OCA modules may add one back. Probe the model instead of assuming.
+# Odoo 16's res.partner has both `phone` and `mobile`, but a localisation can
+# drop or rename either. Probe the model instead of assuming.
 PHONE_FIELDS = ("phone", "mobile")
 
 # A JID's server says what kind of chat it is. Mirrors the constants in
@@ -210,9 +209,16 @@ class WhatsmeowMessage(models.Model):
     # settle it. Outgoing messages are excluded because they have no id until
     # the gateway answers, so they would all collide on NULL... which Postgres
     # permits, but the index would still be meaningless for them.
-    _inbound_wa_id_uniq = models.UniqueIndex(
-        "(wa_message_id) WHERE direction = 'in' AND wa_message_id IS NOT NULL",
-    )
+    def init(self):
+        super().init()
+        # Odoo 16 has no declarative partial index, and a partial unique index
+        # is not expressible as an _sql_constraints entry either, so it is
+        # created by hand — the same thing `mail.message.reaction` does in core.
+        self.env.cr.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS whatsmeow_message_inbound_wa_id_uniq
+                ON whatsmeow_message (wa_message_id)
+             WHERE direction = 'in' AND wa_message_id IS NOT NULL
+        """)
 
     @api.depends("chat_jid")
     def _compute_chat_type(self):
@@ -235,7 +241,7 @@ class WhatsmeowMessage(models.Model):
         for rec in self:
             if rec.direction == "out" and not (rec.phone or "").strip() \
                     and not (rec.chat_jid or "").strip():
-                raise ValidationError(self.env._(
+                raise ValidationError(_(
                     "A phone number or a chat is required to send a WhatsApp message."
                 ))
 
@@ -243,7 +249,7 @@ class WhatsmeowMessage(models.Model):
     def _check_chat_is_sendable(self):
         for rec in self:
             if rec.direction == "out" and rec.chat_type not in REPLYABLE_CHAT_TYPES:
-                raise ValidationError(self.env._(
+                raise ValidationError(_(
                     "WhatsApp messages can only be sent to a private or group chat, "
                     "not to a %s.", rec.chat_type,
                 ))
@@ -254,9 +260,9 @@ class WhatsmeowMessage(models.Model):
         # so only outgoing messages are required to be complete.
         for rec in self.filtered(lambda r: r.direction == "out"):
             if rec.message_type == "text" and not (rec.body or "").strip():
-                raise ValidationError(self.env._("A text message needs a body."))
+                raise ValidationError(_("A text message needs a body."))
             if rec.message_type != "text" and not rec.media_data:
-                raise ValidationError(self.env._(
+                raise ValidationError(_(
                     "A %s message needs a file attached.", rec.message_type,
                 ))
 
@@ -301,17 +307,19 @@ class WhatsmeowMessage(models.Model):
         if not columns:
             return partner
 
-        condition = SQL(" OR ").join(
-            SQL(
-                "regexp_replace(COALESCE(%s, ''), '\\D', '', 'g') LIKE %s",
-                SQL.identifier("res_partner", col), f"%{tail}",
-            )
+        # The column names come from `PHONE_FIELDS` filtered against the model's
+        # own `_fields`, so they are never user input; the tail is still passed
+        # as a parameter.
+        condition = " OR ".join(
+            """regexp_replace(COALESCE("res_partner"."%s", ''), '\\D', '', 'g') LIKE %%s"""
+            % col
             for col in columns
         )
-        self.env.cr.execute(SQL(
-            "SELECT id FROM res_partner WHERE active AND (%s) ORDER BY id LIMIT 1",
-            condition,
-        ))
+        self.env.cr.execute(
+            "SELECT id FROM res_partner WHERE active AND (%s) ORDER BY id LIMIT 1"
+            % condition,
+            [f"%{tail}"] * len(columns),
+        )
         row = self.env.cr.fetchone()
         return partner.browse(row[0]) if row else partner
 
@@ -417,13 +425,13 @@ class WhatsmeowMessage(models.Model):
         """Open a new outgoing message addressed back to this one's chat."""
         self.ensure_one()
         if not self.can_reply:
-            raise UserError(self.env._(
+            raise UserError(_(
                 "This message cannot be replied to: there is no chat to answer in."
             ))
         is_group = self.chat_type == "group"
         return {
             "type": "ir.actions.act_window",
-            "name": self.env._("Reply"),
+            "name": _("Reply"),
             "res_model": self._name,
             "view_mode": "form",
             "views": [(False, "form")],
@@ -479,12 +487,12 @@ class WhatsmeowMessage(models.Model):
         if not partner:
             return False
         if partner.whatsmeow_optout:
-            return self.env._(
+            return _(
                 "%s has opted out of WhatsApp messages.", partner.display_name)
         if partner.whatsmeow_registered == "no" and partner.whatsmeow_registered_date \
                 and partner.whatsmeow_registered_date >= fields.Datetime.now() - \
                 timedelta(days=REGISTRATION_TTL_DAYS):
-            return self.env._(
+            return _(
                 "%(name)s's number is not on WhatsApp (checked %(date)s).",
                 name=partner.display_name,
                 date=fields.Date.to_string(partner.whatsmeow_registered_date.date()),
@@ -693,7 +701,7 @@ class WhatsmeowMessage(models.Model):
 
         A seam, deliberately overridable: core posts to the correspondent's
         chatter (`_post_to_chatter`). The `whatsmeow_discuss` bridge overrides
-        this to route the message into a `discuss.channel` when its session opts
+        this to route the message into a `mail.channel` when its session opts
         in, and falls back to `super()` otherwise — so no bridge symbol is ever
         referenced from core; installing the bridge is what changes behaviour.
         """
@@ -715,28 +723,33 @@ class WhatsmeowMessage(models.Model):
                 "res_model": self._name,
                 "res_id": self.id,
             })
-            if self.is_voice_note:
-                # Flag a voice note so it plays inline (Discuss/chatter render a
-                # player) instead of showing as a download-only file. The metadata
-                # record is what Odoo's own voice recorder sets.
-                attachments._set_voice_metadata()
+            # Odoo 16 has no voice-note attachment metadata (`discuss.voice`
+            # arrived in 17), so a WhatsApp voice note is logged as an ordinary
+            # audio attachment. `is_voice_note` is still stored on the message,
+            # so the distinction is not lost — only the inline player is.
         # Name the group: posted on a partner's chatter, a group message would
         # otherwise read as though they had messaged us privately.
         if self.chat_type == "group":
-            label = self.env._(
+            label = _(
                 "WhatsApp group %(group)s (%(session)s)",
                 group=self.chat_name or self.chat_jid,
                 session=self.session_id.name,
             )
         else:
-            label = self.env._("WhatsApp (%s)", self.session_id.name)
+            label = _("WhatsApp (%s)", self.session_id.name)
         body = self.body or ""
         if not body and self.message_type != "text":
-            body = self.env._("sent %s", self.message_type)
+            body = _("sent %s", self.message_type)
         self.partner_id.message_post(
             # Markup(...) % args escapes the args: inbound text is untrusted.
             body=Markup("<p><b>%s</b><br/>%s</p>") % (label, body),
-            message_type="comment",
+            # Typed, not just labelled: the web client badges a 'whatsmeow'
+            # message with the WhatsApp mark and tints its bubble, so an
+            # operator scanning a busy chatter can tell at a glance which
+            # entries came over WhatsApp. The subtype is still mt_comment, so
+            # followers are notified exactly as before.
+            message_type="whatsmeow",
+            subtype_xmlid="mail.mt_comment",
             attachment_ids=attachments.ids,
         )
 

@@ -2,22 +2,23 @@
 <templates xml:space="preserve">
 
   <!--
-    The stock TextField markup, plus a toolbar floating over the selection.
-    `t-on-select` fires for mouse drags, shift-arrows and select-all alike, so
-    one handler covers every way a selection can appear.
+    The stock TextField markup (web.TextField), plus a toolbar floating over
+    the selection. `t-on-select` fires for mouse drags, shift-arrows and
+    select-all alike, so one handler covers every way a selection can appear.
   -->
-  <t t-name="whatsmeow_template.WhatsmeowBodyField">
+  <t t-name="whatsmeow_template.WhatsmeowBodyField" owl="1">
     <t t-if="props.readonly">
-      <span t-esc="props.record.data[props.name] or ''"/>
+      <span t-esc="props.value or ''"/>
     </t>
     <t t-else="">
       <div t-ref="div" class="o_whatsmeow_body position-relative">
         <textarea class="o_input"
-                  t-att-class="{ 'o_field_translate': isTranslatable }"
+                  t-att-class="{ 'o_field_translate': props.isTranslatable }"
                   t-att-id="props.id"
                   t-att-placeholder="props.placeholder"
                   t-att-rows="rowCount"
                   t-ref="textarea"
+                  t-on-input="onInput"
                   t-on-select="onSelect"
                   t-on-blur="onBlur"/>
         <div t-if="toolbar.visible"
@@ -45,23 +46,21 @@
             <i class="fa" t-att-class="mark.icon" role="img"/>
           </button>
         </div>
-        <div class="o_field_input_buttons">
-          <TranslationButton t-if="isTranslatable"
-                             fieldName="props.name"
-                             record="props.record"/>
-        </div>
+        <t t-if="props.isTranslatable">
+          <TranslationButton fieldName="props.name" record="props.record"/>
+        </t>
       </div>
       <!--
-        The preview reads the *record*, not the textarea, so it follows the
-        toolbar and plain typing through the one path both already take. It is
-        drawn as the chatter bubble a sent message becomes, so what an author
+        The preview reads the field's *value*, not the textarea, so it follows
+        the toolbar and plain typing through the one path both already take. It
+        is drawn as the chatter bubble a sent message becomes, so what an author
         checks here is what they will later see in the log.
 
         Placeholders stay unrendered on purpose: there is no record to render
         them against at this point, and showing `{{ object.name }}` as itself is
         honest about that where a fake value would not be.
       -->
-      <div t-if="props.record.data[props.name]" class="o_whatsmeow_body_preview mt-2">
+      <div t-if="props.value" class="o_whatsmeow_body_preview mt-2">
         <span class="o_whatsmeow_body_preview_label text-muted small">Preview</span>
         <div class="o_whatsmeow_body_preview_bubble" t-out="previewHtml"/>
       </div>

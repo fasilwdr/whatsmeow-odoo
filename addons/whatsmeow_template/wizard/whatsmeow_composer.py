@@ -3,7 +3,7 @@ import json
 import logging
 import re
 
-from odoo import api, fields, models
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
 _logger = logging.getLogger(__name__)
@@ -100,7 +100,7 @@ class WhatsmeowComposer(models.TransientModel):
     def _check_session(self):
         for comp in self:
             if not comp.session_id:
-                raise ValidationError(comp.env._(
+                raise ValidationError(_(
                     "Choose which WhatsApp number to send from."
                 ))
 
@@ -146,7 +146,7 @@ class WhatsmeowComposer(models.TransientModel):
         self.ensure_one()
         records = self._records()
         if not records:
-            raise UserError(self.env._("There is nothing to send this message to."))
+            raise UserError(_("There is nothing to send this message to."))
 
         template = self.template_id
         bodies = template._render_body(records.ids) if template else {}
@@ -172,7 +172,7 @@ class WhatsmeowComposer(models.TransientModel):
             vals_list.extend(self._message_vals(record, digits, body))
 
         if skipped and not vals_list:
-            raise UserError(self.env._(
+            raise UserError(_(
                 "None of the selected records have a WhatsApp number:\n%s",
                 "\n".join(skipped[:10]),
             ))
@@ -252,12 +252,12 @@ class WhatsmeowComposer(models.TransientModel):
     def _done_action(self, sent, skipped):
         self.ensure_one()
         if skipped:
-            message = self.env._(
+            message = _(
                 "%(sent)s message(s) queued. %(skipped)s record(s) had no WhatsApp "
                 "number and were skipped.", sent=sent, skipped=len(skipped),
             )
         else:
-            message = self.env._("%s message(s) queued.", sent)
+            message = _("%s message(s) queued.", sent)
         return {
             "type": "ir.actions.client",
             "tag": "display_notification",

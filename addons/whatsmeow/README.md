@@ -22,7 +22,7 @@ Register any number of gateway endpoints as connections, each with its own URL, 
 Start a session and Odoo renders the WhatsApp pairing QR right on the form. A scheduled action keeps each session's status current — Starting, Waiting for QR Scan, Connected, Disconnected, or Logged Out — so you always know which numbers are live.
 
 ### 💬 Send Text & Media, With Replies
-Compose text, images, video, audio, documents, or stickers from a message form. Reply to an inbound message to quote it in WhatsApp, and send voice notes that play inline. Sends can target a private chat or a group.
+Compose text, images, video, audio, documents, or stickers from a message form. Reply to an inbound message to quote it in WhatsApp, and send voice notes. Sends can target a private chat or a group.
 
 ### 🚦 Paced Outgoing Queue
 Outgoing messages go onto a throttled queue that spaces each number's sends apart by a random delay, takes turns between numbers so one busy session never stalls another, and carries an idempotency key so a mid-transaction crash can never send the same message twice. Failed sends are marked and can be retried.
@@ -37,7 +37,7 @@ A contact who asks to stop — by hand or by writing an opt-out keyword — is f
 Every session carries an ordered list of accept/reject rules matched on chat type, message kind, sender, phone, chat JID, LID, or a body keyword. Combine a default of Accept with reject rules for a blocklist, or a default of Reject with accept rules for an allowlist. A dedicated opt-out action flags the sender while still keeping the message on file.
 
 ### 🧾 Inbound Delivery to the Chatter
-An accepted message is matched to a contact on the last ten digits of their number and posted to their chatter with any media attached and voice notes flagged to play inline. Group messages are labelled with the group name so they never read as a private message. Optionally, a read receipt is sent the moment the message is accepted.
+An accepted message is matched to a contact on the last ten digits of their number and posted to their chatter with any media attached. Group messages are labelled with the group name so they never read as a private message. Optionally, a read receipt is sent the moment the message is accepted.
 
 ## Installation
 
@@ -151,9 +151,9 @@ The message is marked in error with the reason, and the rest of the queue keeps 
 
 ## Changelog
 
-### v19.0.1.5.0 — 2026-07-19
+### v16.0.1.5.0 — 2026-07-19
 - Warm-up ramp with per-session daily and hourly volume caps, rolling over at the number's own local midnight
 - Per-contact opt-out honoured across every send path, with opt-out keyword rules on inbound
 - Background number validation that skips queued sends to numbers not on WhatsApp
 - Per-session inbound filter rules (allowlist/blocklist) and optional automatic read receipts
-- Reply-with-quote, group messaging, and inline voice notes
+- Reply-with-quote, group messaging, and voice notes

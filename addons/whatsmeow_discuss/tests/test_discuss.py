@@ -29,7 +29,7 @@ class DiscussCommon(TransactionCase):
     def _user(cls, login):
         return cls.env["res.users"].create({
             "name": login.title(), "login": login,
-            "group_ids": [(6, 0, [cls.env.ref("base.group_user").id])],
+            "groups_id": [(6, 0, [cls.env.ref("base.group_user").id])],
         })
 
     def _inbound(self, **data):
@@ -46,7 +46,7 @@ class DiscussCommon(TransactionCase):
             self.ctrl._on_message(self.env, self.session, payload)
 
     def _channels(self):
-        return self.env["discuss.channel"].search([
+        return self.env["mail.channel"].search([
             ("channel_type", "=", "whatsmeow"),
             ("whatsmeow_session_id", "=", self.session.id),
         ])
@@ -182,9 +182,11 @@ class TestInboundToChannel(DiscussCommon):
         self.assertEqual(len(channel.message_ids.filtered(
             lambda m: m.message_type == "comment")), 2)
 
-    def test_voice_note_posts_a_playable_attachment(self):
-        # A voice note (ptt) must render as an inline player in Discuss, which
-        # needs discuss.voice.metadata on its attachment — not a download link.
+    def test_voice_note_posts_its_audio_attachment(self):
+        # Odoo 16 has no inline voice player (`discuss.voice.metadata` arrived
+        # in 17), so a voice note posts as an ordinary audio attachment. What
+        # must hold here is that the audio reaches the conversation at all, and
+        # that the message still records it was a voice note.
         msg = self.env["whatsmeow.message"].create({
             "session_id": self.session.id, "direction": "in", "state": "received",
             "chat_jid": "447700900001@s.whatsapp.net", "phone": "447700900001",
@@ -195,8 +197,9 @@ class TestInboundToChannel(DiscussCommon):
         })
         msg._deliver_inbound()
         posted = self._channels().message_ids.filtered(lambda m: m.attachment_ids)
-        self.assertTrue(posted.attachment_ids.voice_ids,
-                        "the voice note attachment should carry voice metadata")
+        self.assertEqual(posted.attachment_ids.mimetype, "audio/ogg")
+        self.assertEqual(posted.attachment_ids.name, "voice.ogg")
+        self.assertTrue(msg.is_voice_note)
 
     def test_routing_off_posts_to_chatter_and_makes_no_channel(self):
         self.session.route_to_discuss = False
@@ -259,8 +262,7 @@ class TestReactions(DiscussCommon):
     def test_operator_reaction_is_sent_over_whatsapp(self):
         with patch.object(type(self.session), "_gw",
                           return_value={"wa_message_id": "R1"}) as gw:
-            self.bubble.sudo()._message_reaction(
-                "🎉", "add", self.frontdesk.partner_id, self.env["mail.guest"])
+            self.bubble.with_user(self.frontdesk)._message_add_reaction("🎉")
         self.assertTrue(gw.called)
         path, payload = gw.call_args.args[1], gw.call_args.args[2]
         self.assertIn("/react", path)
@@ -271,12 +273,10 @@ class TestReactions(DiscussCommon):
     def test_operator_removing_a_reaction_clears_it_over_whatsapp(self):
         with patch.object(type(self.session), "_gw",
                           return_value={"wa_message_id": "R1"}):
-            self.bubble.sudo()._message_reaction(
-                "🎉", "add", self.frontdesk.partner_id, self.env["mail.guest"])
+            self.bubble.with_user(self.frontdesk)._message_add_reaction("🎉")
         with patch.object(type(self.session), "_gw",
                           return_value={"wa_message_id": "R2"}) as gw:
-            self.bubble.sudo()._message_reaction(
-                "🎉", "remove", self.frontdesk.partner_id, self.env["mail.guest"])
+            self.bubble.with_user(self.frontdesk)._message_remove_reaction("🎉")
         self.assertEqual(gw.call_args.args[2]["emoji"], "")
 
     def test_reaction_to_own_reply_is_flagged_from_me(self):
@@ -289,8 +289,7 @@ class TestReactions(DiscussCommon):
             ("session_id", "=", self.session.id), ("direction", "=", "out")], limit=1)
         with patch.object(type(self.session), "_gw",
                           return_value={"wa_message_id": "R1"}) as gw:
-            reply.mail_message_id.sudo()._message_reaction(
-                "👍", "add", self.frontdesk.partner_id, self.env["mail.guest"])
+            reply.mail_message_id.with_user(self.frontdesk)._message_add_reaction("👍")
         self.assertTrue(gw.call_args.args[2]["from_me"])
 
 
@@ -395,7 +394,7 @@ class TestOutboundRelay(DiscussCommon):
         with patch.object(type(self.session), "_gw",
                           side_effect=UserError("gateway down")), \
                 mute_logger("odoo.addons.whatsmeow.models.whatsmeow_message",
-                            "odoo.addons.whatsmeow_discuss.models.discuss_channel"):
+                            "odoo.addons.whatsmeow_discuss.models.mail_channel"):
             channel.with_user(self.frontdesk).message_post(
                 body="please reply", message_type="comment",
                 subtype_xmlid="mail.mt_comment")
@@ -427,14 +426,14 @@ class TestRelayOptOut(DiscussCommon):
         self.assertEqual(channel.whatsmeow_partner_id, contact)
 
         with patch.object(type(self.session), "_gw") as gw, \
-                mute_logger("odoo.addons.whatsmeow_discuss.models.discuss_channel"):
+                mute_logger("odoo.addons.whatsmeow_discuss.models.mail_channel"):
             channel.with_user(self.frontdesk).message_post(
                 body="are you there?", message_type="comment",
                 subtype_xmlid="mail.mt_comment",
             )
         self.assertEqual(gw.call_count, 0, "nothing may reach WhatsApp")
         note = self.env["mail.message"].search(
-            [("model", "=", "discuss.channel"), ("res_id", "=", channel.id)],
+            [("model", "=", "mail.channel"), ("res_id", "=", channel.id)],
             order="id desc", limit=1,
         )
         self.assertIn("opted out", note.body)

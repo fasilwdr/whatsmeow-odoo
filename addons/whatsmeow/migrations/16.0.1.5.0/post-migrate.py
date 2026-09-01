@@ -1,6 +1,6 @@
 """Start the warm-up ramp from a session's real history, not from today.
 
-19.0.1.5.0 adds the per-session daily volume cap (PLAN.md §12.2), which is
+16.0.1.5.0 adds the per-session daily volume cap (PLAN.md §12.2), which is
 enabled by default and grows from a day-1 allowance. A session that has been
 sending for months is not on day one, and treating it as such would throttle a
 working install down to ~20 messages a day overnight.

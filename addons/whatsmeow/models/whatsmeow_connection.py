@@ -37,10 +37,10 @@ class WhatsmeowConnection(models.Model):
     session_ids = fields.One2many("whatsmeow.session", "connection_id")
     session_count = fields.Integer(compute="_compute_session_count")
 
-    _webhook_secret_uniq = models.Constraint(
-        "UNIQUE (webhook_secret)",
-        "Each gateway connection must use a distinct webhook secret.",
-    )
+    _sql_constraints = [
+        ("webhook_secret_uniq", "UNIQUE (webhook_secret)",
+         "Each gateway connection must use a distinct webhook secret."),
+    ]
 
     @api.depends("session_ids")
     def _compute_session_count(self):
@@ -113,7 +113,7 @@ class WhatsmeowConnection(models.Model):
             "type": "ir.actions.act_window",
             "name": _("Sessions"),
             "res_model": "whatsmeow.session",
-            "view_mode": "list,form",
+            "view_mode": "tree,form",
             "domain": [("connection_id", "=", self.id)],
             "context": {"default_connection_id": self.id},
         }

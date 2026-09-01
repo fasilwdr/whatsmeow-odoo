@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+  <!--
+    A fourth tab beside All / Chat / Channels. WhatsApp conversations already
+    appear under "All", mixed in with internal chats and channels — which is
+    where an operator watching a busy number loses them. This is the same
+    filter mechanism core uses for its own tabs, so the tab needs no state of
+    its own: the list narrows on `NotificationListView.filter`.
+  -->
+  <t t-inherit="mail.MessagingMenu" t-inherit-mode="extension">
+    <xpath expr="//MessagingMenuTab[@tabId=&quot;'channel'&quot;]" position="after">
+      <MessagingMenuTab messagingMenu="messagingMenu" tabId="'whatsmeow'"/>
+    </xpath>
+  </t>
+
+  <t t-inherit="mail.MessagingMenuTab" t-inherit-mode="extension">
+    <xpath expr="//t[@t-elif=&quot;props.tabId === 'channel'&quot;]" position="after">
+      <t t-elif="props.tabId === 'whatsmeow'">WhatsApp</t>
+    </xpath>
+  </t>
+
+</templates>

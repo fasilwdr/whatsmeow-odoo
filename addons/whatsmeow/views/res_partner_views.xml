@@ -8,11 +8,14 @@
     <field name="arch" type="xml">
       <field name="category_id" position="after">
         <field name="whatsmeow_optout" groups="whatsmeow.group_whatsmeow_user"/>
-        <field name="whatsmeow_optout_date" invisible="not whatsmeow_optout"
+        <field name="whatsmeow_optout_date"
+               attrs="{'invisible': [('whatsmeow_optout', '=', False)]}"
                groups="whatsmeow.group_whatsmeow_user"/>
-        <field name="whatsmeow_optout_reason" invisible="not whatsmeow_optout"
+        <field name="whatsmeow_optout_reason"
+               attrs="{'invisible': [('whatsmeow_optout', '=', False)]}"
                groups="whatsmeow.group_whatsmeow_user"/>
-        <field name="whatsmeow_registered" invisible="not whatsmeow_registered"
+        <field name="whatsmeow_registered"
+               attrs="{'invisible': [('whatsmeow_registered', '=', False)]}"
                groups="whatsmeow.group_whatsmeow_user"/>
       </field>
     </field>

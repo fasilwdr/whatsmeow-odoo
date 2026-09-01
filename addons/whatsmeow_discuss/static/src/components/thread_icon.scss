@@ -1,0 +1,6 @@
+// WhatsApp's green, borrowed from whatsmeow's own stylesheet (loaded first by
+// dependency order) so the conversation icon, the chatter badge and the message
+// bubble are all the same green rather than three hand-picked ones.
+.o_ThreadIcon_whatsmeow {
+    color: $o-whatsmeow-green;
+}

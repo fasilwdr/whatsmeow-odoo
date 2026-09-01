@@ -1,6 +1,8 @@
-import { _t } from "@web/core/l10n/translation";
+/** @odoo-module **/
+
+import { _lt } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-import { TextField, textField } from "@web/views/fields/text/text_field";
+import { TextField } from "@web/views/fields/text/text_field";
 
 import { markup, useState } from "@odoo/owl";
 
@@ -25,19 +27,17 @@ import { applyMark, isInsideMonospace, MARKS, renderPreview } from "./whatsmeow_
  * The preview underneath does not walk that back. It is display-only and
  * one-way — nothing is ever read back out of it — so the markup is still the
  * only thing anyone edits, and still the only thing that is stored. It reads
- * the record rather than the textarea, which is what makes it reflect the
- * toolbar and typing alike without a second code path: both already go through
- * `record.update`, and Owl re-renders from there.
+ * the field's value rather than the textarea, which is what makes it reflect
+ * the toolbar and typing alike without a second code path: both already go
+ * through `props.update`, and Owl re-renders from there.
  */
 export class WhatsmeowBodyField extends TextField {
-    static template = "whatsmeow_template.WhatsmeowBodyField";
-
     setup() {
         super.setup();
         this.marks = Object.entries(MARKS).map(([name, mark]) => ({
             name,
             icon: mark.icon,
-            title: MARK_TITLES[name],
+            title: MARK_TITLES[name].toString(),
         }));
         this.toolbar = useState({ visible: false, top: 0, left: 0, inMonospace: false });
     }
@@ -54,7 +54,7 @@ export class WhatsmeowBodyField extends TextField {
      * it, never markup.
      */
     get previewHtml() {
-        return markup(renderPreview(this.props.record.data[this.props.name] || ""));
+        return markup(renderPreview(this.props.value || ""));
     }
 
     /**
@@ -79,7 +79,6 @@ export class WhatsmeowBodyField extends TextField {
     }
 
     onBlur() {
-        super.onBlur(...arguments);
         this.toolbar.visible = false;
     }
 
@@ -146,7 +145,7 @@ export class WhatsmeowBodyField extends TextField {
         // too, so the selection below lands on the new text whether or not the
         // re-render has flushed yet.
         textarea.value = result.value;
-        await this.props.record.update({ [this.props.name]: result.value });
+        await this.props.update(result.value);
 
         if (!this.textarea) {
             return;
@@ -168,17 +167,14 @@ const TOOLBAR_HEIGHT = 28;
 const TOOLBAR_GAP = 2;
 
 const MARK_TITLES = {
-    bold: _t("Bold"),
-    italic: _t("Italic"),
-    strikethrough: _t("Strikethrough"),
-    monospace: _t("Monospace"),
+    bold: _lt("Bold"),
+    italic: _lt("Italic"),
+    strikethrough: _lt("Strikethrough"),
+    monospace: _lt("Monospace"),
 };
 
-export const whatsmeowBodyField = {
-    ...textField,
-    component: WhatsmeowBodyField,
-    displayName: _t("WhatsApp Message"),
-    supportedTypes: ["text"],
-};
+WhatsmeowBodyField.template = "whatsmeow_template.WhatsmeowBodyField";
+WhatsmeowBodyField.displayName = _lt("WhatsApp Message");
+WhatsmeowBodyField.supportedTypes = ["text"];
 
-registry.category("fields").add("whatsmeow_body", whatsmeowBodyField);
+registry.category("fields").add("whatsmeow_body", WhatsmeowBodyField);

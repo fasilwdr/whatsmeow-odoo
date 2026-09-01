@@ -121,15 +121,17 @@ class TestMarkupEscaping(TemplateCommon):
     def test_a_clean_value_is_unchanged(self):
         self.assertEqual(self._render("Alice"), "Hello Alice, welcome.")
 
-    def test_a_default_still_applies_when_the_value_is_empty(self):
-        """Wrapping the expression must not disturb `||| default`.
+    def test_an_empty_value_renders_as_nothing(self):
+        """Wrapping the expression must not change what an empty value does.
 
-        Asserted against the *unrewritten* body rather than a literal, so the
-        test pins "the rewrite changes nothing here" instead of re-encoding
-        Odoo's own whitespace handling around the braces.
+        Odoo 16's inline_template has no `||| default` form (that arrived
+        later): a falsy value simply contributes nothing. Asserted against the
+        *unrewritten* body rather than a literal, so the test pins "the rewrite
+        changes nothing here" instead of re-encoding Odoo's own whitespace
+        handling around the braces.
         """
         template = self.template.copy({
-            "name": "With a default", "body": "Hi {{ object.comment ||| there }}",
+            "name": "With an empty value", "body": "Hi {{ object.comment }}!",
         })
         plain = template._render_template(
             template.body, template.model, self.alice.ids, engine="inline_template",
@@ -138,7 +140,7 @@ class TestMarkupEscaping(TemplateCommon):
             template._render_body(self.alice.ids)[self.alice.id],
             plain[self.alice.id],
         )
-        self.assertIn("there", plain[self.alice.id])
+        self.assertEqual(plain[self.alice.id], "Hi !")
 
     def test_the_stored_body_keeps_its_plain_expressions(self):
         """The rewrite is render-time only.
@@ -504,7 +506,7 @@ class TestAccess(TemplateCommon):
         super().setUpClass()
         cls.operator = cls.env["res.users"].create({
             "name": "Operator", "login": "wa_operator",
-            "group_ids": [(6, 0, [
+            "groups_id": [(6, 0, [
                 cls.env.ref("base.group_user").id,
                 cls.env.ref("whatsmeow.group_whatsmeow_user").id,
             ])],

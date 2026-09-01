@@ -1,6 +1,6 @@
 import json
 
-from odoo import api, fields, models
+from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
 
@@ -26,11 +26,11 @@ class IrActionsServer(models.Model):
     def _check_whatsmeow_template(self):
         for action in self.filtered(lambda a: a.state == "whatsmeow_send"):
             if not action.whatsmeow_template_id:
-                raise ValidationError(self.env._(
+                raise ValidationError(_(
                     "A 'Send WhatsApp' server action needs a template."
                 ))
             if action.whatsmeow_template_id.model_id != action.model_id:
-                raise ValidationError(self.env._(
+                raise ValidationError(_(
                     "Template '%(template)s' applies to %(template_model)s, but "
                     "this action runs on %(model)s.",
                     template=action.whatsmeow_template_id.name,

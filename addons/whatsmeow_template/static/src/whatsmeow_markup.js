@@ -1,3 +1,5 @@
+/** @odoo-module **/
+
 /**
  * WhatsApp text markers, as a pure string operation.
  *

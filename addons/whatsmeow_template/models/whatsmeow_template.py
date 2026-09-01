@@ -1,11 +1,10 @@
 import logging
 import re
 
-from odoo import api, fields, models
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
-# `time` here is safe_eval's *wrapped* module: Odoo 19 refuses a raw module in
-# an evaluation context, and this is the same object the report download route
-# and mail.template hand to print_report_name.
+# `time` here is safe_eval's *wrapped* module — the same object the report
+# download route and mail.template hand to print_report_name.
 from odoo.tools.osutil import clean_filename
 from odoo.tools.rendering_tools import parse_inline_template
 from odoo.tools.safe_eval import safe_eval, time
@@ -20,8 +19,7 @@ _logger = logging.getLogger(__name__)
 PHONE_LEAF_TYPES = ("char", "text")
 
 # Field names probed when a template sets no explicit `phone_field`, in order.
-# `PHONE_FIELDS` is core's own probe list (Odoo 19 dropped res.partner.mobile,
-# but a localisation may add it back), reused here so the fallback and
+# `PHONE_FIELDS` is core's own probe list, reused here so the fallback and
 # `_find_partner` never disagree about what counts as a phone column.
 PHONE_FALLBACK_PATHS = (
     *PHONE_FIELDS,
@@ -90,7 +88,7 @@ class WhatsmeowTemplate(models.Model):
     model = fields.Char(
         string='Related Document Model',
         related='model_id.model',
-        precompute=True, store=True, readonly=True)
+        store=True, readonly=True)
     session_id = fields.Many2one(
         "whatsmeow.session", string="Send From",
         help="Default WhatsApp number to send from. The composer can override it.",
@@ -122,10 +120,10 @@ class WhatsmeowTemplate(models.Model):
              "its model.",
     )
 
-    _name_model_uniq = models.Constraint(
-        "UNIQUE (name, model_id)",
-        "A template with this name already exists for that model.",
-    )
+    _sql_constraints = [
+        ("name_model_uniq", "UNIQUE (name, model_id)",
+         "A template with this name already exists for that model."),
+    ]
 
     @api.depends("model")
     def _compute_render_model(self):
@@ -148,7 +146,7 @@ class WhatsmeowTemplate(models.Model):
     def _check_report_model(self):
         for tmpl in self.filtered("report_id"):
             if tmpl.report_id.model != tmpl.model:
-                raise ValidationError(self.env._(
+                raise ValidationError(_(
                     "Report '%(report)s' is for model %(report_model)s, but this "
                     "template applies to %(model)s.",
                     report=tmpl.report_id.name, report_model=tmpl.report_id.model,
@@ -166,27 +164,27 @@ class WhatsmeowTemplate(models.Model):
         self.ensure_one()
         model = self.env.get(self.model)
         if model is None:
-            return self.env._("Model %s is not installed.", self.model)
+            return _("Model %s is not installed.", self.model)
         parts = [p.strip() for p in (path or "").split(".") if p.strip()]
         if not parts:
-            return self.env._("The recipient field path is empty.")
+            return _("The recipient field path is empty.")
         for index, part in enumerate(parts):
             field = model._fields.get(part)
             if field is None:
-                return self.env._(
+                return _(
                     "Field '%(field)s' does not exist on %(model)s.",
                     field=part, model=model._name,
                 )
             last = index == len(parts) - 1
             if last:
                 if field.type not in PHONE_LEAF_TYPES:
-                    return self.env._(
+                    return _(
                         "Field '%(field)s' on %(model)s is a %(type)s; a recipient "
                         "number must be a text field.",
                         field=part, model=model._name, type=field.type,
                     )
             elif field.type != "many2one":
-                return self.env._(
+                return _(
                     "Cannot follow '%(field)s' on %(model)s: only many2one fields "
                     "can be traversed in a recipient path.",
                     field=part, model=model._name,
@@ -199,7 +197,7 @@ class WhatsmeowTemplate(models.Model):
     def _render_body(self, res_ids):
         """{record id: rendered text}.
 
-        `inline_template` is the engine behind {{ object.field }} — Odoo 19
+        `inline_template` is the engine behind {{ object.field }} — Odoo 16
         offers inline_template/qweb/qweb_view, and it is the one mail.template
         uses for its subject. It is sandboxed, so a template author cannot
         reach beyond the record.
@@ -239,21 +237,10 @@ class WhatsmeowTemplate(models.Model):
         """
         self.ensure_one()
         parts = []
-        for literal, expression, default in parse_inline_template(self.body or ""):
+        for literal, expression in parse_inline_template(self.body or ""):
             parts.append(literal)
             if expression:
-                # `||| default` is the author's own literal, so it is left
-                # alone — same trust as the surrounding text. render_inline_
-                # template falls back to it when the value is falsy, and an
-                # escaped empty string is still empty, so that still holds.
-                #
-                # The default is re-emitted flush against `}}` because the
-                # parser's own `(.*?)\}\}` already captured whatever whitespace
-                # preceded them; padding it here would add a space to the
-                # rendered output on every round trip.
-                call = f"{MARKUP_ESCAPE_FN}({expression})"
-                parts.append(f"{{{{ {call} ||| {default}}}}}" if default
-                             else f"{{{{ {call} }}}}")
+                parts.append(f"{{{{ {MARKUP_ESCAPE_FN}({expression}) }}}}")
         return "".join(parts)
 
     def _escape_markup(self, value):
@@ -362,7 +349,7 @@ class WhatsmeowTemplate(models.Model):
             if tmpl.ref_ir_act_window:
                 continue
             action = self.env["ir.actions.act_window"].sudo().create({
-                "name": self.env._("Send WhatsApp (%s)", tmpl.name),
+                "name": _("Send WhatsApp (%s)", tmpl.name),
                 "type": "ir.actions.act_window",
                 "res_model": "whatsmeow.composer",
                 "context": repr({"default_template_id": tmpl.id}),
@@ -407,7 +394,7 @@ class WhatsmeowTemplate(models.Model):
                 tmpl.ref_ir_act_window.sudo().binding_model_id = tmpl.model_id.id
         if "name" in vals:
             for tmpl in self.filtered("ref_ir_act_window"):
-                tmpl.ref_ir_act_window.sudo().name = self.env._(
+                tmpl.ref_ir_act_window.sudo().name = _(
                     "Send WhatsApp (%s)", tmpl.name)
         return res
 
@@ -421,13 +408,13 @@ class WhatsmeowTemplate(models.Model):
         self.ensure_one()
         record = self.env[self.model].search([], limit=1)
         if not record:
-            raise UserError(self.env._(
+            raise UserError(_(
                 "There is no %s record to preview this template against.",
                 self.model_id.name,
             ))
         return {
             "type": "ir.actions.act_window",
-            "name": self.env._("Send WhatsApp"),
+            "name": _("Send WhatsApp"),
             "res_model": "whatsmeow.composer",
             "view_mode": "form",
             "views": [(self.env.ref(

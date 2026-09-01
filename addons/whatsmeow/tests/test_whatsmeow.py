@@ -33,8 +33,8 @@ class WhatsmeowCommon(TransactionCase):
 class TestConnection(WhatsmeowCommon):
 
     def test_webhook_secret_is_unique(self):
-        """Routing assumes secrets are unique; Odoo 19 silently drops
-        _sql_constraints, so assert the models.Constraint really exists."""
+        """Routing assumes secrets are unique, so assert the SQL constraint
+        really made it onto the table."""
         with self.assertRaises(IntegrityError), mute_logger("odoo.sql_db"):
             self.env["whatsmeow.connection"].create({
                 "name": "GW Two",
@@ -495,6 +495,26 @@ class TestReply(WhatsmeowCommon):
         self.assertIn("Site Team", post.body)
         self.assertIn("morning all", post.body)
 
+    def test_chatter_post_is_typed_as_whatsapp(self):
+        """The badge and the tinted bubble are driven by `message_type`, so the
+        post has to carry it: as a plain 'comment' it would be indistinguishable
+        from an ordinary note in the thread."""
+        partner = self.env["res.partner"].create({
+            "name": "Typed Contact", "phone": "+966 55 019 9016",
+        })
+        msg = self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "direction": "in", "state": "received",
+            "phone": "966550199016", "partner_id": partner.id,
+            "body": "hello", "wa_message_id": "TYPED-1",
+        })
+        msg._post_to_chatter()
+        post = self.env["mail.message"].search(
+            [("model", "=", "res.partner"), ("res_id", "=", partner.id)],
+            order="id desc", limit=1)
+        self.assertEqual(post.message_type, "whatsmeow")
+        # ...and still a discussion, so followers are notified as before.
+        self.assertEqual(post.subtype_id, self.env.ref("mail.mt_comment"))
+
 
 @tagged("post_install", "-at_install")
 class TestInboundDedup(WhatsmeowCommon):
@@ -760,7 +780,7 @@ class TestSecurity(WhatsmeowCommon):
         super().setUp()
         self.user = self.env["res.users"].create({
             "name": "Plain User", "login": "wm_user",
-            "group_ids": [(6, 0, [
+            "groups_id": [(6, 0, [
                 self.env.ref("base.group_user").id,
                 self.env.ref("whatsmeow.group_whatsmeow_user").id,
             ])],

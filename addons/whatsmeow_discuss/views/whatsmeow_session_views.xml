@@ -9,7 +9,7 @@
       <xpath expr="//div[@name='button_box']" position="inside">
         <button name="action_view_channels" type="object"
                 class="oe_stat_button" icon="fa-comments"
-                invisible="not route_to_discuss">
+                attrs="{'invisible': [('route_to_discuss', '=', False)]}">
           <field name="channel_count" widget="statinfo" string="Conversations"/>
         </button>
       </xpath>
@@ -19,22 +19,23 @@
           <group>
             <field name="route_to_discuss"/>
             <field name="auto_create_partner"
-                   invisible="not route_to_discuss"/>
+                   attrs="{'invisible': [('route_to_discuss', '=', False)]}"/>
           </group>
           <div class="alert alert-info" role="status"
-               invisible="not route_to_discuss">
+               attrs="{'invisible': [('route_to_discuss', '=', False)]}">
             Accepted inbound messages open a Discuss conversation instead of
             posting to the contact's chatter. The first message of each
             conversation is routed to operators by the rules below; a
             conversation that matches no rule goes to the default operators.
           </div>
-          <group invisible="not route_to_discuss">
+          <group attrs="{'invisible': [('route_to_discuss', '=', False)]}">
             <field name="route_fallback_user_ids" widget="many2many_tags"
                    string="Default operators"
                    options="{'no_create': True}"/>
           </group>
-          <field name="route_ids" invisible="not route_to_discuss">
-            <list editable="bottom">
+          <field name="route_ids"
+                 attrs="{'invisible': [('route_to_discuss', '=', False)]}">
+            <tree editable="bottom">
               <field name="sequence" widget="handle"/>
               <field name="name" string="Label" optional="show"/>
               <field name="chat_type"/>
@@ -48,9 +49,9 @@
               <field name="keyword"/>
               <field name="user_ids" widget="many2many_tags"
                      string="Attend by" options="{'no_create': True}"/>
-            </list>
+            </tree>
           </field>
-          <p class="text-muted" invisible="not route_to_discuss">
+          <p class="text-muted" attrs="{'invisible': [('route_to_discuss', '=', False)]}">
             A route matches when <b>every field you set</b> matches the
             conversation's first message; blank fields are wildcards. The first
             matching route (top to bottom) decides who attends. Use

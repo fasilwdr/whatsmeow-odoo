@@ -7,11 +7,11 @@
       <form>
         <header>
           <button name="action_start" type="object" string="Start / Pair" class="btn-primary"
-                  invisible="status in ('connected',)"/>
+                  attrs="{'invisible': [('status', 'in', ['connected'])]}"/>
           <button name="action_refresh" type="object" string="Refresh Status"
-                  invisible="status == 'draft'"/>
+                  attrs="{'invisible': [('status', '=', 'draft')]}"/>
           <button name="action_logout" type="object" string="Logout"
-                  invisible="status not in ('connected', 'qr', 'disconnected')"
+                  attrs="{'invisible': [('status', 'not in', ['connected', 'qr', 'disconnected'])]}"
                   confirm="Unpair this WhatsApp number? It will need a new QR scan."/>
           <field name="status" widget="statusbar"
                  statusbar_visible="draft,qr,connected"/>
@@ -29,11 +29,13 @@
           </div>
           <group>
             <group>
-              <field name="code" readonly="status != 'draft'" placeholder="client_acme"/>
-              <field name="connection_id" readonly="status != 'draft'"
+              <field name="code" attrs="{'readonly': [('status', '!=', 'draft')]}"
+                     placeholder="client_acme"/>
+              <field name="connection_id" attrs="{'readonly': [('status', '!=', 'draft')]}"
                      options="{'no_create': True}"/>
               <field name="jid"/>
-              <field name="last_error" invisible="not last_error" class="text-danger"/>
+              <field name="last_error" class="text-danger"
+                     attrs="{'invisible': [('last_error', '=', False)]}"/>
             </group>
             <group string="Send Throttle" name="throttle">
               <field name="send_delay_min"/>
@@ -46,26 +48,38 @@
                 warm up slowly.
               </div>
             </group>
-            <group>
-              <field name="qr_image" widget="image" nolabel="1" invisible="status != 'qr'"/>
-              <div invisible="status != 'qr'" class="text-muted">
-                Open WhatsApp on the phone: Linked Devices &#8594; Link a Device &#8594; scan this code.
-              </div>
-            </group>
           </group>
+          <!-- Outside the groups on purpose: an image inside a group cell is
+               capped by that cell's width (Bootstrap's .img-fluid sets
+               max-width: 100%), so `size` alone could never make the code
+               bigger. Full width here, and 340px is comfortably scannable. -->
+          <div class="text-center my-3"
+               attrs="{'invisible': [('status', '!=', 'qr')]}">
+            <field name="qr_image" widget="image" nolabel="1"
+                   options="{'size': [340, 340], 'zoom': True}"/>
+            <div class="text-muted mt-2">
+              Open WhatsApp on the phone: Linked Devices &#8594; Link a Device &#8594; scan this code.
+            </div>
+          </div>
           <notebook>
             <page string="Volume &amp; Warm-Up" name="warmup">
               <group>
                 <group string="Daily Allowance" name="warmup_caps">
                   <field name="warmup_enabled"/>
-                  <field name="tz" invisible="not warmup_enabled"/>
-                  <field name="warmup_start_date" invisible="not warmup_enabled"/>
-                  <field name="daily_cap_base" invisible="not warmup_enabled"/>
-                  <field name="daily_cap_growth" invisible="not warmup_enabled"/>
-                  <field name="daily_cap_max" invisible="not warmup_enabled"/>
-                  <field name="hourly_cap" invisible="not warmup_enabled"/>
+                  <field name="tz" attrs="{'invisible': [('warmup_enabled', '=', False)]}"/>
+                  <field name="warmup_start_date"
+                         attrs="{'invisible': [('warmup_enabled', '=', False)]}"/>
+                  <field name="daily_cap_base"
+                         attrs="{'invisible': [('warmup_enabled', '=', False)]}"/>
+                  <field name="daily_cap_growth"
+                         attrs="{'invisible': [('warmup_enabled', '=', False)]}"/>
+                  <field name="daily_cap_max"
+                         attrs="{'invisible': [('warmup_enabled', '=', False)]}"/>
+                  <field name="hourly_cap"
+                         attrs="{'invisible': [('warmup_enabled', '=', False)]}"/>
                 </group>
-                <group string="Today" name="warmup_usage" invisible="not warmup_enabled">
+                <group string="Today" name="warmup_usage"
+                       attrs="{'invisible': [('warmup_enabled', '=', False)]}">
                   <field name="daily_cap"/>
                   <field name="sent_today"/>
                   <field name="sent_this_hour"/>
@@ -85,12 +99,13 @@
             </page>
             <page string="Inbound Filtering" name="inbound_filtering">
               <div class="alert alert-info" role="status"
-                   invisible="inbound_default != 'accept' or inbound_rule_count == 0">
+                   attrs="{'invisible': ['|', ('inbound_default', '!=', 'accept'),
+                                              ('inbound_rule_count', '=', 0)]}">
                 <b>Blocklist</b> — accepting all inbound messages except those matched
                 by the rules below.
               </div>
               <div class="alert alert-warning" role="status"
-                   invisible="inbound_default != 'reject'">
+                   attrs="{'invisible': [('inbound_default', '!=', 'reject')]}">
                 <b>Allowlist</b> — rejecting all inbound messages except those matched
                 by the rules below.
               </div>
@@ -98,14 +113,14 @@
                 <field name="inbound_default"/>
                 <field name="auto_mark_read"/>
               </group>
-              <div class="text-muted" invisible="not auto_mark_read">
+              <div class="text-muted" attrs="{'invisible': [('auto_mark_read', '=', False)]}">
                 Accepted messages are marked read as soon as they arrive, so the
                 sender sees blue ticks before anyone has actually opened the
                 message — and the chat stops showing as unread on the phone.
                 Rejected messages are never marked.
               </div>
               <field name="inbound_rule_ids">
-                <list editable="bottom">
+                <tree editable="bottom">
                   <field name="sequence" widget="handle"/>
                   <field name="name" string="Label" optional="show"/>
                   <field name="action"/>
@@ -118,7 +133,7 @@
                   <field name="phones"/>
                   <field name="sender_lids" optional="hide"/>
                   <field name="keyword"/>
-                </list>
+                </tree>
               </field>
               <p class="text-muted">
                 An <b>Opt the sender out</b> rule — typically a keyword like
@@ -139,14 +154,14 @@
             </page>
             <page string="Messages" name="messages">
               <field name="message_ids" readonly="1">
-                <list>
+                <tree>
                   <field name="create_date" string="Date"/>
                   <field name="direction"/>
                   <field name="partner_id"/>
                   <field name="phone"/>
                   <field name="body"/>
                   <field name="state" widget="badge"/>
-                </list>
+                </tree>
               </field>
             </page>
           </notebook>
@@ -155,11 +170,11 @@
     </field>
   </record>
 
-  <record id="whatsmeow_session_view_list" model="ir.ui.view">
-    <field name="name">whatsmeow.session.list</field>
+  <record id="whatsmeow_session_view_tree" model="ir.ui.view">
+    <field name="name">whatsmeow.session.tree</field>
     <field name="model">whatsmeow.session</field>
     <field name="arch" type="xml">
-      <list decoration-success="status == 'connected'"
+      <tree decoration-success="status == 'connected'"
             decoration-danger="status in ('error', 'logged_out')"
             decoration-muted="status == 'draft'">
         <field name="name"/>
@@ -167,7 +182,7 @@
         <field name="connection_id"/>
         <field name="jid"/>
         <field name="status" widget="badge"/>
-      </list>
+      </tree>
     </field>
   </record>
 
@@ -193,7 +208,7 @@
   <record id="whatsmeow_session_action" model="ir.actions.act_window">
     <field name="name">Sessions</field>
     <field name="res_model">whatsmeow.session</field>
-    <field name="view_mode">list,form</field>
+    <field name="view_mode">tree,form</field>
     <field name="help" type="html">
       <p class="o_view_nocontent_smiling_face">Pair your first WhatsApp number</p>
       <p>Create a session, pick its gateway, then Start / Pair and scan the QR.</p>

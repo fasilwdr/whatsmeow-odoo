@@ -3,7 +3,7 @@ import logging
 from markupsafe import Markup
 from psycopg2 import IntegrityError
 
-from odoo import fields, models
+from odoo import _, fields, models
 from odoo.tools import plaintext2html
 
 from odoo.addons.whatsmeow.models.whatsmeow_match_mixin import _phone_tail
@@ -34,31 +34,66 @@ class WhatsmeowMessage(models.Model):
     def _apply_reaction(self, emoji, partner):
         """React on this message's Discuss bubble, mirroring WhatsApp's
         one-reaction-per-sender rule: a new emoji replaces the sender's previous
-        one, and an empty emoji clears it. Applied under `whatsmeow_skip_send`
-        so it is not echoed straight back out to WhatsApp."""
+        one, and an empty emoji clears it. The reaction rows are written
+        directly rather than through `mail.message._message_add_reaction`, which
+        in Odoo 16 always reacts as the current user — so this never reaches the
+        relay hooks and cannot be echoed back out to WhatsApp."""
         self.ensure_one()
         bubble = self.mail_message_id
         if not bubble:
             return  # not a routed conversation — no bubble to annotate
-        channel = (self.env["discuss.channel"].browse(bubble.res_id)
-                   if bubble.model == "discuss.channel"
-                   else self.env["discuss.channel"])
+        channel = (self.env["mail.channel"].sudo().browse(bubble.res_id)
+                   if bubble.model == "mail.channel"
+                   else self.env["mail.channel"])
+        if not channel:
+            return
         # A private chat's reactor may be unknown (LID-only); fall back to the
         # conversation's correspondent. A group reactor with no partner can't be
         # attributed, so it is dropped.
         reactor = partner or channel.whatsmeow_partner_id
         if not reactor:
             return
-        guest = self.env["mail.guest"]
-        bubble = bubble.sudo().with_context(whatsmeow_skip_send=True)
-        current = self.env["mail.message.reaction"].sudo().search([
+        # Odoo 16's `_message_add_reaction` always reacts *as the current user*,
+        # so it cannot attribute a reaction to the WhatsApp correspondent. The
+        # rows are therefore written directly and the channel is notified by
+        # hand — the same payload `mail.channel._message_add_reaction_after_hook`
+        # puts on the bus.
+        Reaction = self.env["mail.message.reaction"].sudo()
+        current = Reaction.search([
             ("message_id", "=", bubble.id), ("partner_id", "=", reactor.id),
-        ]).mapped("content")
-        for content in current:
-            if content != emoji:
-                bubble._message_reaction(content, "remove", reactor, guest)
-        if emoji and emoji not in current:
-            bubble._message_reaction(emoji, "add", reactor, guest)
+        ])
+        contents = current.mapped("content")
+        for reaction in current:
+            if reaction.content != emoji:
+                content = reaction.content
+                reaction.unlink()
+                self._wa_notify_reaction(channel, bubble, content, reactor, "remove")
+        if emoji and emoji not in contents:
+            Reaction.create({
+                "message_id": bubble.id,
+                "content": emoji,
+                "partner_id": reactor.id,
+            })
+            self._wa_notify_reaction(channel, bubble, emoji, reactor, "add")
+
+    def _wa_notify_reaction(self, channel, bubble, content, reactor, action):
+        """Tell open Discuss clients that a reaction appeared or went away."""
+        reactions = self.env["mail.message.reaction"].sudo().search([
+            ("message_id", "=", bubble.id), ("content", "=", content),
+        ])
+        command = "insert" if action == "add" else "insert-and-unlink"
+        self.env["bus.bus"]._sendone(channel, "mail.message/insert", {
+            "id": bubble.id,
+            "messageReactionGroups": [
+                ("insert" if reactions else "insert-and-unlink", {
+                    "content": content,
+                    "count": len(reactions),
+                    "guests": [],
+                    "message": {"id": bubble.id},
+                    "partners": [(command, {"id": reactor.id})],
+                }),
+            ],
+        })
 
     def _send_reaction(self, emoji):
         """Send (or clear, when emoji is empty) a WhatsApp reaction on this
@@ -126,15 +161,15 @@ class WhatsmeowMessage(models.Model):
     def _wa_channel_name(self, partner):
         self.ensure_one()
         if self.chat_type == "group":
-            return self.chat_name or self.chat_jid or self.env._("WhatsApp Group")
+            return self.chat_name or self.chat_jid or _("WhatsApp Group")
         return (partner.name or self.push_name or self.phone or self.chat_jid
-                or self.env._("WhatsApp"))
+                or _("WhatsApp"))
 
     # -- find or create the conversation's channel ---------------------------
     def _wa_get_or_create_channel(self):
         self.ensure_one()
         session = self.session_id
-        Channel = self.env["discuss.channel"].sudo()
+        Channel = self.env["mail.channel"].sudo()
         domain = [
             ("channel_type", "=", "whatsmeow"),
             ("whatsmeow_session_id", "=", session.id),
@@ -157,7 +192,6 @@ class WhatsmeowMessage(models.Model):
             "whatsmeow_session_id": session.id,
             "whatsmeow_chat_jid": self.chat_jid or "",
             "whatsmeow_partner_id": partner.id or False,
-            "channel_member_ids": [(0, 0, {"partner_id": pid}) for pid in operator_pids],
         }
         try:
             with self.env.cr.savepoint():
@@ -170,14 +204,21 @@ class WhatsmeowMessage(models.Model):
                          "database", self.chat_jid)
             return Channel.search(domain, limit=1)
 
-        # discuss.channel.create always adds the acting user (here the webhook's
-        # sudo user) as a member. Trim membership back to exactly the routed
-        # operators, so "member == attending operator" holds — including the
-        # empty case (a conversation nobody was routed to).
-        extra = channel.channel_member_ids.filtered(
-            lambda m: m.partner_id.id not in operator_pids)
-        if extra:
-            extra.unlink()
+        # mail.channel.create always adds the acting user (here the webhook's
+        # sudo user) as a member. Clear membership, so "member == attending
+        # operator" holds — including the empty case (a conversation nobody was
+        # routed to).
+        channel.channel_member_ids.unlink()
+        if operator_pids:
+            # Through `add_members` rather than a create command, because that
+            # is what pushes `mail.channel/joined` (with the channel_info the
+            # client needs) onto each operator's bus. Members written straight
+            # into the create appear only after a reload — from the operator's
+            # side that looks exactly like routing not working.
+            # `post_joined_message=False`: nobody joined anything, a contact
+            # wrote in, and a "joined the channel" line would just be noise.
+            channel.add_members(partner_ids=operator_pids,
+                                post_joined_message=False)
         return channel
 
     # -- post the inbound message as a bubble --------------------------------
@@ -191,15 +232,13 @@ class WhatsmeowMessage(models.Model):
                 "name": self.media_filename or "whatsapp-media",
                 "datas": self.media_data,
                 "mimetype": self.media_mimetype or "application/octet-stream",
-                "res_model": "discuss.channel",
+                "res_model": "mail.channel",
                 "res_id": channel.id,
             })
-            if self.is_voice_note:
-                # A WhatsApp voice note (ptt) plays inline in Discuss only if the
-                # attachment carries discuss.voice.metadata — otherwise it renders
-                # as a plain "download" file. This is the flag Odoo's own recorder
-                # sets (see discuss_channel._create_attachments_for_post).
-                attachments._set_voice_metadata()
+            # Odoo 16's Discuss has no inline voice-note player (the
+            # `discuss.voice.metadata` flag arrived in 17), so a WhatsApp voice
+            # note posts as an ordinary audio attachment. `is_voice_note` still
+            # records what it was.
         # In a group the author is the participant who wrote; in a private chat
         # it is the correspondent. The correspondent is the message *author*,
         # not a channel *member*, so operators get notified while the WhatsApp
@@ -207,7 +246,7 @@ class WhatsmeowMessage(models.Model):
         author = self.partner_id or channel.whatsmeow_partner_id
         body = self.body or ""
         if not body and self.message_type != "text":
-            body = self.env._("sent %s", self.message_type)
+            body = _("sent %s", self.message_type)
         # Inbound WhatsApp text is untrusted; plaintext2html escapes it (and
         # renders newlines), the same guarantee as the chatter's Markup(...) % .
         # A WhatsApp reply quotes the message it answers; Discuss shows the same
@@ -217,7 +256,7 @@ class WhatsmeowMessage(models.Model):
         # and a quote of a message from before the conversation was routed has
         # no bubble at all.
         parent = self.reply_to_id.mail_message_id
-        if parent.model != "discuss.channel" or parent.res_id != channel.id:
+        if parent.model != "mail.channel" or parent.res_id != channel.id:
             parent = self.env["mail.message"]
         posted = channel.with_context(whatsmeow_skip_send=True).message_post(
             body=plaintext2html(body) if body else Markup(""),

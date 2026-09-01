@@ -1,6 +1,6 @@
 """Drop duplicate inbound messages so the new unique index can be created.
 
-Until 19.0.1.1.0 the webhook deduped with a search-then-create, which cannot
+Until 16.0.1.1.0 the webhook deduped with a search-then-create, which cannot
 hold against the gateway's concurrent retries, and WhatsApp itself delivers
 some messages twice — the first copy empty, the second real. Both left two
 rows sharing one wa_message_id, which the unique index would now refuse.

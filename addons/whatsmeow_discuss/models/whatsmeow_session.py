@@ -1,4 +1,4 @@
-from odoo import api, fields, models
+from odoo import _, api, fields, models
 
 
 class WhatsmeowSession(models.Model):
@@ -37,13 +37,17 @@ class WhatsmeowSession(models.Model):
     def _compute_channel_count(self):
         # Non-stored, no depends: recomputed on read, which is all a smart
         # button needs. A grouped count avoids one query per session.
-        counts = dict(self.env["discuss.channel"]._read_group(
+        groups = self.env["mail.channel"].sudo().read_group(
             [("channel_type", "=", "whatsmeow"),
              ("whatsmeow_session_id", "in", self.ids)],
-            groupby=["whatsmeow_session_id"], aggregates=["__count"],
-        ))
+            fields=["whatsmeow_session_id"], groupby=["whatsmeow_session_id"],
+        )
+        counts = {
+            group["whatsmeow_session_id"][0]: group["whatsmeow_session_id_count"]
+            for group in groups if group["whatsmeow_session_id"]
+        }
         for rec in self:
-            rec.channel_count = counts.get(rec, 0)
+            rec.channel_count = counts.get(rec.id, 0)
 
     def _route_users(self, facts):
         """The operators who should attend a conversation opened by this message.
@@ -63,9 +67,9 @@ class WhatsmeowSession(models.Model):
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",
-            "name": self.env._("WhatsApp Conversations"),
-            "res_model": "discuss.channel",
-            "view_mode": "list,form",
+            "name": _("WhatsApp Conversations"),
+            "res_model": "mail.channel",
+            "view_mode": "tree,form",
             "domain": [("channel_type", "=", "whatsmeow"),
                        ("whatsmeow_session_id", "=", self.id)],
             "context": {"create": False},

@@ -1,8 +1,7 @@
-import { Chatter } from "@mail/chatter/web_portal/chatter";
+/** @odoo-module **/
 
-import { _t } from "@web/core/l10n/translation";
-import { patch } from "@web/core/utils/patch";
-import { useService } from "@web/core/utils/hooks";
+import { registerPatch } from "@mail/model/model_core";
+import { attr } from "@mail/model/model_field";
 import { session } from "@web/session";
 
 /**
@@ -15,49 +14,49 @@ import { session } from "@web/session";
  * button only renders when the session says WhatsApp is usable at all — see
  * `ir.http.session_info` — so an install with no gateway configured looks
  * untouched.
+ *
+ * Odoo 16's chatter is a messaging *model* (`Chatter`) rendered by the
+ * `ChatterTopbar` component, so the button lives here rather than on a
+ * component class.
  */
-patch(Chatter.prototype, {
-    setup() {
-        super.setup();
-        this.action = useService("action");
-    },
-
-    get hasWhatsmeowButton() {
-        // A record has to exist before it can be messaged: threadId is false
-        // while a form is still being created.
-        return Boolean(session.whatsmeow_can_send && this.props.threadId);
-    },
-
-    onClickWhatsmeow() {
-        this.action.doAction(
-            {
-                type: "ir.actions.act_window",
-                name: _t("Send WhatsApp"),
-                res_model: "whatsmeow.composer",
-                views: [[false, "form"]],
-                view_mode: "form",
-                target: "new",
-                context: {
-                    active_model: this.props.threadModel,
-                    active_id: this.props.threadId,
-                    active_ids: [this.props.threadId],
+registerPatch({
+    name: "Chatter",
+    recordMethods: {
+        onClickWhatsmeow() {
+            this.env.services.action.doAction(
+                {
+                    type: "ir.actions.act_window",
+                    name: this.env._t("Send WhatsApp"),
+                    res_model: "whatsmeow.composer",
+                    views: [[false, "form"]],
+                    view_mode: "form",
+                    target: "new",
+                    context: {
+                        active_model: this.threadModel,
+                        active_id: this.threadId,
+                        active_ids: [this.threadId],
+                    },
                 },
+                {
+                    // The send is logged on the record's chatter through the
+                    // normal outbound path, so refresh what the user is looking
+                    // at once the composer closes.
+                    onClose: () => {
+                        if (this.exists() && this.thread) {
+                            this.refresh();
+                        }
+                    },
+                }
+            );
+        },
+    },
+    fields: {
+        hasWhatsmeowButton: attr({
+            compute() {
+                // A record has to exist before it can be messaged: threadId is
+                // false while a form is still being created.
+                return Boolean(session.whatsmeow_can_send && this.threadId);
             },
-            {
-                // The message lands on the record's chatter through the normal
-                // inbound/outbound path, so refresh what the user is looking at.
-                //
-                // `requestList` alone is not enough: the form chatter's list is
-                // activities/attachments/followers/… and *not* "messages", and
-                // `Thread.fetchThreadData` only calls `fetchNewMessages()` when
-                // "messages" is in it — so the log we just wrote never arrived
-                // until the form itself was reloaded. Same shape as core's
-                // `onActivityChanged`, plus the scroll core does after a post.
-                onClose: () => {
-                    this.state.jumpThreadPresent++;
-                    this.load(this.state.thread, [...this.requestList, "messages"]);
-                },
-            }
-        );
+        }),
     },
 });

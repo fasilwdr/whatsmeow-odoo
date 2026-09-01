@@ -8,8 +8,8 @@
     <field name="arch" type="xml">
       <xpath expr="//field[@name='state']" position="after">
         <field name="whatsmeow_template_id"
-               invisible="state != 'whatsmeow_send'"
-               required="state == 'whatsmeow_send'"
+               attrs="{'invisible': [('state', '!=', 'whatsmeow_send')],
+                       'required': [('state', '=', 'whatsmeow_send')]}"
                options="{'no_create_edit': True}"/>
       </xpath>
     </field>
