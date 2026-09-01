@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+  <record id="whatsmeow_session_view_form_marketing" model="ir.ui.view">
+    <field name="name">whatsmeow.session.form.marketing</field>
+    <field name="model">whatsmeow.session</field>
+    <field name="inherit_id" ref="whatsmeow.whatsmeow_session_view_form"/>
+    <field name="arch" type="xml">
+      <notebook position="inside">
+        <page string="Marketing" name="marketing"
+              groups="whatsmeow_marketing.group_whatsmeow_marketing_user">
+          <group>
+            <group string="Share of the daily allowance">
+              <field name="marketing_daily_share"/>
+              <div colspan="2" class="text-muted">
+                Campaigns may use this share of today's allowance; the rest is
+                left for order confirmations and operator replies. The pacing
+                between messages and the warm-up ramp apply to campaigns exactly
+                as they do to everything else.
+              </div>
+            </group>
+            <group string="Opt-out keywords">
+              <field name="marketing_stop_keywords"/>
+              <field name="marketing_start_keywords"/>
+              <div colspan="2" class="text-muted">
+                Matched on the whole message, not as a substring, and honoured
+                even when the inbound filter would otherwise drop the message.
+                This stops marketing only — for an absolute stop, add an inbound
+                rule with the action <b>Opt the sender out</b>.
+              </div>
+            </group>
+          </group>
+        </page>
+      </notebook>
+    </field>
+  </record>
+
+</odoo>

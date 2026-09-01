@@ -65,8 +65,9 @@ arrives at `/whatsmeow/webhook`, routed to the right connection by the
 | `whatsmeow` | Connections, sessions, the message log, media, inbound filtering, opt-out and volume caps. Posts inbound to the partner's chatter. | Yes |
 | `whatsmeow_discuss` | Attend WhatsApp conversations in Odoo Discuss — one channel per chat, operator replies, rule-based routing, two-way reactions. | Optional |
 | `whatsmeow_template` | Saved, field-interpolated message bodies (`{{ object.name }}`), attachments and generated PDF reports, a chatter *Send WhatsApp* button and a *Send WhatsApp* server action. | Optional |
+| `whatsmeow_marketing` | Mass campaigns: broadcast lists and contacts, audiences by filter or dynamic list, per-recipient delivered/read/replied/failed tracking, `/stop`–`/start`, and replies handled in Discuss. Depends on the two bridges above. | Optional |
 
-Both bridges are opt-in and change nothing until installed.
+The bridges are opt-in and change nothing until installed.
 
 ## Features
 
@@ -134,6 +135,8 @@ Add `addons/` to your Odoo `addons_path`, then:
 odoo-bin -c odoo.conf -d <database> -i whatsmeow --stop-after-init
 # optional bridges
 odoo-bin -c odoo.conf -d <database> -i whatsmeow_discuss,whatsmeow_template --stop-after-init
+# mass campaigns (pulls in both bridges)
+odoo-bin -c odoo.conf -d <database> -i whatsmeow_marketing --stop-after-init
 ```
 
 ### 3. Pair a number

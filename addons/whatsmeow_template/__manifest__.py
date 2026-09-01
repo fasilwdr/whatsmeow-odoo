@@ -1,6 +1,6 @@
 {
     "name": "Whatsmeow Templates & Composer",
-    "version": "19.0.1.0.0",
+    "version": "19.0.1.1.0",
     "summary": "Send templated WhatsApp messages from a record of any model",
     "description": """
 Send WhatsApp from any Odoo record.

@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+  <record id="whatsmeow_broadcast_list_view_list" model="ir.ui.view">
+    <field name="name">whatsmeow.broadcast.list.list</field>
+    <field name="model">whatsmeow.broadcast.list</field>
+    <field name="arch" type="xml">
+      <list string="Broadcast Lists">
+        <field name="name"/>
+        <field name="contact_count"/>
+        <field name="optout_count"/>
+        <field name="user_id" optional="show"/>
+        <field name="active" column_invisible="1"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="whatsmeow_broadcast_list_view_form" model="ir.ui.view">
+    <field name="name">whatsmeow.broadcast.list.form</field>
+    <field name="model">whatsmeow.broadcast.list</field>
+    <field name="arch" type="xml">
+      <form string="Broadcast List">
+        <sheet>
+          <div class="oe_button_box" name="button_box">
+            <button name="action_view_contacts" type="object"
+                    class="oe_stat_button" icon="fa-users">
+              <field name="contact_count" widget="statinfo" string="Contacts"/>
+            </button>
+          </div>
+          <widget name="web_ribbon" title="Archived" bg_color="text-bg-secondary"
+                  invisible="active"/>
+          <div class="oe_title">
+            <label for="name"/>
+            <h1><field name="name" placeholder="e.g. Ramadan 2026 offers"/></h1>
+          </div>
+          <group>
+            <group>
+              <field name="user_id"/>
+              <field name="active" invisible="1"/>
+            </group>
+            <group>
+              <field name="optout_count"/>
+            </group>
+          </group>
+          <notebook>
+            <page string="Contacts" name="contacts">
+              <field name="contact_ids" widget="many2many"
+                     context="{'default_list_ids': [(4, id)]}">
+                <list>
+                  <field name="name"/>
+                  <field name="phone"/>
+                  <field name="optout" widget="boolean_toggle"/>
+                  <field name="partner_id" optional="show"/>
+                </list>
+              </field>
+            </page>
+            <page string="Notes" name="notes">
+              <field name="note" nolabel="1"/>
+            </page>
+          </notebook>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="whatsmeow_broadcast_list_view_search" model="ir.ui.view">
+    <field name="name">whatsmeow.broadcast.list.search</field>
+    <field name="model">whatsmeow.broadcast.list</field>
+    <field name="arch" type="xml">
+      <search string="Broadcast Lists">
+        <field name="name"/>
+        <filter name="archived" string="Archived" domain="[('active', '=', False)]"/>
+        <group name="group_by">
+          <filter name="group_owner" string="Owner" context="{'group_by': 'user_id'}"/>
+        </group>
+      </search>
+    </field>
+  </record>
+
+  <record id="whatsmeow_broadcast_list_action" model="ir.actions.act_window">
+    <field name="name">Broadcast Lists</field>
+    <field name="res_model">whatsmeow.broadcast.list</field>
+    <field name="view_mode">list,form</field>
+    <field name="help" type="html">
+      <p class="o_view_nocontent_smiling_face">Create a broadcast list</p>
+      <p>
+        A broadcast list is an audience: the WhatsApp equivalent of a mailing
+        list. A campaign can send to several at once, and the same number is
+        only ever messaged once per campaign.
+      </p>
+    </field>
+  </record>
+
+</odoo>

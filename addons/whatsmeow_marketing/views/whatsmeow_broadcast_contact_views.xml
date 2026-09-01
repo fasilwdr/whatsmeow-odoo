@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+  <record id="whatsmeow_broadcast_contact_view_list" model="ir.ui.view">
+    <field name="name">whatsmeow.broadcast.contact.list</field>
+    <field name="model">whatsmeow.broadcast.contact</field>
+    <field name="arch" type="xml">
+      <list string="Broadcast Contacts" multi_edit="1">
+        <field name="name"/>
+        <field name="phone"/>
+        <field name="list_ids" widget="many2many_tags" optional="show"/>
+        <field name="partner_id" optional="show"/>
+        <field name="optout" optional="show" widget="boolean_toggle"/>
+        <field name="user_id" optional="hide"/>
+        <field name="active" column_invisible="1"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="whatsmeow_broadcast_contact_view_form" model="ir.ui.view">
+    <field name="name">whatsmeow.broadcast.contact.form</field>
+    <field name="model">whatsmeow.broadcast.contact</field>
+    <field name="arch" type="xml">
+      <form string="Broadcast Contact">
+        <header>
+          <button name="action_convert_to_partner" type="object" string="Convert to Contact"
+                  class="btn-primary" invisible="partner_id"
+                  help="Create or link a real Odoo contact for this number."/>
+          <button name="action_open_partner" type="object" string="Open Contact"
+                  invisible="not partner_id"/>
+        </header>
+        <sheet>
+          <widget name="web_ribbon" title="Opted Out" bg_color="text-bg-danger"
+                  invisible="not optout"/>
+          <widget name="web_ribbon" title="Archived" bg_color="text-bg-secondary"
+                  invisible="active"/>
+          <div class="oe_title">
+            <label for="name"/>
+            <h1><field name="name" placeholder="e.g. Sara Ahmed"/></h1>
+          </div>
+          <group>
+            <group>
+              <field name="phone" placeholder="+44 7700 900123"/>
+              <field name="partner_id" readonly="1"/>
+              <field name="user_id"/>
+              <field name="active" invisible="1"/>
+            </group>
+            <group>
+              <field name="optout"/>
+              <field name="optout_date" invisible="not optout"/>
+              <field name="optout_reason" invisible="not optout"/>
+            </group>
+          </group>
+          <notebook>
+            <page string="Lists" name="lists">
+              <field name="list_ids" widget="many2many_tags"
+                     options="{'no_quick_create': True}"/>
+            </page>
+            <page string="Campaign History" name="history">
+              <field name="trace_ids" readonly="1">
+                <list>
+                  <field name="campaign_id"/>
+                  <field name="sent_date"/>
+                  <field name="state"/>
+                  <field name="replied" widget="boolean_toggle"/>
+                </list>
+              </field>
+            </page>
+            <page string="Notes" name="notes">
+              <field name="note" nolabel="1" placeholder="Where this number came from…"/>
+            </page>
+          </notebook>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="whatsmeow_broadcast_contact_view_search" model="ir.ui.view">
+    <field name="name">whatsmeow.broadcast.contact.search</field>
+    <field name="model">whatsmeow.broadcast.contact</field>
+    <field name="arch" type="xml">
+      <search string="Broadcast Contacts">
+        <field name="name"/>
+        <field name="phone" filter_domain="[('phone_digits', 'ilike', self)]"/>
+        <field name="list_ids"/>
+        <filter name="sendable" string="Sendable" domain="[('optout', '=', False)]"/>
+        <filter name="opted_out" string="Opted Out" domain="[('optout', '=', True)]"/>
+        <separator/>
+        <filter name="converted" string="Converted" domain="[('partner_id', '!=', False)]"/>
+        <filter name="not_converted" string="Not Converted"
+                domain="[('partner_id', '=', False)]"/>
+        <filter name="archived" string="Archived" domain="[('active', '=', False)]"/>
+        <group name="group_by">
+          <filter name="group_list" string="Broadcast List" context="{'group_by': 'list_ids'}"/>
+          <filter name="group_owner" string="Owner" context="{'group_by': 'user_id'}"/>
+        </group>
+      </search>
+    </field>
+  </record>
+
+  <record id="whatsmeow_broadcast_contact_action" model="ir.actions.act_window">
+    <field name="name">Broadcast Contacts</field>
+    <field name="res_model">whatsmeow.broadcast.contact</field>
+    <field name="view_mode">list,form</field>
+    <field name="help" type="html">
+      <p class="o_view_nocontent_smiling_face">Add a broadcast contact</p>
+      <p>
+        A broadcast contact is a name and a WhatsApp number, kept out of your
+        real contacts until it proves to be worth keeping. Import a list here,
+        then convert the people who answer.
+      </p>
+    </field>
+  </record>
+
+</odoo>

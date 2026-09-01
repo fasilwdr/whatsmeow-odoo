@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+  <menuitem id="menu_whatsmeow_marketing_root" name="WhatsApp Marketing"
+            web_icon="whatsmeow_marketing,static/description/icon.png"
+            groups="whatsmeow_marketing.group_whatsmeow_marketing_user" sequence="61"/>
+
+  <menuitem id="menu_whatsmeow_marketing_campaigns" name="Campaigns"
+            parent="menu_whatsmeow_marketing_root"
+            action="whatsmeow_marketing_campaign_action" sequence="10"/>
+
+  <menuitem id="menu_whatsmeow_marketing_audience" name="Audience"
+            parent="menu_whatsmeow_marketing_root" sequence="20"/>
+
+  <menuitem id="menu_whatsmeow_broadcast_lists" name="Broadcast Lists"
+            parent="menu_whatsmeow_marketing_audience"
+            action="whatsmeow_broadcast_list_action" sequence="10"/>
+
+  <menuitem id="menu_whatsmeow_broadcast_contacts" name="Broadcast Contacts"
+            parent="menu_whatsmeow_marketing_audience"
+            action="whatsmeow_broadcast_contact_action" sequence="20"/>
+
+  <menuitem id="menu_whatsmeow_marketing_reporting" name="Reporting"
+            parent="menu_whatsmeow_marketing_root" sequence="30"/>
+
+  <menuitem id="menu_whatsmeow_marketing_traces" name="Recipients"
+            parent="menu_whatsmeow_marketing_reporting"
+            action="whatsmeow_marketing_trace_action" sequence="10"/>
+
+  <menuitem id="menu_whatsmeow_marketing_config" name="Configuration"
+            parent="menu_whatsmeow_marketing_root"
+            groups="whatsmeow_marketing.group_whatsmeow_marketing_manager"
+            sequence="90"/>
+
+  <menuitem id="menu_whatsmeow_marketing_filters" name="Dynamic Lists"
+            parent="menu_whatsmeow_marketing_config"
+            action="whatsmeow_marketing_filter_action" sequence="10"/>
+
+</odoo>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+  <record id="res_partner_view_form_marketing" model="ir.ui.view">
+    <field name="name">res.partner.form.whatsmeow.marketing</field>
+    <field name="model">res.partner</field>
+    <field name="inherit_id" ref="whatsmeow.view_partner_form_whatsmeow"/>
+    <field name="arch" type="xml">
+      <field name="whatsmeow_optout" position="after">
+        <field name="whatsmeow_marketing_optout"
+               groups="whatsmeow_marketing.group_whatsmeow_marketing_user"/>
+        <field name="whatsmeow_marketing_optout_date"
+               invisible="not whatsmeow_marketing_optout"
+               groups="whatsmeow_marketing.group_whatsmeow_marketing_user"/>
+        <field name="whatsmeow_marketing_optout_reason"
+               invisible="not whatsmeow_marketing_optout"
+               groups="whatsmeow_marketing.group_whatsmeow_marketing_user"/>
+      </field>
+    </field>
+  </record>
+
+  <record id="res_partner_view_search_marketing" model="ir.ui.view">
+    <field name="name">res.partner.search.whatsmeow.marketing</field>
+    <field name="model">res.partner</field>
+    <field name="inherit_id" ref="whatsmeow.view_res_partner_filter_whatsmeow"/>
+    <field name="arch" type="xml">
+      <filter name="whatsmeow_unregistered" position="after">
+        <filter name="whatsmeow_marketing_optout" string="WhatsApp Marketing Opt-Out"
+                domain="[('whatsmeow_marketing_optout', '=', True)]"
+                groups="whatsmeow_marketing.group_whatsmeow_marketing_user"/>
+      </filter>
+    </field>
+  </record>
+
+</odoo>

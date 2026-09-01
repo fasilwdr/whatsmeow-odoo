@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+  <record id="whatsmeow_marketing_campaign_view_list" model="ir.ui.view">
+    <field name="name">whatsmeow.marketing.campaign.list</field>
+    <field name="model">whatsmeow.marketing.campaign</field>
+    <field name="arch" type="xml">
+      <list string="Campaigns">
+        <field name="name"/>
+        <field name="session_id"/>
+        <field name="total_count" string="Recipients"/>
+        <field name="sent_count"/>
+        <field name="delivered_count" optional="show"/>
+        <field name="read_count" optional="show"/>
+        <field name="replied_count" optional="show"/>
+        <field name="failed_count" optional="show" decoration-danger="failed_count &gt; 0"/>
+        <field name="sent_date" optional="hide"/>
+        <field name="user_id" optional="hide"/>
+        <field name="state" widget="badge"
+               decoration-info="state == 'sending'"
+               decoration-success="state == 'sent'"
+               decoration-muted="state in ('draft', 'cancelled')"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="whatsmeow_marketing_campaign_view_form" model="ir.ui.view">
+    <field name="name">whatsmeow.marketing.campaign.form</field>
+    <field name="model">whatsmeow.marketing.campaign</field>
+    <field name="arch" type="xml">
+      <form string="Campaign">
+        <header>
+          <button name="action_send" type="object" string="Send" class="btn-primary"
+                  invisible="state != 'draft'"
+                  confirm="Start sending this campaign? Messages go out gradually, within this number's daily allowance."/>
+          <button name="action_send_test" type="object" string="Send Test"
+                  invisible="state != 'draft' or not test_phone"/>
+          <button name="action_open_recipients" type="object" string="Preview Recipients"
+                  invisible="state != 'draft'"/>
+          <button name="action_cancel" type="object" string="Cancel"
+                  invisible="state not in ('draft', 'sending')"
+                  confirm="Stop this campaign? Messages already sent stay sent; the rest are cancelled."/>
+          <button name="action_reset_draft" type="object" string="Back to Draft"
+                  invisible="state != 'cancelled'"/>
+          <field name="state" widget="statusbar" statusbar_visible="draft,sending,sent"/>
+        </header>
+        <sheet>
+          <div class="oe_button_box" name="button_box">
+            <button name="action_view_traces" type="object"
+                    class="oe_stat_button" icon="fa-users" invisible="state == 'draft'">
+              <field name="total_count" widget="statinfo" string="Recipients"/>
+            </button>
+            <button name="action_view_sent" type="object"
+                    class="oe_stat_button" icon="fa-paper-plane" invisible="state == 'draft'">
+              <field name="sent_count" widget="statinfo" string="Sent"/>
+            </button>
+            <button name="action_view_delivered" type="object"
+                    class="oe_stat_button" icon="fa-check" invisible="state == 'draft'">
+              <field name="delivered_count" widget="statinfo" string="Delivered"/>
+            </button>
+            <button name="action_view_read" type="object"
+                    class="oe_stat_button" icon="fa-check-circle" invisible="state == 'draft'">
+              <field name="read_count" widget="statinfo" string="Read"/>
+            </button>
+            <button name="action_view_replied" type="object"
+                    class="oe_stat_button" icon="fa-reply" invisible="state == 'draft'">
+              <field name="replied_count" widget="statinfo" string="Replied"/>
+            </button>
+            <button name="action_view_failed" type="object"
+                    class="oe_stat_button" icon="fa-exclamation-triangle"
+                    invisible="state == 'draft' or failed_count == 0">
+              <field name="failed_count" widget="statinfo" string="Failed"/>
+            </button>
+            <button name="action_view_skipped" type="object"
+                    class="oe_stat_button" icon="fa-ban"
+                    invisible="state == 'draft' or skipped_count == 0">
+              <field name="skipped_count" widget="statinfo" string="Skipped"/>
+            </button>
+          </div>
+          <div class="oe_title">
+            <label for="name"/>
+            <h1><field name="name" placeholder="e.g. Eid offer — Riyadh"/></h1>
+          </div>
+          <group>
+            <group>
+              <field name="session_id" options="{'no_create': True}"
+                     readonly="state != 'draft'"/>
+              <field name="user_id" readonly="state != 'draft'"/>
+              <field name="render_model" invisible="1"/>
+            </group>
+            <group>
+              <field name="scheduled_date" readonly="state != 'draft'"/>
+              <field name="sent_date" invisible="state != 'sent'"/>
+              <field name="pending_count" string="Still waiting"
+                     invisible="state != 'sending'"/>
+            </group>
+          </group>
+          <notebook>
+            <page string="Recipients" name="recipients">
+              <group>
+                <group>
+                  <field name="recipient_source" widget="radio"
+                         readonly="state != 'draft'"/>
+                </group>
+                <group>
+                  <field name="recipient_preview_count" string="Matches right now"
+                         invisible="state != 'draft'"/>
+                </group>
+              </group>
+              <group invisible="recipient_source != 'list'">
+                <field name="broadcast_list_ids" widget="many2many_tags" nolabel="1"
+                       colspan="2" options="{'no_quick_create': True}"
+                       readonly="state != 'draft'"/>
+              </group>
+              <group invisible="recipient_source == 'list'">
+                <field name="filter_id" invisible="recipient_source != 'filter'"
+                       options="{'no_create': True}" readonly="state != 'draft'"/>
+                <field name="mailing_model_id" options="{'no_create': True}"
+                       readonly="state != 'draft'"/>
+                <field name="mailing_model_name" invisible="1"/>
+              </group>
+              <field name="mailing_domain" widget="domain"
+                     invisible="recipient_source == 'list'"
+                     readonly="state != 'draft'"
+                     options="{'model': 'mailing_model_name', 'in_dialog': True}"/>
+              <div class="text-muted mt-2">
+                The same number is never messaged twice by one campaign, even if
+                it appears in several lists and in the filter — duplicates are
+                recorded as skipped so you can see why.
+              </div>
+            </page>
+            <page string="Message" name="message">
+              <group>
+                <field name="template_id" options="{'no_create': True}"
+                       domain="[('model', '=', render_model)]"
+                       readonly="state != 'draft'"/>
+              </group>
+              <field name="body" nolabel="1" widget="whatsmeow_body" class="w-100"
+                     readonly="state != 'draft'"
+                     placeholder="Hi {{ object.name }}, our Eid offer is live until Friday."/>
+              <div class="alert alert-warning mt-2" role="alert"
+                   invisible="not body_is_static">
+                <field name="body_is_static" invisible="1"/>
+                This message has no placeholders, so every recipient gets a
+                byte-identical copy — one of the clearest signs of a bulk
+                sender. Adding <code>{{ object.name }}</code> alone changes that.
+              </div>
+              <group string="Attachment">
+                <field name="attachment_ids" widget="many2many_binary" nolabel="1"
+                       colspan="2" readonly="state != 'draft'"/>
+              </group>
+              <div class="text-muted">
+                One file per campaign: a campaign sends one message per
+                recipient, and the body travels as its caption.
+              </div>
+            </page>
+            <page string="Replies" name="replies">
+              <group>
+                <group>
+                  <field name="reply_window_days" readonly="state == 'sent'"/>
+                  <field name="route_to_discuss"/>
+                </group>
+                <group>
+                  <field name="route_user_ids" widget="many2many_tags"
+                         invisible="not route_to_discuss"
+                         options="{'no_create': True}"/>
+                </group>
+              </group>
+              <div class="text-muted">
+                Replies open a Discuss conversation attended by these operators.
+                The sending number must itself have <b>Route inbound to Discuss</b>
+                switched on, otherwise replies keep landing on the contact's
+                chatter as before.
+              </div>
+            </page>
+            <page string="Test" name="test" invisible="state != 'draft'">
+              <group>
+                <field name="test_phone" placeholder="+44 7700 900123"/>
+              </group>
+              <div class="text-muted">
+                Sent immediately and rendered against the first recipient, so the
+                placeholders are exercised on real data. It creates no trace.
+              </div>
+            </page>
+          </notebook>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="whatsmeow_marketing_campaign_view_search" model="ir.ui.view">
+    <field name="name">whatsmeow.marketing.campaign.search</field>
+    <field name="model">whatsmeow.marketing.campaign</field>
+    <field name="arch" type="xml">
+      <search string="Campaigns">
+        <field name="name"/>
+        <field name="session_id"/>
+        <field name="user_id"/>
+        <filter name="my" string="My Campaigns" domain="[('user_id', '=', uid)]"/>
+        <separator/>
+        <filter name="draft" string="Draft" domain="[('state', '=', 'draft')]"/>
+        <filter name="sending" string="Sending" domain="[('state', '=', 'sending')]"/>
+        <filter name="sent" string="Sent" domain="[('state', '=', 'sent')]"/>
+        <group name="group_by">
+          <filter name="group_state" string="Status" context="{'group_by': 'state'}"/>
+          <filter name="group_session" string="Send From" context="{'group_by': 'session_id'}"/>
+          <filter name="group_owner" string="Owner" context="{'group_by': 'user_id'}"/>
+        </group>
+      </search>
+    </field>
+  </record>
+
+  <record id="whatsmeow_marketing_campaign_action" model="ir.actions.act_window">
+    <field name="name">Campaigns</field>
+    <field name="res_model">whatsmeow.marketing.campaign</field>
+    <field name="view_mode">list,form</field>
+    <field name="help" type="html">
+      <p class="o_view_nocontent_smiling_face">Create a WhatsApp campaign</p>
+      <p>
+        Pick an audience, write one message, and send. Copies go out gradually,
+        inside the sending number's daily allowance — a WhatsApp number that
+        blasts is a WhatsApp number that gets banned.
+      </p>
+    </field>
+  </record>
+
+</odoo>
