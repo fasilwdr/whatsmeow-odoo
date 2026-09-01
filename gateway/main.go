@@ -288,8 +288,20 @@ func makeEventHandler(s *Session) func(interface{}) {
 			// placeholder text.
 			placeholder := false
 			if text == "" && media == nil {
+				kind := describeMessage(v)
+				if isProtocolKind(kind) {
+					// WhatsApp's own bookkeeping — an ephemeral-timer sync, an
+					// app-state notification, a revoke — not something a person
+					// wrote. Nobody sent it and nobody can act on it, so it is
+					// dropped here rather than reaching Odoo as an
+					// "[unsupported message type: protocol/...]" line an
+					// operator has to read and dismiss. Odoo's inbound filter
+					// cannot catch these: a keyword rule deliberately never
+					// matches a placeholder body.
+					return
+				}
 				// Nothing we can render - still tell Odoo something arrived.
-				text = "[unsupported message type: " + describeMessage(v) + "]"
+				text = "[unsupported message type: " + kind + "]"
 				placeholder = true
 			}
 			sender := v.Info.Sender.ToNonAD()
@@ -633,10 +645,20 @@ func describeMessage(v *events.Message) string {
 	case msg.GetReactionMessage() != nil:
 		return "reaction"
 	case msg.GetProtocolMessage() != nil:
-		return "protocol/" + msg.GetProtocolMessage().GetType().String()
+		return protocolKindPrefix + msg.GetProtocolMessage().GetType().String()
 	default:
 		return v.Info.Type
 	}
+}
+
+// protocolKindPrefix is what describeMessage() labels a ProtocolMessage with.
+const protocolKindPrefix = "protocol/"
+
+// isProtocolKind says whether describeMessage() named WhatsApp's own protocol
+// traffic rather than something a person sent. Kept beside describeMessage so
+// the two cannot drift apart.
+func isProtocolKind(kind string) bool {
+	return strings.HasPrefix(kind, protocolKindPrefix)
 }
 
 // reactionOf returns the reaction inside a message (unwrapping ephemeral/

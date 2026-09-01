@@ -46,13 +46,18 @@
                 warm up slowly.
               </div>
             </group>
-            <group>
-              <field name="qr_image" widget="image" nolabel="1" invisible="status != 'qr'"/>
-              <div invisible="status != 'qr'" class="text-muted">
-                Open WhatsApp on the phone: Linked Devices &#8594; Link a Device &#8594; scan this code.
-              </div>
-            </group>
           </group>
+          <!-- Outside the groups on purpose: an image inside a group cell is
+               capped by that cell's width (Bootstrap's .img-fluid sets
+               max-width: 100%), so `size` alone could never make the code
+               bigger. Full width here, and 340px is comfortably scannable. -->
+          <div class="text-center my-3" invisible="status != 'qr'">
+            <field name="qr_image" widget="image" nolabel="1"
+                   options="{'size': [340, 340], 'zoom': True}"/>
+            <div class="text-muted mt-2">
+              Open WhatsApp on the phone: Linked Devices &#8594; Link a Device &#8594; scan this code.
+            </div>
+          </div>
           <notebook>
             <page string="Volume &amp; Warm-Up" name="warmup">
               <group>

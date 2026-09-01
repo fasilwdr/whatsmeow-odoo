@@ -1,3 +1,4 @@
+from . import mail_message
 from . import res_partner
 from . import whatsmeow_connection
 from . import whatsmeow_session

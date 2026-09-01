@@ -5,6 +5,8 @@ from markupsafe import Markup
 from odoo import fields, models
 from odoo.exceptions import AccessError
 
+from odoo.addons.whatsmeow.models.whatsmeow_markup import render_markup
+
 _logger = logging.getLogger(__name__)
 
 
@@ -81,8 +83,12 @@ class WhatsmeowMessage(models.Model):
             rec.mail_message_id = message.id
 
     def _chatter_body(self):
-        """The body as it should read in the chatter: the message text, with
-        WhatsApp's line breaks preserved."""
+        """The body as it should read in the chatter: what the recipient sees.
+
+        Rendered through the same grammar as the composer's preview, so an
+        operator who formatted a message and checked it there finds the same
+        thing in the log — bold as bold, not as `*asterisks*`.
+        """
         self.ensure_one()
         body = (self.body or "").strip()
         if not body:
@@ -91,8 +97,7 @@ class WhatsmeowMessage(models.Model):
                 "Sent %(kind)s: %(filename)s",
                 kind=self.message_type, filename=self.media_filename or "",
             )
-        parts = [Markup("%s") % line for line in body.split("\n")]
-        return Markup("<p>%s</p>") % Markup("<br/>").join(parts)
+        return Markup("<p>%s</p>") % render_markup(body)
 
     def _chatter_attachments(self):
         """Copy the sent media onto the chatter post, so the log shows exactly

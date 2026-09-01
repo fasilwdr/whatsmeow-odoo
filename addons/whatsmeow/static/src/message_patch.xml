@@ -9,11 +9,14 @@
     </xpath>
 
     <!-- Badge the author, the way a sent email is badged, so a WhatsApp entry
-         is distinguishable from an ordinary note at a glance. -->
+         is distinguishable from an ordinary note at a glance. Wording is
+         direction-neutral: core badges the inbound messages it posts to a
+         contact's chatter, and whatsmeow_template badges the outgoing sends it
+         logs on a record. -->
     <xpath expr="//span[hasclass('o-mail-Message-author')]" position="after">
       <i t-if="message.message_type === 'whatsmeow'"
          class="fa fa-whatsapp o-whatsmeow-badge me-1"
-         title="Sent via WhatsApp" role="img" aria-label="Sent via WhatsApp"/>
+         title="Via WhatsApp" role="img" aria-label="Via WhatsApp"/>
     </xpath>
   </t>
 

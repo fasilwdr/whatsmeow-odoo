@@ -12,6 +12,7 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.tools import SQL
 
 from .whatsmeow_connection import MEDIA_TIMEOUT
+from .whatsmeow_markup import render_markup
 
 _logger = logging.getLogger(__name__)
 DIGITS = re.compile(r"\D")
@@ -735,8 +736,18 @@ class WhatsmeowMessage(models.Model):
             body = self.env._("sent %s", self.message_type)
         self.partner_id.message_post(
             # Markup(...) % args escapes the args: inbound text is untrusted.
-            body=Markup("<p><b>%s</b><br/>%s</p>") % (label, body),
-            message_type="comment",
+            # The body arrives as Markup from `render_markup`, which escaped it
+            # itself before turning WhatsApp's markers into real formatting —
+            # so the reader sees the message as the sender's phone drew it
+            # rather than a line of `*asterisks*`.
+            body=Markup("<p><b>%s</b><br/>%s</p>") % (label, render_markup(body)),
+            # Typed, not just labelled: the web client badges a 'whatsmeow'
+            # message with the WhatsApp mark and tints its bubble, so an
+            # operator scanning a busy chatter can tell at a glance which
+            # entries came over WhatsApp. The subtype is still mt_comment, so
+            # followers are notified exactly as before.
+            message_type="whatsmeow",
+            subtype_xmlid="mail.mt_comment",
             attachment_ids=attachments.ids,
         )
 

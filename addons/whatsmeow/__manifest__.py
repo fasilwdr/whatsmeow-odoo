@@ -11,7 +11,7 @@ logged as whatsmeow.message records and posted to the matching partner's chatter
 """,
     "author": "Fasil, Bytesraw",
     "category": "Discuss",
-    "depends": ["base", "mail"],
+    "depends": ["base", "mail", "web"],
     "data": [
         "security/whatsmeow_groups.xml",
         "security/ir.model.access.csv",
@@ -25,6 +25,17 @@ logged as whatsmeow.message records and posted to the matching partner's chatter
     'images': [
         'static/description/banner.gif'
     ],
+    "assets": {
+        "web.assets_backend": [
+            # The WhatsApp badge and the tinted bubble a 'whatsmeow' message
+            # gets in a chatter. The stylesheet also defines the
+            # %o-whatsmeow-bubble placeholder that whatsmeow_template's body
+            # preview extends, so it must load first — which module dependency
+            # order already guarantees.
+            "whatsmeow/static/src/whatsmeow_message.scss",
+            "whatsmeow/static/src/message_patch.xml",
+        ],
+    },
     "license": "LGPL-3",
     "installable": True,
     "application": True,
