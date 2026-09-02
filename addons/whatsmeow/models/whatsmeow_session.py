@@ -23,6 +23,18 @@ DIGITS = re.compile(r"\D")
 # an oversized batch outright.
 CHECK_BATCH_SIZE = 50
 
+# Statuses that mean this number cannot put anything on the wire, so the queue
+# should leave it alone rather than grind out one gateway error per message.
+# Deliberately only the *unambiguous* ones: `draft`, `starting` and
+# `disconnected` are stale-or-transient, and an install that never runs the
+# refresh cron would otherwise find its queue silently frozen. A genuinely
+# dead session there fails its sends, and the failure breaker below catches it.
+DEAD_STATUSES = ("logged_out", "error")
+
+# How fast a person types, for the "typing..." pause before a send. 12 chars a
+# second is brisk-but-human; the session's own ceiling clamps it anyway.
+TYPING_CHARS_PER_SECOND = 12.0
+
 
 class WhatsmeowSession(models.Model):
     _name = "whatsmeow.session"
@@ -115,6 +127,57 @@ class WhatsmeowSession(models.Model):
     sent_today = fields.Integer(compute="_compute_volume", string="Sent Today")
     sent_this_hour = fields.Integer(compute="_compute_volume", string="Sent This Hour")
 
+    # -- sending hours --------------------------------------------------------
+    # A number that answers at 03:00 every night is a robot, and the recipient
+    # who is woken by it is the one who reports the number. Only the *queue*
+    # observes the window: an operator's reply is a person acting, and people
+    # sometimes work late.
+    send_window_enabled = fields.Boolean(
+        string="Restrict Sending Hours", default=False,
+        help="Hold queued messages outside the hours below. An operator's "
+             "Discuss reply and a message sent by hand from the form ignore it.",
+    )
+    send_window_start = fields.Float(
+        string="Send From", default=8.0,
+        help="Local time (session timezone) the queue may start sending at.",
+    )
+    send_window_end = fields.Float(
+        string="Send Until", default=21.0,
+        help="Local time the queue stops at. Set an end earlier than the start "
+             "for a window that runs past midnight.",
+    )
+
+    # -- typing simulation ----------------------------------------------------
+    simulate_typing = fields.Boolean(
+        string="Show Typing", default=True,
+        help="Set the 'typing…' indicator on the recipient's phone for a moment "
+             "before each message, the way a person's client does. A number that "
+             "only ever emits finished messages reads as automation.",
+    )
+    typing_max_seconds = fields.Integer(
+        string="Typing Cap (s)", default=3,
+        help="Longest the typing indicator is held. The pause is derived from "
+             "the message length and clamped here, so a long text does not "
+             "stall the queue.",
+    )
+
+    # -- failure breaker ------------------------------------------------------
+    # A run of failed sends is what a rate limit or a fresh ban looks like from
+    # here, and retrying into one is exactly how a warning becomes a block. The
+    # queue stops the number and asks a human to look.
+    queue_paused = fields.Boolean(
+        string="Queue Paused", readonly=True, copy=False,
+        help="Set automatically after too many consecutive send failures. The "
+             "queue skips this number until someone resumes it.",
+    )
+    queue_pause_reason = fields.Char(readonly=True, copy=False)
+    consecutive_failures = fields.Integer(readonly=True, copy=False)
+    failure_pause_threshold = fields.Integer(
+        string="Pause After Failures", default=5,
+        help="Consecutive gateway send failures that pause the queue for this "
+             "number. 0 never pauses.",
+    )
+
     # -- inbound filtering ----------------------------------------------------
     inbound_default = fields.Selection(
         [("accept", "Accept"), ("reject", "Reject")],
@@ -176,6 +239,16 @@ class WhatsmeowSession(models.Model):
                     "(%(max)s s).",
                     min=rec.send_delay_min, max=rec.send_delay_max,
                 ))
+
+    @api.constrains("send_window_start", "send_window_end")
+    def _check_send_window(self):
+        for rec in self:
+            for value in (rec.send_window_start, rec.send_window_end):
+                if not 0.0 <= value < 24.0:
+                    raise ValidationError(_(
+                        "Sending hours must be times of day, between 00:00 and "
+                        "24:00."
+                    ))
 
     # -- inbound filtering ----------------------------------------------------
     @api.depends("inbound_rule_ids")
@@ -306,10 +379,85 @@ class WhatsmeowSession(models.Model):
                 fields.Datetime.now() - timedelta(hours=1))
 
     def _note_send(self):
-        """Start the ramp on the first message this number ever sends."""
+        """Start the ramp on the first message this number ever sends, and
+        close any failure streak: one message on the wire proves the number is
+        healthy again."""
         self.ensure_one()
         if self.warmup_enabled and not self.warmup_start_date:
             self.warmup_start_date = self._local_today()
+        if self.consecutive_failures:
+            self.consecutive_failures = 0
+
+    def _note_send_failure(self, error):
+        """Count a send the gateway refused, and pause the number once they
+        stop looking like accidents.
+
+        Only *gateway* failures reach here — a rejected recipient or a malformed
+        message is a bad row, not a sick number. A run of them is what a rate
+        limit or a fresh block looks like from Odoo's side, and retrying into
+        one is how a warning becomes a ban, so the queue stops and leaves the
+        reason on the session for a human to read.
+        """
+        self.ensure_one()
+        threshold = self.failure_pause_threshold
+        failures = self.consecutive_failures + 1
+        vals = {"consecutive_failures": failures}
+        if threshold and failures >= threshold and not self.queue_paused:
+            vals.update({
+                "queue_paused": True,
+                "queue_pause_reason": _(
+                    "%(count)s sends in a row failed. Last error: %(error)s",
+                    count=failures, error=(error or "")[:200],
+                ),
+            })
+            _logger.warning(
+                "whatsmeow: pausing the queue for session %s after %s "
+                "consecutive failures", self.code, failures)
+        self.write(vals)
+
+    def action_resume_queue(self):
+        """Let the queue use this number again after a paused failure streak."""
+        for rec in self:
+            rec.write({
+                "queue_paused": False,
+                "queue_pause_reason": False,
+                "consecutive_failures": 0,
+            })
+
+    # -- sending hours --------------------------------------------------------
+    def _within_send_window(self):
+        """Is the session's own clock inside its allowed sending hours?
+
+        A window whose end is before its start runs past midnight (22:00 → 02:00
+        is a legitimate night shift), and a zero-width one is read as "no
+        restriction" rather than "never send".
+        """
+        self.ensure_one()
+        if not self.send_window_enabled:
+            return True
+        start, end = self.send_window_start, self.send_window_end
+        if start == end:
+            return True
+        local = pytz.UTC.localize(fields.Datetime.now()).astimezone(self._tz())
+        hour = local.hour + local.minute / 60.0
+        if start < end:
+            return start <= hour < end
+        return hour >= start or hour < end
+
+    # -- typing simulation ----------------------------------------------------
+    def _typing_ms(self, text):
+        """How long to hold the "typing…" indicator before a message.
+
+        Derived from the length so a one-word reply is not preceded by four
+        seconds of typing, and clamped by the session's ceiling so a long
+        message does not stall the queue. 0 disables it for this send.
+        """
+        self.ensure_one()
+        if not self.simulate_typing or self.typing_max_seconds <= 0:
+            return 0
+        seconds = len(text or "") / TYPING_CHARS_PER_SECOND
+        seconds = max(0.8, min(float(self.typing_max_seconds), seconds))
+        return int(seconds * 1000)
 
     # -- send throttling ------------------------------------------------------
     # Bursting is the main ban lever on the unofficial protocol, so the queue
@@ -319,12 +467,21 @@ class WhatsmeowSession(models.Model):
     def _seconds_until_sendable(self):
         """How long the queue must wait before this number may send again.
 
-        `None` means "not within this run": the daily allowance is spent (it
-        reopens at the session's own midnight) or the hour's is (the queue is
-        better off working another number than sleeping here). Callers must
-        treat it as "drop this session", not as zero.
+        `None` means "not within this run": the number is unusable (logged out,
+        paused after a failure streak), the clock is outside its sending hours,
+        or its daily/hourly allowance is spent. None of those reopen soon enough
+        to be worth sleeping on, so callers must treat `None` as "drop this
+        session", not as zero.
         """
         self.ensure_one()
+        # Nothing this number can do about a queue full of messages while it is
+        # logged out or in error: every send would be one more gateway error.
+        if self.status in DEAD_STATUSES:
+            return None
+        if self.queue_paused:
+            return None
+        if not self._within_send_window():
+            return None
         daily = self._daily_cap()
         if daily:
             if self._sent_since(self._local_midnight_utc()) >= daily:

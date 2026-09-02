@@ -869,10 +869,61 @@ type quote struct {
 	QuotedText        string `json:"quoted_text"`        // original body, redisplayed in the quote
 }
 
+// typing carries how long, in milliseconds, to hold the "typing…" indicator on
+// the recipient's phone before the message lands. A number whose messages
+// always appear fully formed with no keystrokes in front of them is one of the
+// cheaper automation tells; Odoo decides the duration (it knows the message and
+// the session's settings) and we just perform it.
+type typing struct {
+	TypingMS int `json:"typing_ms"`
+}
+
+// maxTypingMS bounds what a caller can make the handler sleep for. Odoo clamps
+// this already, but the handler holds an HTTP request open for it, so it must
+// not be at the mercy of the payload.
+const maxTypingMS = 10000
+
+// typingDuration turns a requested pause into the one we will actually take:
+// nothing at all for a non-positive request, and never more than maxTypingMS.
+func typingDuration(ms int) time.Duration {
+	if ms <= 0 {
+		return 0
+	}
+	if ms > maxTypingMS {
+		ms = maxTypingMS
+	}
+	return time.Duration(ms) * time.Millisecond
+}
+
+// simulateTyping shows the typing indicator, waits, then clears it. Every step
+// is best-effort: a chat state is a courtesy, and failing to set one is never a
+// reason not to send the message. Returns early if the context is cancelled, so
+// a client that gives up does not leave us sleeping.
+func simulateTyping(ctx context.Context, cli *whatsmeow.Client, jid types.JID, ms int, media types.ChatPresenceMedia) {
+	pause := typingDuration(ms)
+	if pause == 0 || cli == nil {
+		return
+	}
+	if err := cli.SendChatPresence(ctx, jid, types.ChatPresenceComposing, media); err != nil {
+		log.Printf("typing indicator for %s failed: %v", jid, err)
+		return
+	}
+	select {
+	case <-time.After(pause):
+	case <-ctx.Done():
+	}
+	// Paused, not available: "paused" is what a real client sends when the
+	// person stops typing, and the message follows immediately after.
+	if err := cli.SendChatPresence(ctx, jid, types.ChatPresencePaused, media); err != nil {
+		log.Printf("clearing typing indicator for %s failed: %v", jid, err)
+	}
+}
+
 type sendRequest struct {
 	target
 	quote
 	idempotent
+	typing
 	Message string `json:"message"` // plain text body
 }
 
@@ -1331,6 +1382,8 @@ func handleSend(w http.ResponseWriter, r *http.Request) {
 	}
 	defer sendGuard.resolve(req.Key, out, "", "", time.Time{}, errSendIncomplete)
 
+	simulateTyping(r.Context(), s.Client, jid, req.TypingMS, types.ChatPresenceMediaText)
+
 	// A quote has to hang off ContextInfo, which plain Conversation has no room
 	// for; ExtendedTextMessage is the same text with somewhere to put it.
 	msg := &waE2E.Message{Conversation: proto.String(req.Message)}
@@ -1532,6 +1585,7 @@ type sendMediaRequest struct {
 	target
 	quote
 	idempotent
+	typing
 	Caption  string `json:"caption"`
 	Filename string `json:"filename"`
 	Mimetype string `json:"mimetype"`
@@ -1674,6 +1728,15 @@ func handleSendMedia(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
+
+	// A voice note is preceded by "recording audio", not "typing" — that is
+	// what the recipient's phone shows when a person is actually holding the
+	// mic button.
+	presenceMedia := types.ChatPresenceMediaText
+	if req.PTT || kind == "audio" {
+		presenceMedia = types.ChatPresenceMediaAudio
+	}
+	simulateTyping(r.Context(), s.Client, jid, req.TypingMS, presenceMedia)
 
 	resp, err := s.Client.SendMessage(r.Context(), jid, msg)
 	sendGuard.resolve(req.Key, out, resp.ID, kind, resp.Timestamp, err)

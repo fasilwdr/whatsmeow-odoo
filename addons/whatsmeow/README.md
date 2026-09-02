@@ -33,6 +33,12 @@ Each session can cap how many queued messages it sends per day, starting low for
 ### 🚫 Opt-Out & Number Validation
 A contact who asks to stop — by hand or by writing an opt-out keyword — is flagged, and no path can ever message them again: not the queue, the composer, a server action, or a Discuss reply. Separately, the gateway is asked which queued numbers are actually on WhatsApp, so dead numbers are skipped rather than burned.
 
+### 🕗 Sending Hours & Human Pacing
+Queued messages can be held to the hours a person would plausibly be working, in the number's own timezone — messaging people at 3 a.m. is a direct route to being reported. Before each message the recipient's phone shows *typing…* (or *recording audio* before a voice note) for a moment, the way a real client does, with the pause scaled to the message length. Operator replies ignore the window: people do sometimes work late.
+
+### 🛑 Automatic Queue Pause
+A run of failed sends is what a rate limit or a fresh block looks like from Odoo's side, and retrying into one is how a warning becomes a ban. After a configurable number of consecutive gateway failures the queue stops using that number and says why, and a session that is logged out or in error is skipped outright instead of producing one failure per queued message. A manager presses **Resume Queue** after looking; hand-sent messages and operator replies are never blocked.
+
 ### 🔎 Inbound Filter Rules
 Every session carries an ordered list of accept/reject rules matched on chat type, message kind, sender, phone, chat JID, LID, or a body keyword. Combine a default of Accept with reject rules for a blocklist, or a default of Reject with accept rules for an allowlist. A dedicated opt-out action flags the sender while still keeping the message on file.
 
@@ -66,6 +72,8 @@ All setup lives under the **WhatsApp → Configuration** menu (visible to WhatsA
 - **Point the gateway's webhook at Odoo**: Configure the gateway to POST events to `/whatsmeow/webhook` on your Odoo, using the same webhook secret — that secret is how inbound events are routed back to the right connection.
 - **Pair a WhatsApp number**: Go to **WhatsApp → Configuration → Sessions**, click **New**, give it a **Session Key** (lowercase letters, digits, `-` and `_`), choose the gateway, then **Start** and scan the QR with WhatsApp on the phone.
 - **Tune send pacing**: On the session, set the **Min/Max Delay** between sends and, under **Warm-Up & Daily Cap**, the Day-1 Allowance, Daily Growth, Ceiling, Hourly Cap, and Timezone.
+- **Set sending hours**: On the same tab, turn on **Restrict Sending Hours** and set **Send From** / **Send Until** in the session's timezone. Set an end earlier than the start for a window that runs past midnight.
+- **Tune how human it looks**: Leave **Show Typing** on and set the **Typing Cap**, and set **Pause After Failures** — the number of consecutive gateway failures that pauses this number's queue (0 never pauses).
 - **Set inbound behaviour**: On the session, choose what to do with unmatched inbound messages, add **Inbound Filter Rules**, and optionally enable **Auto Mark as Read**.
 
 ## Screenshots
@@ -150,6 +158,12 @@ Only members of the **WhatsApp / Administrator** group. The API key and webhook 
 The message is marked in error with the reason, and the rest of the queue keeps moving — one bad send never stalls the others. You can retry it once the gateway is healthy again; the idempotency key ensures a message that already reached WhatsApp is never sent twice.
 
 ## Changelog
+
+### v19.0.1.6.0 — 2026-09-02
+- Per-session sending hours, in the number's own timezone, honoured by the queue only
+- A typing (or *recording audio*) indicator before each message, scaled to its length
+- The queue pauses a number after consecutive gateway failures, with a manual **Resume Queue**
+- A logged-out or errored session is skipped by the queue instead of failing every message
 
 ### v19.0.1.5.0 — 2026-07-19
 - Warm-up ramp with per-session daily and hourly volume caps, rolling over at the number's own local midnight

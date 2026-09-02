@@ -184,12 +184,23 @@ Ban avoidance is a first-class concern here, not an afterthought.
   a `base × growth ^ days_online` curve — a new number starts quiet and earns
   volume. Operator replies to someone who wrote first are uncapped, being the safest
   traffic there is.
+- **Sending hours.** Queued traffic can be held to the hours a person would plausibly
+  be working, in the session's own timezone — a number that answers at 03:00 is a
+  robot, and the recipient it wakes is the one who reports it. Off by default;
+  operator replies ignore it, because people do sometimes work late.
+- **A typing indicator before each message.** The recipient's phone shows *typing…*
+  (or *recording audio* before a voice note) for a moment first, the way a real
+  client does. The pause follows the message length and is clamped per session.
+- **The queue stops instead of retrying harder.** A run of gateway send failures —
+  what a rate limit or a fresh block looks like from Odoo's side — pauses that
+  number's queue and says why on the session; a manager resumes it after looking.
+  A logged-out or errored session is skipped outright rather than producing one
+  failure per queued message.
 - **Never fan out.** One group reply produces a receipt per participant; the gateway
   queues events and posts them with a bounded worker pool rather than a goroutine
   each.
 
-Quiet hours, a circuit breaker on delivery ratio, and per-contact frequency caps are
-on the roadmap.
+A delivery-ratio watchdog and per-contact frequency caps are on the roadmap.
 
 ## Development
 

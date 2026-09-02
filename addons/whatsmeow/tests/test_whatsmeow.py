@@ -1576,6 +1576,218 @@ class TestWarmupCaps(WhatsmeowCommon):
 
 
 @tagged("post_install", "-at_install")
+class TestSendingHours(WhatsmeowCommon):
+    """A number that answers at 03:00 every night is a robot, and the recipient
+    it wakes is the one who reports it."""
+
+    def _queue(self):
+        return self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "phone": "447700900123",
+            "direction": "out", "body": "hi",
+        })
+
+    def _at(self, utc_hour, minute=0):
+        """Freeze the wall clock at a given UTC hour, so a window can be tested
+        from both sides without waiting for the day to come round."""
+        frozen = fields.Datetime.now().replace(
+            hour=utc_hour, minute=minute, second=0, microsecond=0)
+        return patch("odoo.fields.Datetime.now", return_value=frozen)
+
+    def test_the_window_is_off_by_default(self):
+        self.assertTrue(self.session._within_send_window())
+
+    def test_hours_must_be_times_of_day(self):
+        self.session.send_window_enabled = True
+        with self.assertRaises(ValidationError):
+            self.session.send_window_start = 24.0
+        with self.assertRaises(ValidationError):
+            self.session.send_window_end = -1.0
+
+    def test_inside_and_outside_a_daytime_window(self):
+        self.session.write({
+            "tz": "UTC", "send_window_enabled": True,
+            "send_window_start": 8.0, "send_window_end": 21.0,
+        })
+        with self._at(10):
+            self.assertTrue(self.session._within_send_window())
+        with self._at(23):
+            self.assertFalse(self.session._within_send_window())
+        with self._at(3):
+            self.assertFalse(self.session._within_send_window())
+
+    def test_a_window_may_run_past_midnight(self):
+        """22:00 -> 02:00 is a legitimate night shift, not an empty window."""
+        self.session.write({
+            "tz": "UTC", "send_window_enabled": True,
+            "send_window_start": 22.0, "send_window_end": 2.0,
+        })
+        with self._at(23):
+            self.assertTrue(self.session._within_send_window())
+        with self._at(1):
+            self.assertTrue(self.session._within_send_window())
+        with self._at(12):
+            self.assertFalse(self.session._within_send_window())
+
+    def test_a_zero_width_window_means_no_restriction(self):
+        """Reading it as 'never send' would silently freeze the queue."""
+        self.session.write({
+            "send_window_enabled": True,
+            "send_window_start": 9.0, "send_window_end": 9.0,
+        })
+        self.assertTrue(self.session._within_send_window())
+
+    def test_the_window_is_the_sessions_own(self):
+        """08:00 in Riyadh is 05:00 UTC: the wrong clock is wrong all day."""
+        self.session.write({
+            "tz": "Asia/Riyadh", "send_window_enabled": True,   # UTC+3, no DST
+            "send_window_start": 8.0, "send_window_end": 21.0,
+        })
+        with self._at(6):    # 09:00 local
+            self.assertTrue(self.session._within_send_window())
+        with self._at(19):   # 22:00 local
+            self.assertFalse(self.session._within_send_window())
+
+    def test_the_queue_holds_a_message_outside_the_window(self):
+        self.session.write({
+            "tz": "UTC", "send_window_enabled": True,
+            "send_window_start": 8.0, "send_window_end": 21.0,
+        })
+        msg = self._queue()
+        with self._at(3), patch.object(type(self.session), "_gw") as gw:
+            self.env["whatsmeow.message"].cron_process_outgoing()
+        self.assertEqual(gw.call_count, 0)
+        self.assertEqual(msg.state, "outgoing", "it waits for the morning")
+
+    def test_a_hand_sent_message_ignores_the_window(self):
+        """An operator working late is a person, not a broadcaster."""
+        self.session.write({
+            "tz": "UTC", "send_window_enabled": True,
+            "send_window_start": 8.0, "send_window_end": 21.0,
+        })
+        msg = self._queue()
+        with self._at(3), patch.object(type(self.session), "_gw",
+                                       return_value={"wa_message_id": "A"}):
+            msg.action_send()
+        self.assertEqual(msg.state, "sent")
+
+
+@tagged("post_install", "-at_install")
+class TestFailureBreaker(WhatsmeowCommon):
+    """A run of refused sends is what a rate limit or a fresh block looks like
+    from Odoo's side; retrying into one is how a warning becomes a ban."""
+
+    def setUp(self):
+        super().setUp()
+        self.session.write({"send_delay_min": 0, "send_delay_max": 0,
+                            "warmup_enabled": False})
+
+    def _queue(self, body="hi"):
+        return self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "phone": "447700900123",
+            "direction": "out", "body": body,
+        })
+
+    def _fail(self, times):
+        with patch.object(type(self.session), "_gw", side_effect=Exception("boom")), \
+                mute_logger("odoo.addons.whatsmeow.models.whatsmeow_message",
+                            "odoo.addons.whatsmeow.models.whatsmeow_session"):
+            for i in range(times):
+                self._queue(f"m{i}").action_send()
+
+    def test_failures_accumulate_and_pause_the_queue(self):
+        self.session.failure_pause_threshold = 3
+        self._fail(2)
+        self.assertEqual(self.session.consecutive_failures, 2)
+        self.assertFalse(self.session.queue_paused)
+        self._fail(1)
+        self.assertTrue(self.session.queue_paused)
+        self.assertIn("boom", self.session.queue_pause_reason)
+
+    def test_a_paused_session_is_skipped_by_the_queue(self):
+        self.session.queue_paused = True
+        msg = self._queue()
+        with patch.object(type(self.session), "_gw") as gw:
+            self.env["whatsmeow.message"].cron_process_outgoing()
+        self.assertEqual(gw.call_count, 0)
+        self.assertEqual(msg.state, "outgoing")
+
+    def test_resuming_clears_the_streak(self):
+        self.session.write({"queue_paused": True, "consecutive_failures": 9,
+                            "queue_pause_reason": "boom"})
+        self.session.action_resume_queue()
+        self.assertFalse(self.session.queue_paused)
+        self.assertEqual(self.session.consecutive_failures, 0)
+        self.assertFalse(self.session.queue_pause_reason)
+
+    def test_one_good_send_closes_the_streak(self):
+        """Consecutive means consecutive: a message on the wire proves health."""
+        self.session.failure_pause_threshold = 3
+        self._fail(2)
+        with patch.object(type(self.session), "_gw",
+                          return_value={"wa_message_id": "A"}):
+            self._queue().action_send()
+        self.assertEqual(self.session.consecutive_failures, 0)
+
+    def test_a_blocked_recipient_is_not_a_sick_number(self):
+        """An opt-out is a bad row, not WhatsApp pushing back on the number."""
+        partner = self.env["res.partner"].create({
+            "name": "Nope", "phone": "+44 7700 900999", "whatsmeow_optout": True,
+        })
+        msg = self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "partner_id": partner.id,
+            "phone": "447700900999", "direction": "out", "body": "hi",
+        })
+        with self.assertRaises(UserError):
+            msg.action_send()
+        self.assertEqual(self.session.consecutive_failures, 0)
+
+    def test_a_threshold_of_zero_never_pauses(self):
+        self.session.failure_pause_threshold = 0
+        self._fail(6)
+        self.assertFalse(self.session.queue_paused)
+
+    def test_a_logged_out_number_is_left_alone(self):
+        """Every send would be one more gateway error against a dead session."""
+        self.session.status = "logged_out"
+        msg = self._queue()
+        with patch.object(type(self.session), "_gw") as gw:
+            self.env["whatsmeow.message"].cron_process_outgoing()
+        self.assertEqual(gw.call_count, 0)
+        self.assertEqual(msg.state, "outgoing")
+
+
+@tagged("post_install", "-at_install")
+class TestTypingSimulation(WhatsmeowCommon):
+    """A number whose messages always arrive fully formed, with no keystrokes in
+    front of them, is one of the cheaper automation tells."""
+
+    def _queue(self, body="hi"):
+        return self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "phone": "447700900123",
+            "direction": "out", "body": body,
+        })
+
+    def test_the_pause_follows_the_length_and_is_clamped(self):
+        self.session.typing_max_seconds = 3
+        short = self.session._typing_ms("hi")
+        long_ = self.session._typing_ms("x" * 500)
+        self.assertGreater(short, 0)
+        self.assertGreater(long_, short)
+        self.assertEqual(long_, 3000, "a long message must not stall the queue")
+
+    def test_it_can_be_turned_off(self):
+        self.session.simulate_typing = False
+        self.assertEqual(self.session._typing_ms("hello there"), 0)
+        self.session.write({"simulate_typing": True, "typing_max_seconds": 0})
+        self.assertEqual(self.session._typing_ms("hello there"), 0)
+
+    def test_the_send_payload_carries_it(self):
+        _path, payload = self._queue("hello there")._send_payload()
+        self.assertIn("typing_ms", payload)
+        self.assertGreater(payload["typing_ms"], 0)
+
+
+@tagged("post_install", "-at_install")
 class TestRecipientValidation(WhatsmeowCommon):
     """Sending into the void is a bulk-sender fingerprint, and it is entirely
     preventable — the gateway can ask first (PLAN.md §12.4)."""

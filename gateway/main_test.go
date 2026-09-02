@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -903,5 +904,41 @@ func TestCheckAnswersFromCacheWithoutAskingWhatsApp(t *testing.T) {
 	}
 	if !byNumber["447700900123"] || byNumber["447700900999"] {
 		t.Fatalf("wrong answers: %+v", byNumber)
+	}
+}
+
+// A typing pause comes from Odoo, which clamps it — but the handler holds an
+// HTTP request open for it, so it must not be at the mercy of the payload.
+func TestTypingDuration(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		ms   int
+		want time.Duration
+	}{
+		{"disabled", 0, 0},
+		{"negative is disabled, not a panic", -500, 0},
+		{"ordinary pause", 1500, 1500 * time.Millisecond},
+		{"clamped to the ceiling", 60000, maxTypingMS * time.Millisecond},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := typingDuration(tc.ms); got != tc.want {
+				t.Fatalf("typingDuration(%d) = %v, want %v", tc.ms, got, tc.want)
+			}
+		})
+	}
+}
+
+// A nil client (a session that never paired) must be a no-op, not a crash: the
+// send path calls this before it checks anything about the message.
+func TestSimulateTypingWithoutAClient(t *testing.T) {
+	done := make(chan struct{})
+	go func() {
+		simulateTyping(context.Background(), nil, types.JID{}, 5000, types.ChatPresenceMediaText)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("simulateTyping slept without a client to type to")
 	}
 }

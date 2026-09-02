@@ -400,6 +400,10 @@ class WhatsmeowMessage(models.Model):
             **self._target_payload(),
             **self._quote_payload(),
             "idempotency_key": self._idempotency_key(),
+            # Hold the "typing…" indicator on the recipient's phone for a
+            # moment first, the way a real client does. The gateway sleeps for
+            # this, so the session clamps it.
+            "typing_ms": self.session_id._typing_ms(self.body or ""),
         }
         if self.message_type == "text":
             return f"/sessions/{code}/send", {**common, "message": self.body or ""}
@@ -512,21 +516,34 @@ class WhatsmeowMessage(models.Model):
             raise UserError("\n".join(dict.fromkeys(reasons)))
 
         for rec in sendable - blocked:
+            # Building the payload is our own work: a failure here is a bad
+            # row, and must not count against the number's health.
             try:
                 path, payload = rec._send_payload()
+            except Exception as exc:  # noqa: BLE001 - one bad row must not stop the queue
+                rec.write({"state": "error", "error_message": str(exc)})
+                _logger.warning("whatsmeow.message %s could not be built: %s",
+                                rec.id, exc)
+                continue
+            try:
                 # Uploading a file takes longer than posting a line of text.
                 timeout = None if rec.message_type == "text" else MEDIA_TIMEOUT
                 data = rec.session_id._gw("POST", path, payload, timeout=timeout)
-                rec.write({
-                    "state": "sent",
-                    "sent_date": fields.Datetime.now(),
-                    "wa_message_id": data.get("wa_message_id"),
-                    "error_message": False,
-                })
-                rec.session_id.sudo()._note_send()
             except Exception as exc:  # noqa: BLE001 - one bad send must not stop the queue
                 rec.write({"state": "error", "error_message": str(exc)})
+                # A refusal from the gateway is the only signal Odoo gets that
+                # WhatsApp may be pushing back on this number; a run of them
+                # pauses its queue.
+                rec.session_id.sudo()._note_send_failure(str(exc))
                 _logger.warning("whatsmeow.message %s send failed: %s", rec.id, exc)
+                continue
+            rec.write({
+                "state": "sent",
+                "sent_date": fields.Datetime.now(),
+                "wa_message_id": data.get("wa_message_id"),
+                "error_message": False,
+            })
+            rec.session_id.sudo()._note_send()
 
     @api.model
     def cron_process_outgoing(self):

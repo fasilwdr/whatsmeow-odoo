@@ -10,6 +10,8 @@
                   invisible="status in ('connected',)"/>
           <button name="action_refresh" type="object" string="Refresh Status"
                   invisible="status == 'draft'"/>
+          <button name="action_resume_queue" type="object" string="Resume Queue"
+                  class="btn-primary" invisible="not queue_paused"/>
           <button name="action_logout" type="object" string="Logout"
                   invisible="status not in ('connected', 'qr', 'disconnected')"
                   confirm="Unpair this WhatsApp number? It will need a new QR scan."/>
@@ -47,6 +49,13 @@
               </div>
             </group>
           </group>
+          <div class="alert alert-danger" role="alert" invisible="not queue_paused">
+            <b>Queue paused.</b> <field name="queue_pause_reason" nolabel="1"
+                                        readonly="1" class="oe_inline"/><br/>
+            Sending into a number WhatsApp is already pushing back on is how a
+            warning becomes a ban. Check the gateway and the number's own phone,
+            then press <b>Resume Queue</b>. Operators can still reply by hand.
+          </div>
           <!-- Outside the groups on purpose: an image inside a group cell is
                capped by that cell's width (Bootstrap's .img-fluid sets
                max-width: 100%), so `size` alone could never make the code
@@ -75,6 +84,20 @@
                   <field name="sent_today"/>
                   <field name="sent_this_hour"/>
                 </group>
+                <group string="Sending Hours" name="send_window">
+                  <field name="send_window_enabled"/>
+                  <field name="send_window_start" widget="float_time"
+                         invisible="not send_window_enabled"/>
+                  <field name="send_window_end" widget="float_time"
+                         invisible="not send_window_enabled"/>
+                </group>
+                <group string="Looking Human" name="humanising">
+                  <field name="simulate_typing"/>
+                  <field name="typing_max_seconds" invisible="not simulate_typing"/>
+                  <field name="failure_pause_threshold"/>
+                  <field name="consecutive_failures"
+                         invisible="not consecutive_failures"/>
+                </group>
               </group>
               <p class="text-muted">
                 A number that sends hundreds of messages on its first day looks
@@ -86,6 +109,18 @@
                 Discuss reply and a message sent by hand from the form are
                 answers to someone who wrote first, which is the safest traffic
                 there is, and they go out regardless.
+              </p>
+              <p class="text-muted">
+                <b>Sending hours</b> hold queued traffic to the times a person
+                would actually be working, in the timezone above — a number that
+                answers at 03:00 is a robot, and the woken recipient is the one
+                who reports it. Set an end earlier than the start for a window
+                that runs past midnight. <b>Show typing</b> puts the
+                <i>typing…</i> indicator on the recipient's phone for a moment
+                first, the way a real client does. If several sends in a row are
+                refused by the gateway — what a rate limit or a fresh block
+                looks like from here — the queue <b>pauses this number</b>
+                instead of retrying into it.
               </p>
             </page>
             <page string="Inbound Filtering" name="inbound_filtering">
@@ -164,13 +199,15 @@
     <field name="name">whatsmeow.session.list</field>
     <field name="model">whatsmeow.session</field>
     <field name="arch" type="xml">
-      <list decoration-success="status == 'connected'"
+      <list decoration-success="status == 'connected' and not queue_paused"
             decoration-danger="status in ('error', 'logged_out')"
+            decoration-warning="queue_paused"
             decoration-muted="status == 'draft'">
         <field name="name"/>
         <field name="code"/>
         <field name="connection_id"/>
         <field name="jid"/>
+        <field name="queue_paused" string="Paused" optional="show"/>
         <field name="status" widget="badge"/>
       </list>
     </field>
@@ -186,7 +223,9 @@
         <field name="connection_id"/>
         <filter name="connected" string="Connected" domain="[('status','=','connected')]"/>
         <filter name="needs_attention" string="Needs Attention"
-                domain="[('status','in',('error','logged_out','disconnected'))]"/>
+                domain="['|', ('status','in',('error','logged_out','disconnected')), ('queue_paused','=',True)]"/>
+        <filter name="queue_paused" string="Queue Paused"
+                domain="[('queue_paused','=',True)]"/>
         <group name="group_by">
           <filter name="group_connection" string="Gateway" domain="[]" context="{'group_by': 'connection_id'}"/>
           <filter name="group_status" string="Status" domain="[]" context="{'group_by': 'status'}"/>
