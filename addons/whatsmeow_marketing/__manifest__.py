@@ -25,6 +25,7 @@ banned.
         "security/whatsmeow_marketing_rules.xml",
         "views/whatsmeow_broadcast_contact_views.xml",
         "views/whatsmeow_broadcast_list_views.xml",
+        "views/whatsmeow_broadcast_import_views.xml",
         "views/whatsmeow_marketing_filter_views.xml",
         "views/whatsmeow_marketing_trace_views.xml",
         "views/whatsmeow_marketing_campaign_views.xml",

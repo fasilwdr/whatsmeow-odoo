@@ -20,6 +20,10 @@
             parent="menu_whatsmeow_marketing_audience"
             action="whatsmeow_broadcast_contact_action" sequence="20"/>
 
+  <menuitem id="menu_whatsmeow_broadcast_import" name="Upload Broadcast List"
+            parent="menu_whatsmeow_marketing_audience"
+            action="whatsmeow_broadcast_import_action" sequence="30"/>
+
   <menuitem id="menu_whatsmeow_marketing_reporting" name="Reporting"
             parent="menu_whatsmeow_marketing_root" sequence="30"/>
 

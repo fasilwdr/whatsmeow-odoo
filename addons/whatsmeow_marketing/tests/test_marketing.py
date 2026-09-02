@@ -1,10 +1,15 @@
+import base64
 from datetime import timedelta
+from io import BytesIO
 from unittest.mock import patch
+
+from openpyxl import Workbook
 
 from odoo import fields
 from odoo.exceptions import AccessError, UserError
 from odoo.tests import TransactionCase, tagged
 from odoo.tools import mute_logger
+from odoo.tools.misc import file_path
 
 from odoo.addons.whatsmeow.controllers.webhook import WhatsmeowWebhook
 from odoo.addons.whatsmeow_marketing.models.whatsmeow_marketing_campaign import (
@@ -680,3 +685,198 @@ class TestSecurity(MarketingCommon):
             broadcast_list_ids=[(6, 0, self._list("L", contact).ids)])
         campaign.with_user(self.marketer).action_send()
         self.assertEqual(campaign.total_count, 1)
+
+
+@tagged("post_install", "-at_install")
+class TestBroadcastImport(MarketingCommon):
+    """The spreadsheet importer. The point of these is the *edge* rows —
+    a happy-path file is the easy half."""
+
+    def _sheet(self, rows, headers=("Broadcast Name", "Name", "Phone"),
+               sheet_name="Contacts"):
+        book = Workbook()
+        sheet = book.active
+        sheet.title = sheet_name
+        if headers:
+            sheet.append(list(headers))
+        for row in rows:
+            sheet.append(list(row))
+        buffer = BytesIO()
+        book.save(buffer)
+        return base64.b64encode(buffer.getvalue())
+
+    def _wizard(self, rows, user=None, **vals):
+        env = self.env(user=user) if user else self.env
+        return env["whatsmeow.broadcast.import"].create({
+            "file": self._sheet(rows) if isinstance(rows, list) else rows,
+            "filename": "broadcast_import_template.xlsx",
+            **vals,
+        })
+
+    def test_a_blank_broadcast_name_continues_the_list_above(self):
+        wizard = self._wizard([
+            ("Ramadan 2026", "One", "+919746701101"),
+            ("", "Two", "+919746701102"),
+            (None, "Three", "+919746701103"),
+        ])
+        wizard.action_import()
+        self.assertEqual(wizard.state, "done")
+        lists = wizard.imported_list_ids
+        self.assertEqual(len(lists), 1, "one named row heads the whole block")
+        self.assertEqual(lists.name, "Ramadan 2026")
+        self.assertEqual(lists.contact_count, 3)
+
+    def test_a_second_name_starts_a_second_list(self):
+        wizard = self._wizard([
+            ("List A", "One", "+919746707701"),
+            ("", "Two", "+919746707702"),
+            ("List B", "Three", "+919746707703"),
+        ])
+        wizard.action_import()
+        by_name = {lst.name: lst for lst in wizard.imported_list_ids}
+        self.assertEqual(sorted(by_name), ["List A", "List B"])
+        self.assertEqual(by_name["List A"].contact_count, 2)
+        self.assertEqual(by_name["List B"].contact_count, 1)
+
+    def test_an_existing_number_is_reused_not_duplicated(self):
+        existing = self._contact("Old Name", "+91 97467 01144")
+        wizard = self._wizard([("New List", "New Name", "919746701144")])
+        wizard.action_import()
+        # Scoped to the owner: uniqueness is per owner, so a row someone else
+        # holds for the same number is not this test's business.
+        contacts = self.env["whatsmeow.broadcast.contact"].search(
+            [("phone_tail", "=", "9746701144"), ("user_id", "=", self.env.uid)])
+        self.assertEqual(contacts, existing, "the same person, one record")
+        self.assertEqual(existing.name, "New Name")
+        self.assertEqual(existing.list_ids, wizard.imported_list_ids)
+
+    def test_update_names_off_keeps_the_stored_name(self):
+        existing = self._contact("Old Name", "+91 97467 07755")
+        wizard = self._wizard([("L", "New Name", "919746707755")],
+                              update_names=False)
+        wizard.action_import()
+        self.assertEqual(existing.name, "Old Name")
+        self.assertEqual(existing.list_ids, wizard.imported_list_ids,
+                         "the subscription is added either way")
+
+    def test_an_import_never_undoes_an_optout(self):
+        gone = self._contact("Gone", "+91 97467 07766", optout=True,
+                             optout_reason="Replied '/stop'")
+        self._wizard([("L", "Gone", "919746707766")]).action_import()
+        self.assertTrue(gone.optout, "re-uploading a list is not consent")
+
+    def test_an_archived_contact_is_revived_rather_than_cloned(self):
+        archived = self._contact("Sleeping", "+91 97467 07777")
+        archived.active = False
+        self._wizard([("L", "Sleeping", "919746707777")]).action_import()
+        self.assertTrue(archived.active)
+        self.assertEqual(
+            self.env["whatsmeow.broadcast.contact"].with_context(
+                active_test=False).search_count([("phone_tail", "=", "9746707777")]),
+            1, "a second row would hide the first one's campaign history")
+
+    def test_the_same_number_twice_in_one_file_is_reported_once(self):
+        wizard = self._wizard([
+            ("L", "First", "+919746707788"),
+            ("", "Second", "919746707788"),
+        ])
+        wizard.action_import()
+        self.assertIn("Row 3", wizard.skipped_summary)
+        self.assertEqual(wizard.imported_list_ids.contact_count, 1)
+
+    def test_an_unusable_number_is_skipped_with_its_row(self):
+        wizard = self._wizard([
+            ("L", "Fine", "+919746707799"),
+            ("", "Broken", "N/A"),
+            ("", "Empty", ""),
+        ])
+        wizard.action_import()
+        self.assertEqual(wizard.imported_list_ids.contact_count, 1)
+        self.assertIn("Row 3", wizard.skipped_summary)
+        self.assertIn("Row 4", wizard.skipped_summary)
+
+    def test_a_row_with_no_list_anywhere_is_skipped(self):
+        wizard = self._wizard([("", "Nobody's", "+919746707811")])
+        wizard.action_import()
+        self.assertFalse(wizard.imported_list_ids)
+        self.assertIn("Row 2", wizard.skipped_summary)
+
+    def test_the_default_list_catches_an_unnamed_row(self):
+        target = self.env["whatsmeow.broadcast.list"].create({"name": "Fallback"})
+        wizard = self._wizard([("", "Somebody", "+919746707822")],
+                              default_list_id=target.id)
+        wizard.action_import()
+        self.assertEqual(target.contact_count, 1)
+
+    def test_a_number_typed_without_a_plus_survives_excel(self):
+        # Excel stores it as a float; str() on that imports '9.19746707833e+11'.
+        wizard = self._wizard([("L", "Numeric", 919746707833)])
+        wizard.action_import()
+        contact = self.env["whatsmeow.broadcast.contact"].search(
+            [("phone_tail", "=", "9746707833")])
+        self.assertEqual(contact.phone, "919746707833")
+
+    def test_a_nameless_row_is_imported_under_its_number(self):
+        wizard = self._wizard([("L", "", "+919746707844")])
+        wizard.action_import()
+        self.assertEqual(wizard.imported_list_ids.contact_ids.name, "+919746707844",
+                         "a numbers-only list is a real thing to import")
+
+    def test_an_unlabelled_sheet_falls_back_to_column_order(self):
+        wizard = self._wizard(self._sheet(
+            [("L", "Unlabelled", "+919746707855")], headers=None))
+        wizard.action_import()
+        self.assertEqual(wizard.imported_list_ids.name, "L")
+        self.assertEqual(wizard.imported_list_ids.contact_count, 1)
+
+    def test_an_existing_list_of_the_owner_is_reused_by_name(self):
+        target = self.env["whatsmeow.broadcast.list"].create({"name": "Ramadan"})
+        wizard = self._wizard([("ramadan", "Somebody", "+919746707866")])
+        wizard.action_import()
+        self.assertEqual(wizard.imported_list_ids, target,
+                         "matching is case-insensitive, like the name a user types")
+
+    def test_another_owners_list_of_the_same_name_is_not_touched(self):
+        theirs = self.env["whatsmeow.broadcast.list"].create({
+            "name": "Shared Name", "user_id": self.other.id,
+        })
+        wizard = self._wizard([("Shared Name", "Mine", "+919746707877")],
+                              user=self.marketer)
+        wizard.action_import()
+        self.assertNotEqual(wizard.imported_list_ids, theirs)
+        self.assertEqual(wizard.imported_list_ids.user_id, self.marketer)
+        self.assertEqual(theirs.contact_count, 0)
+
+    def test_a_marketing_user_can_run_the_whole_import(self):
+        wizard = self._wizard([("Theirs", "Contact", "+919746707888")],
+                              user=self.marketer)
+        wizard.action_import()
+        self.assertEqual(wizard.imported_list_ids.user_id, self.marketer)
+        self.assertEqual(wizard.imported_list_ids.contact_ids.user_id, self.marketer)
+
+    def test_a_non_excel_file_is_refused(self):
+        wizard = self.env["whatsmeow.broadcast.import"].create({
+            "file": base64.b64encode(b"name,phone\nX,1"), "filename": "list.csv",
+        })
+        with self.assertRaises(UserError):
+            wizard.action_import()
+
+    def test_a_corrupt_workbook_is_refused(self):
+        wizard = self.env["whatsmeow.broadcast.import"].create({
+            "file": base64.b64encode(b"not a workbook"), "filename": "list.xlsx",
+        })
+        with self.assertRaises(UserError):
+            wizard.action_import()
+
+    def test_the_shipped_template_imports(self):
+        # The file the wizard hands out must be one the wizard accepts — the
+        # two drift apart the moment nothing checks.
+        path = file_path("whatsmeow_marketing/static/xlx/broadcast_import_template.xlsx")
+        with open(path, "rb") as handle:
+            wizard = self._wizard(base64.b64encode(handle.read()))
+        wizard.action_import()
+        self.assertEqual(wizard.imported_list_ids.name, "Broadcast list1")
+        # Whether the sample numbers are new here or already on file, all three
+        # must end up on the list — that is what the sheet asks for.
+        self.assertEqual(wizard.imported_list_ids.contact_count, 3)
+        self.assertFalse(wizard.skipped_summary, "the sample rows are all valid")
