@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!-- The desktop systray filters are hardcoded buttons rather than a loop
+         over `tabs` (that loop is the small-screen navbar), so the desktop tab
+         has to be added by hand. Anchored on the quick-search button, which is
+         the last thing in the row and the only one carrying a stable
+         attribute. -->
+    <t t-inherit="mail.MessagingMenu.content" t-inherit-mode="extension">
+        <xpath expr="//button[@title='Quick search']" position="before">
+            <button t-if="hasWhatsmeowThreads"
+                    class="o-mail-MessagingMenu-headerFilter btn btn-link o-px-1_5 py-1 m-1 lh-1"
+                    t-att-class="store.discuss.activeTab === 'whatsmeow' ? 'fw-bold o-active shadow-sm' : 'text-muted'"
+                    type="button" role="tab"
+                    t-on-click="() => store.discuss.activeTab = 'whatsmeow'">WhatsApp</button>
+        </xpath>
+    </t>
+
+</templates>

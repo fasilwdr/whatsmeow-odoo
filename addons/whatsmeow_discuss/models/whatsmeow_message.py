@@ -122,12 +122,50 @@ class WhatsmeowMessage(models.Model):
         self.partner_id = partner
         return partner
 
-    def _wa_channel_name(self, partner):
+    def _wa_display_phone(self):
+        """The correspondent's number as a person would write it. WhatsApp
+        hands us bare digits; the leading + is what makes them read as a phone
+        number rather than an id."""
+        self.ensure_one()
+        phone = (self.phone or "").strip()
+        if phone and not phone.startswith("+"):
+            phone = "+" + phone
+        return phone
+
+    def _wa_display_name(self):
+        """The correspondent's name, or nothing when all we have is a number.
+
+        An auto-created contact is named after the number when WhatsApp gave us
+        no push name, so a bare `name` is not proof we know who this is —
+        compare it to the digits before treating it as a name.
+        """
+        self.ensure_one()
+        name = (self.partner_id.name or self.push_name or "").strip()
+        digits = _phone_tail(name)
+        if name and digits and digits == _phone_tail(self.phone or ""):
+            return ""  # "919..." is the number over again, not a name
+        return name
+
+    def _wa_conversation_label(self):
+        """What to call this conversation: the name *and* the number.
+
+        Either alone is a worse answer than both. A name with no number leaves
+        an operator guessing which of three Fasils is on the line and unable to
+        cross-check the contact record; a number with no name is unreadable in
+        a sidebar. A group has one subject and no number at all.
+        """
         self.ensure_one()
         if self.chat_type == "group":
             return self.chat_name or self.chat_jid or self.env._("WhatsApp Group")
-        return (partner.name or self.push_name or self.phone or self.chat_jid
+        name, phone = self._wa_display_name(), self._wa_display_phone()
+        if name and phone:
+            return f"{name} ({phone})"
+        return (name or phone or self.sender_lid or self.chat_jid
                 or self.env._("WhatsApp"))
+
+    def _wa_channel_name(self, partner):
+        self.ensure_one()
+        return self._wa_conversation_label()
 
     # -- find or create the conversation's channel ---------------------------
     def _wa_get_or_create_channel(self):
@@ -141,6 +179,7 @@ class WhatsmeowMessage(models.Model):
         ]
         channel = Channel.search(domain, limit=1)
         if channel:
+            self._wa_refresh_channel_identity(channel)
             return channel
 
         # First message of a conversation: route, *then* resolve the
@@ -179,7 +218,59 @@ class WhatsmeowMessage(models.Model):
             extra.unlink()
         return channel
 
+    def _wa_refresh_channel_identity(self, channel):
+        """Let a conversation learn who it is with, after the fact.
+
+        A conversation often opens before we know anything: WhatsApp's first
+        copy of a message can be an empty placeholder, a push name arrives on
+        the second message, and the contact may be created in Odoo days later.
+        The channel keeps whatever it was told at create, so an operator is left
+        looking at a bare number forever.
+
+        Only ever an *upgrade*, and only over a label we generated ourselves: a
+        channel someone has renamed by hand, or one that already carries a name,
+        is left exactly as it is.
+        """
+        self.ensure_one()
+        if self.chat_type == "group":
+            return
+        vals = {}
+        # A correspondent we could not resolve at create (a placeholder, or a
+        # contact made later) — the author of every past bubble stays as it was,
+        # but from here on the conversation has a face.
+        if not channel.whatsmeow_partner_id and self.partner_id:
+            vals["whatsmeow_partner_id"] = self.partner_id.id
+        label = self._wa_conversation_label()
+        if label and label != channel.name and self._wa_display_name():
+            # Was the current name one of ours, built from nothing but the
+            # number? Then it is safe to replace; anything else is somebody's
+            # deliberate choice.
+            generated = {self._wa_display_phone(), self.phone or "",
+                         self.sender_lid or "", self.chat_jid or ""}
+            if (channel.name or "") in generated:
+                vals["name"] = label
+        if vals:
+            channel.sudo().write(vals)
+
     # -- post the inbound message as a bubble --------------------------------
+    def _wa_bubble_author_label(self, channel):
+        """What to write above a bubble that has no Odoo author.
+
+        A LID-only sender, or a group participant we have never met, resolves to
+        no `res.partner`, and Discuss renders an authorless bubble as "Unnamed" —
+        which tells an operator nothing and looks broken next to a channel that
+        is named after the very person who wrote. `email_from` is Discuss's own
+        documented stand-in for an author it has no record of ("replaces the
+        author_id field in the chatter"), and the client falls back to it before
+        it gives up and says Unnamed.
+        """
+        self.ensure_one()
+        name, phone = self._wa_display_name(), self._wa_display_phone()
+        if name and phone:
+            return f"{name} ({phone})"
+        return (name or phone or channel.whatsmeow_partner_id.name
+                or self.sender_lid or self.sender_jid or self.env._("WhatsApp"))
+
     def _wa_post_into_channel(self, channel):
         self.ensure_one()
         if not channel:
@@ -222,6 +313,10 @@ class WhatsmeowMessage(models.Model):
         posted = channel.with_context(whatsmeow_skip_send=True).message_post(
             body=(Markup("<p>%s</p>") % render_markup(body)) if body else Markup(""),
             author_id=author.id or False,
+            # Only reached when there is no author to name: `email_from` is
+            # ignored by the client as soon as a persona exists, and a channel
+            # notifies its members, never an address.
+            email_from=None if author else self._wa_bubble_author_label(channel),
             message_type="comment",
             subtype_xmlid="mail.mt_comment",
             attachment_ids=attachments.ids,

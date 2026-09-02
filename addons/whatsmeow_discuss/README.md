@@ -30,6 +30,21 @@ A Discuss conversation needs a correspondent, so an inbound message from an unkn
 ### 🙂 Inbound Reactions & Read Markers
 A WhatsApp reaction to a message is surfaced on its Discuss bubble, and conversations behave like a private thread — members see read markers — so the team can tell what has been handled.
 
+### 🏷️ Named by Contact *and* Number
+A conversation is titled **Name (+number)**, not one or the other — enough to tell three
+customers with the same first name apart and to check the number against the contact record
+without leaving Discuss. A conversation that opened before WhatsApp told us a name picks the
+name up on a later message, while a channel you have renamed by hand is left alone. Bubbles
+from a sender Odoo has no contact for are labelled with their WhatsApp name instead of
+reading *Unnamed*.
+
+### 🟢 Its Own Place in Discuss
+WhatsApp conversations sit in their own **WhatsApp** section of the Discuss sidebar, carry a
+WhatsApp avatar wherever Odoo draws a thread, and get a **WhatsApp** tab in the messaging
+menu — so a customer on someone else's phone is never mistaken for a colleague, and the
+whole day's WhatsApp traffic is one click away. The tab appears only once there is a
+WhatsApp conversation to show.
+
 ### 📊 Conversations Smart Button
 A routed session shows a **Conversations** button that opens every Discuss channel it has spawned, so a manager can review or jump into any WhatsApp thread for that number.
 
@@ -97,6 +112,12 @@ The operators added to its channel by the routing rules (or the default operator
 The conversation-to-channel mapping is race-safe, so both messages land in the same single conversation rather than creating duplicates.
 
 ## Changelog
+
+### v19.0.1.2.0 — 2026-09-02
+- Conversations are named **Name (+number)**, and learn a name that arrives later
+- Bubbles from a sender with no Odoo contact show the WhatsApp name, not *Unnamed*
+- A dedicated **WhatsApp** section in the Discuss sidebar, with a WhatsApp avatar
+- A **WhatsApp** tab in the messaging menu, shown once there is a conversation
 
 ### v19.0.1.1.0 — 2026-07-19
 - Map each WhatsApp conversation to a native Discuss channel, opt-in per session

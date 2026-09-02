@@ -198,6 +198,80 @@ class TestInboundToChannel(DiscussCommon):
         self.assertTrue(posted.attachment_ids.voice_ids,
                         "the voice note attachment should carry voice metadata")
 
+    def test_the_conversation_is_named_with_the_number_too(self):
+        """A name alone leaves an operator guessing which of three Fasils is on
+        the line, and unable to cross-check the contact record."""
+        self._inbound(sender_phone="447700900777", push_name="Fasil Wandoor")
+        self.assertEqual(self._channels().name, "Fasil Wandoor (+447700900777)")
+
+    def test_a_number_we_have_no_name_for_is_named_after_itself(self):
+        """Not "919... (+919...)": an auto-created contact is named after its
+        own number when WhatsApp gave us no push name."""
+        self.session.auto_create_partner = True
+        self._inbound(sender_phone="447700900222", push_name="")
+        self.assertEqual(self._channels().name, "+447700900222")
+
+    def test_a_group_keeps_its_subject(self):
+        """A group has one subject and no number at all."""
+        self._inbound(chat_jid="123@g.us", chat_name="Site Team",
+                      sender_phone="447700900001")
+        self.assertEqual(self._channels().name, "Site Team")
+
+    def test_a_conversation_learns_a_name_it_did_not_have(self):
+        """The push name often arrives on the second message; without this the
+        operator stares at a bare number forever."""
+        self.session.auto_create_partner = False
+        self._inbound(wa_message_id="A", sender_phone="447700900333", push_name="")
+        channel = self._channels()
+        self.assertEqual(channel.name, "+447700900333")
+        self._inbound(wa_message_id="B", sender_phone="447700900333",
+                      push_name="Late Name")
+        self.assertEqual(channel.name, "Late Name (+447700900333)")
+
+    def test_a_hand_renamed_conversation_is_left_alone(self):
+        """Only ever an upgrade over a label we generated ourselves."""
+        self.session.auto_create_partner = False
+        self._inbound(wa_message_id="A", sender_phone="447700900444", push_name="")
+        channel = self._channels()
+        channel.name = "VIP — do not rename"
+        self._inbound(wa_message_id="B", sender_phone="447700900444",
+                      push_name="Whoever")
+        self.assertEqual(channel.name, "VIP — do not rename")
+
+    def test_a_correspondent_resolved_later_is_adopted(self):
+        """A contact created in Odoo after the conversation opened should still
+        become its correspondent, rather than leaving it faceless."""
+        self.session.auto_create_partner = False
+        self._inbound(wa_message_id="A", sender_phone="447700900555")
+        channel = self._channels()
+        self.assertFalse(channel.whatsmeow_partner_id)
+        partner = self.env["res.partner"].create({
+            "name": "Known Later", "phone": "+44 7700 900555"})
+        self._inbound(wa_message_id="B", sender_phone="447700900555")
+        self.assertEqual(channel.whatsmeow_partner_id, partner)
+
+    def test_an_authorless_bubble_still_names_its_sender(self):
+        """A LID-only sender resolves to no partner, and Discuss renders an
+        authorless bubble as "Unnamed" — which tells an operator nothing."""
+        self._inbound(sender_lid="12345", sender_phone="", push_name="Ghost")
+        posted = self._channels().message_ids.filtered(
+            lambda m: m.message_type == "comment")
+        self.assertFalse(posted.author_id)
+        self.assertEqual(posted.email_from, "Ghost")
+
+    def test_an_authorless_bubble_with_no_name_falls_back_to_the_lid(self):
+        self._inbound(sender_lid="12345", sender_phone="", push_name="")
+        posted = self._channels().message_ids.filtered(
+            lambda m: m.message_type == "comment")
+        self.assertEqual(posted.email_from, "12345")
+
+    def test_a_known_author_is_not_given_a_stand_in(self):
+        """`email_from` is only the fallback: a real persona must win."""
+        self._inbound(sender_phone="447700900666", push_name="Real Contact")
+        posted = self._channels().message_ids.filtered(
+            lambda m: m.message_type == "comment")
+        self.assertTrue(posted.author_id)
+
     def test_routing_off_posts_to_chatter_and_makes_no_channel(self):
         self.session.route_to_discuss = False
         partner = self.env["res.partner"].create({
