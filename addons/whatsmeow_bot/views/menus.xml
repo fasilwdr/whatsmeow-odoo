@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+  <!-- Administrators only: a chat transcript is a customer conversation, and
+       the WhatsApp Administrator group is the one that already governs who may
+       read across every number. -->
+  <menuitem id="menu_whatsmeow_bot_chats" name="Chatbot Chats"
+            parent="whatsmeow.menu_whatsmeow_root"
+            action="whatsmeow_bot_chat_action"
+            groups="whatsmeow.group_whatsmeow_manager" sequence="20"/>
+
+  <menuitem id="menu_whatsmeow_bots" name="Chatbots"
+            parent="whatsmeow.menu_whatsmeow_config"
+            action="whatsmeow_bot_action"
+            groups="whatsmeow.group_whatsmeow_manager" sequence="30"/>
+
+  <menuitem id="menu_whatsmeow_bot_values" name="Collected Answers"
+            parent="whatsmeow.menu_whatsmeow_config"
+            action="whatsmeow_bot_chat_value_action"
+            groups="whatsmeow.group_whatsmeow_manager" sequence="40"/>
+
+</odoo>

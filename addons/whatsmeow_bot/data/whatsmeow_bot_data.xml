@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <data noupdate="1">
+
+    <!--
+      A dedicated identity for the bot, so a Discuss note posted by a workflow
+      reads as "WhatsApp Bot" rather than as OdooBot doing something
+      inexplicable. The user is archived: it never logs in, it exists only to
+      carry a partner and a name, and an archived portal user consumes no seat.
+      It is still selectable on the bot form, whose field loads with
+      active_test disabled.
+    -->
+    <record id="partner_whatsmeow_bot" model="res.partner">
+      <field name="name">WhatsApp Bot</field>
+      <field name="company_id" eval="False"/>
+    </record>
+
+    <record id="user_whatsmeow_bot" model="res.users">
+      <field name="name">WhatsApp Bot</field>
+      <field name="login">__whatsmeow_bot__</field>
+      <field name="partner_id" ref="partner_whatsmeow_bot"/>
+      <field name="active" eval="False"/>
+      <field name="groups_id" eval="[(6, 0, [ref('base.group_portal')])]"/>
+    </record>
+
+  </data>
+</odoo>

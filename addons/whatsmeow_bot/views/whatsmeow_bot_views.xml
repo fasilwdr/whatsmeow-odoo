@@ -1,0 +1,318 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+  <record id="whatsmeow_bot_view_form" model="ir.ui.view">
+    <field name="name">whatsmeow.bot.form</field>
+    <field name="model">whatsmeow.bot</field>
+    <field name="arch" type="xml">
+      <form>
+        <header>
+          <button name="action_open_builder" type="object" class="btn-primary"
+                  string="Design the Flow" icon="fa-sitemap"/>
+        </header>
+        <sheet>
+          <div class="oe_button_box" name="button_box">
+            <button name="action_open_builder" type="object"
+                    class="oe_stat_button" icon="fa-sitemap">
+              <field name="step_count" widget="statinfo" string="Steps"/>
+            </button>
+            <button name="action_view_chats" type="object"
+                    class="oe_stat_button" icon="fa-comments-o">
+              <field name="chat_count" widget="statinfo" string="Chats"/>
+            </button>
+          </div>
+          <widget name="web_ribbon" title="Archived" bg_color="bg-danger"
+                  attrs="{'invisible': [('active', '=', True)]}"/>
+          <field name="active" invisible="1"/>
+          <div class="oe_title">
+            <label for="name"/>
+            <h1><field name="name" placeholder="e.g. Front desk"/></h1>
+          </div>
+          <group>
+            <group string="Identity" name="identity">
+              <!-- The shipped bot user is archived on purpose (it never logs
+                   in and must not take a seat), so the field has to look past
+                   active_test to offer it. -->
+              <field name="bot_user_id" options="{'no_create': True}"
+                     context="{'active_test': False}"/>
+              <field name="sequence"/>
+            </group>
+            <group string="Where it answers" name="where">
+              <field name="session_ids" widget="many2many_tags"
+                     options="{'no_create': True}"
+                     placeholder="Every enabled number"/>
+              <field name="skip_if_attended"/>
+              <field name="deliver_to_inbox"/>
+            </group>
+          </group>
+          <div class="alert alert-info" role="status">
+            A number only lets chatbots answer once <b>Answer with a chatbot</b>
+            is ticked on the session itself — installing this module changes
+            nothing on its own.
+          </div>
+
+          <notebook>
+
+            <page string="When it answers" name="trigger">
+              <p class="text-muted">
+                The bot picks up an incoming message when <b>every field you
+                set</b> below matches it; blank fields are wildcards, so a bot
+                with nothing set answers everything on its numbers. These are
+                the same criteria as the session's inbound filter and its
+                Discuss routes. If several bots match, the one with the lowest
+                sequence wins.
+              </p>
+              <group>
+                <group>
+                  <field name="chat_type"/>
+                  <field name="message_type"/>
+                  <field name="sender_state"/>
+                  <field name="keyword"/>
+                </group>
+                <group>
+                  <field name="partner_ids" widget="many2many_tags"
+                         options="{'no_create': True}"/>
+                  <field name="chat_jids"/>
+                  <field name="phones"/>
+                  <field name="sender_lids"/>
+                </group>
+              </group>
+              <div class="alert alert-warning" role="status"
+                   attrs="{'invisible': [('chat_type', '!=', False)]}">
+                <b>Chat type is blank</b> — this bot will also answer inside
+                WhatsApp groups. Set it to <i>Private</i> unless that is what
+                you want.
+              </div>
+            </page>
+
+            <!-- The same steps the designer draws, as an ordinary list. The
+                 designer is the better way to *understand* a flow; a list is
+                 the better way to fix a typo in one, and neither needs to be
+                 the only way in. Both edit the same records through the same
+                 form. -->
+            <page string="Steps" name="steps">
+              <div class="text-end mb-2">
+                <button name="action_open_builder" type="object"
+                        class="btn btn-secondary" icon="fa-sitemap"
+                        string="Open the Designer"/>
+              </div>
+              <field name="step_ids" nolabel="1"
+                     context="{'default_bot_id': id}">
+                <tree>
+                  <field name="sequence" widget="handle"/>
+                  <field name="name" string="Label"/>
+                  <field name="step_type"/>
+                  <field name="body" optional="show"/>
+                  <field name="store_key" string="Stores as" optional="show"/>
+                  <field name="answer_count" string="Options" optional="show"/>
+                  <field name="next_step_id" string="Then go to" optional="show"/>
+                  <field name="server_action_ids" widget="many2many_tags"
+                         string="Runs" optional="show"/>
+                </tree>
+              </field>
+              <p class="text-muted">
+                The order of the steps is the order the conversation runs in.
+                A step with no <b>Then go to</b> simply continues into the one
+                below it, so a straight-line script needs no links at all —
+                drag the rows to change the order.
+              </p>
+            </page>
+
+            <page string="Behaviour" name="behaviour">
+              <group>
+                <group string="When it cannot read an answer" name="retries">
+                  <field name="max_retries"/>
+                  <field name="on_max_retry"/>
+                  <field name="invalid_message" placeholder="Sorry, I didn't get that."/>
+                </group>
+                <group string="Ending a chat" name="ending">
+                  <field name="timeout_minutes"/>
+                  <field name="timeout_message" placeholder="(sends nothing)"/>
+                  <field name="restart_keywords"/>
+                  <field name="cancel_keywords"/>
+                  <field name="cancel_message"/>
+                </group>
+              </group>
+              <p class="text-muted">
+                A <b>stop word</b> closes the current conversation. It is not an
+                opt-out: to stop messaging someone for good, add an
+                <i>Opt the sender out</i> rule on the session's inbound filter,
+                which blocks every send path there is.
+              </p>
+            </page>
+
+            <page string="Handover" name="handover">
+              <group>
+                <group>
+                  <field name="handover_user_ids" widget="many2many_tags"
+                         options="{'no_create': True}"/>
+                  <field name="handover_summary"/>
+                </group>
+                <group>
+                  <field name="handover_message"/>
+                </group>
+              </group>
+              <p class="text-muted">
+                A handover opens (or continues) the contact's Discuss
+                conversation and adds whoever the session's own
+                <b>Discuss routing rules</b> pick — the operators you have
+                already configured for that contact. The people above are added
+                on top, and a <i>Hand over to a human</i> step can name its own
+                instead. Until someone presses <b>Release</b> on the chat, the
+                bot stays out of that conversation.
+              </p>
+            </page>
+
+          </notebook>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="whatsmeow_bot_view_tree" model="ir.ui.view">
+    <field name="name">whatsmeow.bot.tree</field>
+    <field name="model">whatsmeow.bot</field>
+    <field name="arch" type="xml">
+      <tree>
+        <field name="sequence" widget="handle"/>
+        <field name="name"/>
+        <field name="session_ids" widget="many2many_tags"
+               options="{'no_create': True}"/>
+        <field name="chat_type"/>
+        <field name="keyword"/>
+        <field name="step_count" string="Steps"/>
+        <field name="chat_count" string="Chats"/>
+      </tree>
+    </field>
+  </record>
+
+  <record id="whatsmeow_bot_view_search" model="ir.ui.view">
+    <field name="name">whatsmeow.bot.search</field>
+    <field name="model">whatsmeow.bot</field>
+    <field name="arch" type="xml">
+      <search>
+        <field name="name"/>
+        <field name="session_ids"/>
+        <filter name="inactive" string="Archived" domain="[('active','=',False)]"/>
+        <group name="group_by">
+          <filter name="group_session" string="Number" domain="[]"
+                  context="{'group_by': 'session_ids'}"/>
+        </group>
+      </search>
+    </field>
+  </record>
+
+  <record id="whatsmeow_bot_action" model="ir.actions.act_window">
+    <field name="name">Chatbots</field>
+    <field name="res_model">whatsmeow.bot</field>
+    <field name="view_mode">tree,form</field>
+    <field name="help" type="html">
+      <p class="o_view_nocontent_smiling_face">Build your first chatbot</p>
+      <p>
+        Say when it should answer, then press <b>Design the Flow</b> and draw
+        the conversation. Remember to tick <b>Answer with a chatbot</b> on the
+        WhatsApp number itself.
+      </p>
+    </field>
+  </record>
+
+  <!-- Steps and options are drawn in the flow designer, not edited as lists.
+       These views exist so a step is still openable from a chat, a transcript
+       line or a collected value — the places Odoo will link to one. -->
+  <!-- The step form is the one place a step is edited: the flow designer opens
+       it in a dialog rather than reimplementing its fields, so a many2one keeps
+       its search, a tags widget keeps its tags, and every help text and
+       constraint the model already has keeps working. -->
+  <record id="whatsmeow_bot_step_view_form" model="ir.ui.view">
+    <field name="name">whatsmeow.bot.step.form</field>
+    <field name="model">whatsmeow.bot.step</field>
+    <field name="arch" type="xml">
+      <form>
+        <sheet>
+          <!-- Not shown, but read by the domains below: a branch may only lead
+               to a step of the same chatbot. -->
+          <field name="bot_id" invisible="1"/>
+          <div class="oe_title">
+            <label for="name" string="Step"/>
+            <h1><field name="name" placeholder="e.g. Ask for the order number"/></h1>
+          </div>
+          <group>
+            <field name="step_type" widget="radio" options="{'horizontal': True}"/>
+          </group>
+
+          <group string="What the bot says"
+                 attrs="{'invisible': [('step_type', '=', 'action')]}">
+            <field name="body" nolabel="1" colspan="2" placeholder="What the bot says…"/>
+            <div colspan="2" class="text-muted">
+              WhatsApp formatting works: <code>*bold*</code>,
+              <code>_italic_</code>, <code>~strike~</code>.
+              Quote an earlier answer with <code>{{ answer.your_key }}</code>,
+              or the contact with <code>{{ contact.name }}</code>.
+            </div>
+          </group>
+
+          <group string="Options"
+                 attrs="{'invisible': [('step_type', '!=', 'choice')]}">
+            <field name="answer_ids" nolabel="1" colspan="2">
+              <tree editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="name" string="Option"/>
+                <field name="keywords" string="Also matches"/>
+                <field name="value" string="Stored as" optional="hide"/>
+                <field name="next_step_id" string="Go to"
+                       options="{'no_create': True}"
+                       domain="[('bot_id', '=', parent.bot_id)]"/>
+                <field name="server_action_ids" widget="many2many_tags"
+                       string="Run actions" options="{'no_create': True}"/>
+              </tree>
+            </field>
+            <div colspan="2" class="text-muted">
+              They are sent as a numbered list. The contact can answer with the
+              number, with the option's own words, or with any of its keywords.
+              An option with no <b>Go to</b> carries on to the next step.
+            </div>
+          </group>
+
+          <group string="The answer"
+                 attrs="{'invisible': [('step_type', 'not in', ('question', 'choice'))]}">
+            <field name="input_type"
+                   attrs="{'invisible': [('step_type', '!=', 'question')]}"/>
+            <field name="store_key" placeholder="order_number"/>
+            <field name="retry_message" placeholder="(the chatbot's own wording)"/>
+          </group>
+
+          <group string="Then">
+            <field name="next_step_id" options="{'no_create': True}"
+                   domain="[('bot_id', '=', bot_id)]"
+                   placeholder="the next step below"
+                   attrs="{'invisible': [('step_type', 'in', ('end', 'handover'))]}"/>
+            <field name="server_action_ids" widget="many2many_tags"
+                   options="{'no_create': True}"/>
+            <field name="operator_ids" widget="many2many_tags"
+                   options="{'no_create': True}"
+                   attrs="{'invisible': [('step_type', '!=', 'handover')]}"/>
+          </group>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="whatsmeow_bot_step_view_tree" model="ir.ui.view">
+    <field name="name">whatsmeow.bot.step.tree</field>
+    <field name="model">whatsmeow.bot.step</field>
+    <field name="arch" type="xml">
+      <tree>
+        <field name="sequence" widget="handle"/>
+        <field name="name" string="Label"/>
+        <field name="step_type"/>
+        <field name="body" optional="show"/>
+        <field name="store_key" optional="show"/>
+        <field name="answer_count" string="Options" optional="show"/>
+        <field name="next_step_id" string="Then go to" optional="show"/>
+        <field name="server_action_ids" widget="many2many_tags"
+               string="Runs" optional="show"/>
+      </tree>
+    </field>
+  </record>
+
+</odoo>

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="whatsmeow_session_view_form_bot" model="ir.ui.view">
+    <field name="name">whatsmeow.session.form.bot</field>
+    <field name="model">whatsmeow.session</field>
+    <field name="inherit_id" ref="whatsmeow.whatsmeow_session_view_form"/>
+    <field name="arch" type="xml">
+
+      <xpath expr="//div[@name='button_box']" position="inside">
+        <button name="action_view_bot_chats" type="object"
+                class="oe_stat_button" icon="fa-android"
+                attrs="{'invisible': [('bot_enabled', '=', False)]}">
+          <field name="bot_chat_count" widget="statinfo" string="Bot Chats"/>
+        </button>
+      </xpath>
+
+      <xpath expr="//page[@name='discuss_routing']" position="after">
+        <page string="Chatbot" name="chatbot">
+          <group>
+            <field name="bot_enabled"/>
+          </group>
+          <div class="alert alert-info" role="status"
+               attrs="{'invisible': [('bot_enabled', '=', False)]}">
+            Incoming messages on this number are offered to the chatbots below
+            before they reach an operator. The first bot whose conditions match
+            takes the conversation; if none do, the message is delivered exactly
+            as it would be without this module.
+          </div>
+          <field name="bot_ids" attrs="{'invisible': [('bot_enabled', '=', False)]}"
+                 nolabel="1">
+            <tree>
+              <field name="sequence" widget="handle"/>
+              <field name="name"/>
+              <field name="chat_type"/>
+              <field name="sender_state"/>
+              <field name="keyword"/>
+              <field name="step_count" string="Steps"/>
+            </tree>
+          </field>
+          <p class="text-muted" attrs="{'invisible': [('bot_enabled', '=', False)]}">
+            A bot with <b>no numbers set</b> answers on every number that has
+            this box ticked, so it will not appear in this list and does not
+            need to. Add one here only to pin it to this number.
+          </p>
+        </page>
+      </xpath>
+
+    </field>
+  </record>
+</odoo>

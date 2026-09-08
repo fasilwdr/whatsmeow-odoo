@@ -1,0 +1,13 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_whatsmeow_bot_user,whatsmeow.bot user,model_whatsmeow_bot,whatsmeow.group_whatsmeow_user,1,0,0,0
+access_whatsmeow_bot_manager,whatsmeow.bot manager,model_whatsmeow_bot,whatsmeow.group_whatsmeow_manager,1,1,1,1
+access_whatsmeow_bot_step_user,whatsmeow.bot.step user,model_whatsmeow_bot_step,whatsmeow.group_whatsmeow_user,1,0,0,0
+access_whatsmeow_bot_step_manager,whatsmeow.bot.step manager,model_whatsmeow_bot_step,whatsmeow.group_whatsmeow_manager,1,1,1,1
+access_whatsmeow_bot_answer_user,whatsmeow.bot.answer user,model_whatsmeow_bot_answer,whatsmeow.group_whatsmeow_user,1,0,0,0
+access_whatsmeow_bot_answer_manager,whatsmeow.bot.answer manager,model_whatsmeow_bot_answer,whatsmeow.group_whatsmeow_manager,1,1,1,1
+access_whatsmeow_bot_chat_user,whatsmeow.bot.chat user,model_whatsmeow_bot_chat,whatsmeow.group_whatsmeow_user,1,0,0,0
+access_whatsmeow_bot_chat_manager,whatsmeow.bot.chat manager,model_whatsmeow_bot_chat,whatsmeow.group_whatsmeow_manager,1,1,1,1
+access_whatsmeow_bot_chat_line_user,whatsmeow.bot.chat.line user,model_whatsmeow_bot_chat_line,whatsmeow.group_whatsmeow_user,1,0,0,0
+access_whatsmeow_bot_chat_line_manager,whatsmeow.bot.chat.line manager,model_whatsmeow_bot_chat_line,whatsmeow.group_whatsmeow_manager,1,1,1,1
+access_whatsmeow_bot_chat_value_user,whatsmeow.bot.chat.value user,model_whatsmeow_bot_chat_value,whatsmeow.group_whatsmeow_user,1,0,0,0
+access_whatsmeow_bot_chat_value_manager,whatsmeow.bot.chat.value manager,model_whatsmeow_bot_chat_value,whatsmeow.group_whatsmeow_manager,1,1,1,1

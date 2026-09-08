@@ -1,0 +1,692 @@
+// The chatbot flow designer.
+//
+// One rule governs the palette: a step type's colour means the same thing
+// everywhere — the card's spine, its type badge, the palette button that
+// creates it, and the lines that leave it. Somebody who has learnt that violet
+// is a menu has learnt it once.
+//
+// The canvas is a single column with a reserved gutter down its right-hand
+// side. Every branch curves out into that gutter and back, so the lines never
+// cross a card and the column stays readable however tangled the flow is.
+
+// A nested @keyframes is not portable across Sass compilers, so it lives here.
+@keyframes o_wa_flash_anim {
+    0%, 100% { box-shadow: 0 1px 2px rgba(34, 48, 60, 0.06); }
+    30% { box-shadow: 0 0 0 4px rgba(47, 128, 237, 0.35); }
+}
+
+.o_wa_flow {
+    --wa-teal: #0f9d8f;
+    --wa-blue: #2f80ed;
+    --wa-violet: #7c5cff;
+    --wa-amber: #d98c1f;
+    --wa-rose: #e5566d;
+    --wa-slate: #7b8794;
+    --wa-accent: var(--wa-slate);
+    // Each accent carries its own tints. `color-mix()` would say this in one
+    // line, but Odoo 16 compiles these with libsass, which is not a browser and
+    // has opinions about CSS functions it has never heard of.
+    --wa-accent-soft: #f0f2f4;
+    --wa-accent-line: #d5dade;
+    --wa-ink: #22303c;
+    --wa-muted: #6b7a86;
+    --wa-line: #d7dee4;
+    --wa-paper: #f6f8f9;
+    // How much room the branch lines get. The lane reserves it as padding and
+    // the JS bends its curves inside it, so the two must agree.
+    --wa-gutter: 96px;
+
+    display: flex;
+    flex-direction: column;
+    // Both, deliberately: `height: 100%` for the plain case, and the flex pair
+    // for when the action manager lays its child out as a flex item — which is
+    // what stops the canvas collapsing to its content instead of scrolling.
+    height: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--wa-paper);
+    color: var(--wa-ink);
+
+    // -- accents -------------------------------------------------------------
+    .o_wa_accent_teal {
+        --wa-accent: var(--wa-teal);
+        --wa-accent-soft: #e6f6f4;
+        --wa-accent-line: #b6e0da;
+    }
+    .o_wa_accent_blue {
+        --wa-accent: var(--wa-blue);
+        --wa-accent-soft: #eaf1fe;
+        --wa-accent-line: #bcd4fa;
+    }
+    .o_wa_accent_violet {
+        --wa-accent: var(--wa-violet);
+        --wa-accent-soft: #f0ecff;
+        --wa-accent-line: #cfc3ff;
+    }
+    .o_wa_accent_amber {
+        --wa-accent: var(--wa-amber);
+        --wa-accent-soft: #fdf3e2;
+        --wa-accent-line: #f2d9a8;
+    }
+    .o_wa_accent_rose {
+        --wa-accent: var(--wa-rose);
+        --wa-accent-soft: #fdecef;
+        --wa-accent-line: #f7c2cb;
+    }
+    .o_wa_accent_slate {
+        --wa-accent: var(--wa-slate);
+        --wa-accent-soft: #f0f2f4;
+        --wa-accent-line: #d5dade;
+    }
+
+    // -- header --------------------------------------------------------------
+    .o_wa_flow_header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 16px;
+        background: #fff;
+        border-bottom: 1px solid var(--wa-line);
+        flex: 0 0 auto;
+    }
+
+    .o_wa_back {
+        border: 1px solid var(--wa-line);
+        border-radius: 8px;
+        padding: 4px 10px;
+    }
+
+    .o_wa_flow_title {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.25;
+        min-width: 0;
+    }
+
+    .o_wa_flow_name {
+        font-size: 1.05rem;
+        font-weight: 600;
+    }
+
+    .o_wa_flow_sub {
+        font-size: 0.78rem;
+        color: var(--wa-muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .o_wa_hint_pill {
+        margin-left: auto;
+        font-size: 0.75rem;
+        color: var(--wa-muted);
+        background: var(--wa-paper);
+        border: 1px solid var(--wa-line);
+        border-radius: 999px;
+        padding: 3px 12px;
+        white-space: nowrap;
+    }
+
+    .o_wa_flow_loading {
+        flex: 1 1 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--wa-muted);
+    }
+
+    // -- canvas --------------------------------------------------------------
+    .o_wa_canvas {
+        flex: 1 1 auto;
+        overflow: auto;
+        padding: 28px 20px 40px;
+        // A faint grid says "canvas" without competing with the cards on it.
+        background-image: radial-gradient(var(--wa-line) 1px, transparent 1px);
+        background-size: 22px 22px;
+    }
+
+    .o_wa_lane {
+        position: relative;
+        max-width: 720px;
+        // The right padding is the gutter the branch lines curve through. It is
+        // part of the lane's box, so the SVG covers it and `offsetWidth` counts
+        // it — which is what the drawing code measures against.
+        padding-right: var(--wa-gutter);
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .o_wa_links {
+        position: absolute;
+        inset: 0;
+        // Purely decorative and measured from what is under it: it must never
+        // swallow a click meant for a card.
+        pointer-events: none;
+        z-index: 0;
+        overflow: visible;
+    }
+
+    .o_wa_edge_dim {
+        opacity: 0.12;
+    }
+
+    .o_wa_links > * {
+        transition: opacity 0.12s ease;
+    }
+
+    // -- start / end caps ----------------------------------------------------
+    .o_wa_terminus {
+        position: relative;
+        z-index: 1;
+        align-self: center;
+        display: inline-flex;
+        align-items: center;
+        font-size: 0.8rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        color: var(--wa-muted);
+        background: #fff;
+        border: 1px dashed var(--wa-line);
+        border-radius: 999px;
+        padding: 6px 16px;
+    }
+
+    .o_wa_terminus_start {
+        color: #128c7e;
+        border-color: #9fd8cf;
+        background: #eafaf6;
+    }
+
+    // -- connectors ----------------------------------------------------------
+    // The straight fall-through, drawn in CSS: it only ever joins the card above
+    // to the card below, and an SVG path would have to be re-measured on every
+    // resize to say the same thing. The curves in the gutter are the ones that
+    // genuinely need geometry.
+    .o_wa_link {
+        position: relative;
+        z-index: 1;
+        align-self: center;
+        width: 2px;
+        min-height: 32px;
+        background: var(--wa-line);
+
+        &::after {
+            content: "";
+            position: absolute;
+            bottom: -1px;
+            left: 50%;
+            width: 8px;
+            height: 8px;
+            border-right: 2px solid var(--wa-line);
+            border-bottom: 2px solid var(--wa-line);
+            transform: translateX(-50%) rotate(45deg);
+        }
+    }
+
+    // The card below is still next in the list, but it is not what happens
+    // next — so the straight line steps back and lets the curve speak.
+    .o_wa_link_muted {
+        background: transparent;
+        border-left: 2px dashed var(--wa-line);
+        width: 0;
+        opacity: 0.6;
+
+        &::after { display: none; }
+    }
+
+    .o_wa_gap {
+        min-height: 24px;
+    }
+
+    // -- step card -----------------------------------------------------------
+    .o_wa_step {
+        position: relative;
+        z-index: 1;
+        background: #fff;
+        border: 1px solid var(--wa-line);
+        border-left: 4px solid var(--wa-accent);
+        border-radius: 10px;
+        padding: 10px 12px 8px;
+        cursor: pointer;
+        box-shadow: 0 1px 2px rgba(34, 48, 60, 0.06);
+        transition: box-shadow 0.12s ease;
+
+        &:hover {
+            box-shadow: 0 3px 12px rgba(34, 48, 60, 0.13);
+        }
+
+        &.o_wa_dragging {
+            opacity: 0.45;
+        }
+
+        // Where the dragged card would land. A line above the target rather
+        // than a moving placeholder: nothing reflows, so the list does not
+        // shuffle under the cursor while you are aiming at it.
+        &.o_wa_dropbefore::before {
+            content: "";
+            position: absolute;
+            top: -8px;
+            left: 0;
+            right: 0;
+            height: 3px;
+            border-radius: 3px;
+            background: var(--wa-accent);
+        }
+    }
+
+    .o_wa_flash {
+        animation: o_wa_flash_anim 0.9s ease;
+    }
+
+    .o_wa_step_head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+    }
+
+    .o_wa_index {
+        flex: 0 0 auto;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: var(--wa-accent);
+        color: #fff;
+        font-size: 0.72rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .o_wa_type {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: var(--wa-accent);
+        background: var(--wa-accent-soft);
+        border-radius: 999px;
+        padding: 2px 9px;
+    }
+
+    .o_wa_step_title {
+        flex: 1 1 auto;
+        min-width: 0;
+        font-weight: 600;
+        font-size: 0.9rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .o_wa_step_tools {
+        flex: 0 0 auto;
+        display: flex;
+        opacity: 0;
+        transition: opacity 0.12s ease;
+
+        .btn {
+            color: var(--wa-muted);
+            padding: 1px 6px;
+            line-height: 1;
+
+            &:hover { color: var(--wa-ink); }
+            &.o_wa_danger:hover { color: var(--wa-rose); }
+        }
+    }
+
+    .o_wa_step:hover .o_wa_step_tools {
+        opacity: 1;
+    }
+
+    // -- inline editor -------------------------------------------------------
+    // The card becomes the form. Everything here is a Bootstrap control at
+    // small size, so it reads as part of Odoo rather than as a bespoke panel —
+    // and only the fields the current kind can use are ever rendered, which is
+    // what keeps it short enough to sit inside a card.
+    .o_wa_editing {
+        cursor: default;
+        box-shadow: 0 4px 18px rgba(34, 48, 60, 0.16);
+    }
+
+    .o_wa_step_view {
+        cursor: pointer;
+    }
+
+    .o_wa_edit {
+        margin: 10px 0 2px 30px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .o_wa_edit_row {
+        display: flex;
+        gap: 6px;
+
+        > * { flex: 1 1 auto; min-width: 0; }
+    }
+
+    .o_wa_edit_kind {
+        flex: 0 0 40%;
+        max-width: 190px;
+    }
+
+    .o_wa_edit_label {
+        margin: 6px 0 -2px;
+        font-size: 0.72rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--wa-muted);
+    }
+
+    .o_wa_edit_body {
+        font-family: inherit;
+        line-height: 1.4;
+    }
+
+    .o_wa_hint {
+        font-size: 0.72rem;
+        color: var(--wa-muted);
+
+        code {
+            background: var(--wa-paper);
+            border: 1px solid var(--wa-line);
+            border-radius: 3px;
+            padding: 0 3px;
+            color: inherit;
+        }
+    }
+
+    .o_wa_edit_option {
+        display: flex;
+        align-items: flex-start;
+        gap: 6px;
+        padding: 6px;
+        background: var(--wa-paper);
+        border: 1px solid var(--wa-line);
+        border-radius: 8px;
+
+        .o_wa_option_no {
+            margin-top: 4px;
+        }
+    }
+
+    .o_wa_edit_option_fields {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .o_wa_edit_option_tools {
+        flex: 0 0 auto;
+        display: flex;
+        flex-direction: column;
+
+        .btn {
+            color: var(--wa-muted);
+            padding: 0 5px;
+            line-height: 1.2;
+
+            &:hover { color: var(--wa-ink); }
+            &.o_wa_danger:hover { color: var(--wa-rose); }
+        }
+    }
+
+    .o_wa_edit_add {
+        align-self: flex-start;
+        font-size: 0.78rem;
+        border: 1px dashed var(--wa-line);
+    }
+
+    // A chip row plus an "add one" dropdown: the smallest thing that behaves
+    // like the many2many_tags people already know.
+    .o_wa_tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+
+    .o_wa_tag {
+        display: inline-flex;
+        align-items: center;
+        font-size: 0.74rem;
+        color: var(--wa-accent);
+        background: var(--wa-accent-soft);
+        border: 1px solid var(--wa-accent-line);
+        border-radius: 999px;
+        padding: 1px 9px;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+
+        .fa-times {
+            cursor: pointer;
+            opacity: 0.6;
+
+            &:hover { opacity: 1; }
+        }
+    }
+
+    .o_wa_edit_actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 10px;
+        padding-top: 8px;
+        border-top: 1px solid var(--wa-line);
+    }
+
+    // The escape hatch. A link rather than a button, and last: it is the way
+    // out for the rare field, not a second way to do the common thing.
+    .o_wa_edit_more {
+        margin-left: auto;
+        font-size: 0.78rem;
+        text-decoration: none;
+    }
+
+    // -- bubble --------------------------------------------------------------
+    // Drawn as the WhatsApp bubble the contact will receive, so what is checked
+    // here is what they will read.
+    .o_wa_bubble {
+        margin: 8px 0 0 30px;
+        background: #e7ffdb;
+        border-radius: 8px 8px 8px 2px;
+        padding: 7px 10px;
+        font-size: 0.86rem;
+        white-space: pre-wrap;
+        word-break: break-word;
+
+        code {
+            background: rgba(0, 0, 0, 0.06);
+            color: inherit;
+            border-radius: 3px;
+            padding: 0 3px;
+        }
+    }
+
+    .o_wa_ph {
+        background: #fff3d6;
+        border: 1px solid #f0d9a0;
+        border-radius: 4px;
+        padding: 0 3px;
+        font-family: monospace;
+        font-size: 0.82em;
+        color: #8a5a00;
+    }
+
+    // -- options -------------------------------------------------------------
+    .o_wa_options {
+        margin: 6px 0 0 30px;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+
+    .o_wa_option {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.82rem;
+    }
+
+    .o_wa_option_no {
+        flex: 0 0 auto;
+        width: 18px;
+        height: 18px;
+        border-radius: 4px;
+        background: var(--wa-accent-soft);
+        color: var(--wa-accent);
+        font-size: 0.68rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .o_wa_option_label {
+        flex: 1 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    // The anchor a branch line leaves from. It sits at the row's right edge,
+    // which is exactly where the drawing code starts the curve.
+    .o_wa_goto,
+    .o_wa_step_goto {
+        flex: 0 0 auto;
+        font-size: 0.72rem;
+        color: var(--wa-accent);
+        background: var(--wa-accent-soft);
+        border: 1px solid var(--wa-accent-line);
+        border-radius: 999px;
+        padding: 1px 9px;
+        cursor: pointer;
+        max-width: 55%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+
+        &:hover { filter: brightness(0.96); }
+    }
+
+    .o_wa_step_goto {
+        display: inline-block;
+        align-self: flex-end;
+        margin: 6px 0 2px auto;
+        max-width: 70%;
+    }
+
+    // -- meta chips ----------------------------------------------------------
+    .o_wa_meta {
+        margin: 8px 0 0 30px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        &:empty { display: none; }
+    }
+
+    .o_wa_chip {
+        font-size: 0.7rem;
+        color: var(--wa-muted);
+        background: var(--wa-paper);
+        border: 1px solid var(--wa-line);
+        border-radius: 999px;
+        padding: 1px 8px;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .o_wa_chip_action {
+        color: #8a5a00;
+        background: #fff8e8;
+        border-color: #f0d9a0;
+    }
+
+    // -- empty state ---------------------------------------------------------
+    .o_wa_empty {
+        position: relative;
+        z-index: 1;
+        text-align: center;
+        padding: 40px 20px;
+        color: var(--wa-muted);
+        background: #fff;
+        border: 1px dashed var(--wa-line);
+        border-radius: 12px;
+    }
+
+    // -- palette -------------------------------------------------------------
+    .o_wa_palette {
+        position: relative;
+        z-index: 1;
+        margin-top: 26px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 12px;
+        background: #fff;
+        border: 1px solid var(--wa-line);
+        border-radius: 12px;
+    }
+
+    .o_wa_palette_label {
+        width: 100%;
+        text-align: center;
+        font-size: 0.72rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--wa-muted);
+        margin-bottom: 4px;
+    }
+
+    .o_wa_palette_btn {
+        display: inline-flex;
+        align-items: center;
+        font-size: 0.8rem;
+        font-weight: 500;
+        color: var(--wa-accent);
+        background: var(--wa-accent-soft);
+        border: 1px solid var(--wa-accent-line);
+        border-radius: 8px;
+        padding: 5px 12px;
+
+        &:hover { filter: brightness(0.96); }
+    }
+}
+
+// Below this the gutter costs more than the lines are worth: it is squeezing
+// the cards rather than giving the curves room. They fall back to the chips,
+// which say the same thing in words.
+@media (max-width: 720px) {
+    .o_wa_flow {
+        --wa-gutter: 0px;
+    }
+
+    .o_wa_flow .o_wa_links {
+        display: none;
+    }
+
+    .o_wa_flow .o_wa_hint_pill {
+        display: none;
+    }
+}

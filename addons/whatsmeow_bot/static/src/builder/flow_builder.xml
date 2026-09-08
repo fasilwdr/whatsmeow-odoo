@@ -1,0 +1,415 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+  <t t-name="whatsmeow_bot.FlowBuilder" owl="1">
+    <!-- `className` is what the action manager hands every client action to
+         place it in the layout; dropping it is how a client action ends up
+         either scrolling the whole page or having no height at all. -->
+    <div t-attf-class="o_wa_flow {{ props.className or '' }}">
+
+      <!-- ── header ─────────────────────────────────────────────────────── -->
+      <div class="o_wa_flow_header">
+        <button class="btn btn-light o_wa_back" t-on-click="backToBot"
+                title="Back to the chatbot">
+          <i class="fa fa-arrow-left" role="img"/>
+        </button>
+        <div class="o_wa_flow_title">
+          <span class="o_wa_flow_name" t-esc="state.bot.name or 'Chatbot'"/>
+          <span class="o_wa_flow_sub">
+            <t t-if="state.bot.sessions and state.bot.sessions.length">
+              <t t-esc="state.bot.sessions.join(', ')"/>
+            </t>
+            <t t-else="">Every enabled number</t>
+          </span>
+        </div>
+        <span class="o_wa_hint_pill"
+              t-if="!state.loading and !isEmpty and !state.readonly">
+          <i class="fa fa-hand-pointer-o me-1" role="img"/>
+          Click a step to edit it · drag to reorder
+        </span>
+      </div>
+
+      <t t-if="state.loading">
+        <div class="o_wa_flow_loading">
+          <i class="fa fa-circle-o-notch fa-spin fa-2x" role="img"/>
+        </div>
+      </t>
+
+      <t t-else="">
+        <div class="o_wa_canvas">
+          <div class="o_wa_lane" t-ref="lane">
+
+            <!-- Every branch is drawn here, measured from the cards below.
+                 It sits behind them and ignores the mouse entirely. -->
+            <svg class="o_wa_links" t-ref="links" aria-hidden="true"/>
+
+            <div class="o_wa_terminus o_wa_terminus_start">
+              <i class="fa fa-whatsapp me-2" role="img"/>
+              A contact writes in
+            </div>
+            <div class="o_wa_link"/>
+
+            <t t-if="isEmpty and !editingNew">
+              <div class="o_wa_empty">
+                <i class="fa fa-sitemap fa-3x mb-3" role="img"/>
+                <h5>This bot has nothing to say yet</h5>
+                <p class="text-muted">
+                  Add a step below. The order of the cards is the order the
+                  conversation runs in; lines show where a branch goes instead.
+                </p>
+              </div>
+            </t>
+
+            <t t-foreach="state.steps" t-as="step" t-key="step.id">
+              <!-- Dropping *on* a card puts the dragged one in its place, which
+                   is what the line above it is showing. -->
+              <div t-att-class="stepClass(step, step_index)"
+                   t-att-data-step-id="step.id"
+                   t-att-draggable="state.readonly or isEditing(step.id) ? 'false' : 'true'"
+                   t-on-mouseenter="() => this.focusLinks(step.id)"
+                   t-on-mouseleave="() => this.focusLinks(null)"
+                   t-on-dragstart="(ev) => this.onDragStart(step.id, ev)"
+                   t-on-dragover="(ev) => this.onDragOver(step_index, ev)"
+                   t-on-drop="(ev) => this.onDrop(step_index, ev)"
+                   t-on-dragend="onDragEnd">
+
+                <div class="o_wa_step_head" t-on-click="() => this.startEdit(step)">
+                  <span class="o_wa_index" t-esc="step_index + 1"/>
+                  <span class="o_wa_type">
+                    <i class="fa" t-att-class="styleOf(step.step_type).icon" role="img"/>
+                    <t t-esc="typeLabel(step.step_type)"/>
+                  </span>
+                  <span class="o_wa_step_title" t-esc="step.title"/>
+                  <span class="o_wa_step_tools"
+                        t-if="!state.readonly and !isEditing(step.id)">
+                    <button class="btn btn-sm" title="Move up"
+                            t-on-click.stop="() => this.move(step.id, -1)">
+                      <i class="fa fa-angle-up" role="img"/>
+                    </button>
+                    <button class="btn btn-sm" title="Move down"
+                            t-on-click.stop="() => this.move(step.id, 1)">
+                      <i class="fa fa-angle-down" role="img"/>
+                    </button>
+                    <button class="btn btn-sm" title="Duplicate"
+                            t-on-click.stop="() => this.duplicateStep(step.id)">
+                      <i class="fa fa-clone" role="img"/>
+                    </button>
+                    <button class="btn btn-sm" title="Open the full form"
+                            t-on-click.stop="() => this.openStepForm(step.id)">
+                      <i class="fa fa-expand" role="img"/>
+                    </button>
+                    <button class="btn btn-sm o_wa_danger" title="Delete"
+                            t-on-click.stop="() => this.deleteStep(step.id)">
+                      <i class="fa fa-trash-o" role="img"/>
+                    </button>
+                  </span>
+                </div>
+
+                <t t-if="isEditing(step.id)">
+                  <t t-call="whatsmeow_bot.FlowStepEditor"/>
+                </t>
+
+                <t t-else="">
+                  <!-- The whole body is the click target, so editing a step is
+                       one click on the thing you are looking at. -->
+                  <div class="o_wa_step_view" t-on-click="() => this.startEdit(step)">
+                    <div class="o_wa_bubble" t-if="step.body">
+                      <div t-out="preview(step)"/>
+                    </div>
+
+                    <!-- Options are drawn as the numbered list the contact will
+                         actually receive, so the card and the phone agree — and
+                         the number on the card is the number on the line
+                         leaving it. -->
+                    <div class="o_wa_options" t-if="step.answers.length">
+                      <div class="o_wa_option" t-foreach="step.answers" t-as="answer"
+                           t-key="answer.id">
+                        <span class="o_wa_option_no" t-esc="answer_index + 1"/>
+                        <span class="o_wa_option_label"
+                              t-esc="answer.name or 'Untitled option'"/>
+                        <span class="o_wa_chip o_wa_chip_action"
+                              t-if="answer.action_names.length"
+                              t-esc="answer.action_names.join(', ')"/>
+                        <span class="o_wa_goto" t-if="answer.next_step_id"
+                              t-att-data-link-target="answer.next_step_id"
+                              t-att-data-link-label="answer_index + 1"
+                              t-att-data-link-color="styleOf(step.step_type).color"
+                              t-att-data-link-owner="step.id"
+                              t-on-click.stop="() => this.jumpTo(answer.next_step_id)"
+                              t-esc="answer.next_step_title"/>
+                      </div>
+                    </div>
+
+                    <div class="o_wa_meta">
+                      <span class="o_wa_chip" t-if="step.store_key">
+                        <i class="fa fa-bookmark-o me-1" role="img"/>
+                        <t t-esc="step.store_key"/>
+                      </span>
+                      <span class="o_wa_chip" t-if="step.step_type === 'question'">
+                        <i class="fa fa-keyboard-o me-1" role="img"/>
+                        <t t-esc="step.input_label"/>
+                      </span>
+                      <span class="o_wa_chip o_wa_chip_action"
+                            t-foreach="step.action_names" t-as="action"
+                            t-key="action_index">
+                        <i class="fa fa-bolt me-1" role="img"/>
+                        <t t-esc="action"/>
+                      </span>
+                      <span class="o_wa_chip" t-if="step.operator_names.length">
+                        <i class="fa fa-user-o me-1" role="img"/>
+                        <t t-esc="step.operator_names.join(', ')"/>
+                      </span>
+                    </div>
+
+                    <!-- The card's own jump. It anchors the line, so it lives on
+                         the card rather than on the connector below it. -->
+                    <div class="o_wa_step_goto" t-if="step.next_step_id"
+                         t-att-data-link-target="step.next_step_id"
+                         t-att-data-link-color="styleOf(step.step_type).color"
+                         t-att-data-link-owner="step.id"
+                         t-on-click.stop="() => this.jumpTo(step.next_step_id)">
+                      <i class="fa fa-share me-1" role="img"/>
+                      then <b t-esc="step.next_step_title"/>
+                    </div>
+                  </div>
+                </t>
+              </div>
+
+              <!-- Muted when the step jumps elsewhere: the card below is still
+                   next in the list, but it is not what happens next. -->
+              <t t-if="['end', 'handover'].includes(step.step_type)">
+                <div class="o_wa_gap"/>
+              </t>
+              <t t-else="">
+                <div t-attf-class="o_wa_link {{ step.next_step_id ? 'o_wa_link_muted' : '' }}"/>
+              </t>
+            </t>
+
+            <!-- A step being created is drawn as the card it will become, in
+                 the place it will occupy. -->
+            <t t-if="editingNew">
+              <div t-attf-class="o_wa_step o_wa_editing o_wa_accent_{{ styleOf(state.draft.step_type).accent }}">
+                <div class="o_wa_step_head">
+                  <span class="o_wa_index"><i class="fa fa-plus" role="img"/></span>
+                  <span class="o_wa_type">
+                    <i class="fa" t-att-class="styleOf(state.draft.step_type).icon"
+                       role="img"/>
+                    <t t-esc="typeLabel(state.draft.step_type)"/>
+                  </span>
+                  <span class="o_wa_step_title">New step</span>
+                </div>
+                <t t-call="whatsmeow_bot.FlowStepEditor"/>
+              </div>
+              <div class="o_wa_link"/>
+            </t>
+
+            <div class="o_wa_terminus o_wa_terminus_end" t-if="!isEmpty or editingNew">
+              <i class="fa fa-flag-checkered me-2" role="img"/>
+              The conversation ends
+            </div>
+
+            <!-- ── palette ────────────────────────────────────────────── -->
+            <div class="o_wa_palette" t-if="!state.readonly and !editingNew">
+              <span class="o_wa_palette_label">Add a step</span>
+              <button t-foreach="state.options.step_types" t-as="type"
+                      t-key="type.value"
+                      class="o_wa_palette_btn"
+                      t-attf-class="o_wa_accent_{{ styleOf(type.value).accent }}"
+                      t-on-click="() => this.startNew(type.value)">
+                <i class="fa me-1" t-att-class="styleOf(type.value).icon" role="img"/>
+                <t t-esc="type.label"/>
+              </button>
+            </div>
+          </div>
+        </div>
+      </t>
+    </div>
+  </t>
+
+  <!--
+    The inline editor.
+
+    It reads `state.draft` and nothing else, which is what lets one template
+    serve both an existing card and the new one at the bottom. Only the fields
+    the current kind can actually use are rendered — a message step asks four
+    questions, a menu asks six — and everything rarer lives one click away
+    behind *All fields*, in the ordinary Odoo form that already renders it
+    properly.
+  -->
+  <t t-name="whatsmeow_bot.FlowStepEditor" owl="1">
+    <div class="o_wa_edit">
+
+      <div class="o_wa_edit_row">
+        <select class="form-select form-select-sm o_wa_edit_kind"
+                t-on-change="onChangeKind">
+          <option t-foreach="state.options.step_types" t-as="type" t-key="type.value"
+                  t-att-value="type.value"
+                  t-att-selected="type.value === state.draft.step_type"
+                  t-esc="type.label"/>
+        </select>
+        <input type="text" class="form-control form-control-sm"
+               t-model="state.draft.name"
+               placeholder="Name this step (optional)"/>
+      </div>
+
+      <t t-if="state.draft.step_type !== 'action'">
+        <label class="o_wa_edit_label">Message</label>
+        <textarea class="form-control form-control-sm o_wa_edit_body" rows="3"
+                  t-model="state.draft.body"
+                  placeholder="What the bot says…"/>
+        <div class="o_wa_hint">
+          <code>*bold*</code> <code>_italic_</code> <code>~strike~</code> ·
+          quote an answer with <code>{{ answer.your_key }}</code>
+        </div>
+      </t>
+
+      <!-- Options -->
+      <t t-if="state.draft.step_type === 'choice'">
+        <label class="o_wa_edit_label">Options</label>
+        <div class="o_wa_edit_option" t-foreach="state.draft.answers" t-as="answer"
+             t-key="answer.key">
+          <span class="o_wa_option_no" t-esc="answer_index + 1"/>
+          <div class="o_wa_edit_option_fields">
+            <input type="text" class="form-control form-control-sm"
+                   t-model="answer.name" placeholder="What the contact sees"/>
+            <input type="text" class="form-control form-control-sm"
+                   t-model="answer.keywords"
+                   placeholder="Also matches: yes, y, ok"/>
+            <!-- Carries the same link data as the chip it replaces, so the line
+                 on the canvas follows this dropdown as it changes. -->
+            <select class="form-select form-select-sm"
+                    t-att-data-link-target="answer.next_step_id"
+                    t-att-data-link-label="answer_index + 1"
+                    t-att-data-link-color="styleOf(state.draft.step_type).color"
+                    t-att-data-link-owner="state.draft.id"
+                    t-on-change="(ev) => this.onChangeLink(answer, ev)">
+              <option value="">Then → the next step</option>
+              <option t-foreach="linkTargets" t-as="target" t-key="target.id"
+                      t-att-value="target.id"
+                      t-att-selected="target.id === answer.next_step_id"
+                      t-esc="target.title"/>
+            </select>
+            <div class="o_wa_tags" t-if="answer.server_action_ids.length">
+              <span class="o_wa_tag" t-foreach="answer.server_action_ids" t-as="aid"
+                    t-key="aid">
+                <t t-esc="actionName(aid)"/>
+                <i class="fa fa-times ms-1" role="img"
+                   t-on-click="() => this.removeTag(answer, 'server_action_ids', aid)"/>
+              </span>
+            </div>
+            <select class="form-select form-select-sm"
+                    t-if="spareActionsFor(answer).length"
+                    t-on-change="(ev) => this.addTag(answer, 'server_action_ids', ev)">
+              <option value="">Run an action…</option>
+              <option t-foreach="spareActionsFor(answer)" t-as="entry" t-key="entry.id"
+                      t-att-value="entry.id" t-esc="entry.name"/>
+            </select>
+          </div>
+          <span class="o_wa_edit_option_tools">
+            <button class="btn btn-sm" title="Move up"
+                    t-on-click="() => this.moveAnswer(answer, -1)">
+              <i class="fa fa-angle-up" role="img"/>
+            </button>
+            <button class="btn btn-sm" title="Move down"
+                    t-on-click="() => this.moveAnswer(answer, 1)">
+              <i class="fa fa-angle-down" role="img"/>
+            </button>
+            <button class="btn btn-sm o_wa_danger" title="Remove"
+                    t-on-click="() => this.removeAnswer(answer)">
+              <i class="fa fa-times" role="img"/>
+            </button>
+          </span>
+        </div>
+        <button class="btn btn-sm btn-light o_wa_edit_add" t-on-click="addAnswer">
+          <i class="fa fa-plus me-1" role="img"/> Add an option
+        </button>
+      </t>
+
+      <!-- The answer -->
+      <t t-if="draftIsWaiting">
+        <div class="o_wa_edit_row">
+          <t t-if="state.draft.step_type === 'question'">
+            <select class="form-select form-select-sm"
+                    t-model="state.draft.input_type">
+              <option t-foreach="state.options.input_types" t-as="type"
+                      t-key="type.value" t-att-value="type.value" t-esc="type.label"/>
+            </select>
+          </t>
+          <input type="text" class="form-control form-control-sm"
+                 t-model="state.draft.store_key"
+                 placeholder="Store the answer as… (e.g. order_number)"/>
+        </div>
+      </t>
+
+      <!-- Then -->
+      <t t-if="!draftIsTerminal">
+        <label class="o_wa_edit_label">Then go to</label>
+        <select class="form-select form-select-sm"
+                t-att-data-link-target="state.draft.next_step_id"
+                t-att-data-link-color="styleOf(state.draft.step_type).color"
+                t-att-data-link-owner="state.draft.id"
+                t-on-change="(ev) => this.onChangeLink(state.draft, ev)">
+          <option value="">The next step below</option>
+          <option t-foreach="linkTargets" t-as="target" t-key="target.id"
+                  t-att-value="target.id"
+                  t-att-selected="target.id === state.draft.next_step_id"
+                  t-esc="target.title"/>
+        </select>
+      </t>
+
+      <!-- Server actions -->
+      <label class="o_wa_edit_label">Run actions</label>
+      <div class="o_wa_tags" t-if="state.draft.server_action_ids.length">
+        <span class="o_wa_tag" t-foreach="state.draft.server_action_ids" t-as="aid"
+              t-key="aid">
+          <t t-esc="actionName(aid)"/>
+          <i class="fa fa-times ms-1" role="img"
+             t-on-click="() => this.removeTag(state.draft, 'server_action_ids', aid)"/>
+        </span>
+      </div>
+      <select class="form-select form-select-sm" t-if="spareActions.length"
+              t-on-change="(ev) => this.addTag(state.draft, 'server_action_ids', ev)">
+        <option value="">Add an action…</option>
+        <option t-foreach="spareActions" t-as="entry" t-key="entry.id"
+                t-att-value="entry.id" t-esc="entry.name"/>
+      </select>
+
+      <!-- Handover operators -->
+      <t t-if="state.draft.step_type === 'handover'">
+        <label class="o_wa_edit_label">Hand over to</label>
+        <div class="o_wa_tags" t-if="state.draft.operator_ids.length">
+          <span class="o_wa_tag" t-foreach="state.draft.operator_ids" t-as="uid"
+                t-key="uid">
+            <t t-esc="userName(uid)"/>
+            <i class="fa fa-times ms-1" role="img"
+               t-on-click="() => this.removeTag(state.draft, 'operator_ids', uid)"/>
+          </span>
+        </div>
+        <select class="form-select form-select-sm" t-if="spareUsers.length"
+                t-on-change="(ev) => this.addTag(state.draft, 'operator_ids', ev)">
+          <option value="">Add an operator…</option>
+          <option t-foreach="spareUsers" t-as="entry" t-key="entry.id"
+                  t-att-value="entry.id" t-esc="entry.name"/>
+        </select>
+        <div class="o_wa_hint">
+          Added on top of whoever the number's own Discuss routing rules pick.
+        </div>
+      </t>
+
+      <div class="o_wa_edit_actions">
+        <button class="btn btn-primary btn-sm" t-on-click="saveStep"
+                t-att-disabled="state.saving">
+          <i class="fa fa-check me-1" role="img"/> Save
+        </button>
+        <button class="btn btn-light btn-sm" t-on-click="cancelEdit"
+                t-att-disabled="state.saving">Cancel</button>
+        <button class="btn btn-link btn-sm o_wa_edit_more" t-on-click="openFullForm"
+                t-att-disabled="state.saving"
+                title="Save and open the full Odoo form, with every field">
+          All fields <i class="fa fa-external-link ms-1" role="img"/>
+        </button>
+      </div>
+    </div>
+  </t>
+
+</templates>

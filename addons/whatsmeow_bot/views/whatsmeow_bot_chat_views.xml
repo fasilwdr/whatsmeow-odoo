@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+  <record id="whatsmeow_bot_chat_view_form" model="ir.ui.view">
+    <field name="name">whatsmeow.bot.chat.form</field>
+    <field name="model">whatsmeow.bot.chat</field>
+    <field name="arch" type="xml">
+      <form create="false">
+        <header>
+          <button name="action_release" type="object" string="Release to the Bot"
+                  attrs="{'invisible': [('state', '!=', 'handover')]}"
+                  help="Lift the hold this handover put on the conversation, so
+                        the chatbot may answer here again."/>
+          <button name="action_close" type="object" string="Close"
+                  attrs="{'invisible': [('state', '!=', 'running')]}"/>
+          <button name="action_open_channel" type="object" string="Open in Discuss"
+                  attrs="{'invisible': [('channel_id', '=', False)]}"/>
+          <field name="state" widget="statusbar"
+                 statusbar_visible="running,done"/>
+        </header>
+        <sheet>
+          <div class="oe_title">
+            <h1><field name="name" readonly="1"/></h1>
+          </div>
+          <group>
+            <group>
+              <field name="bot_id" readonly="1"/>
+              <field name="session_id" readonly="1"/>
+              <field name="partner_id" readonly="1"/>
+              <field name="phone" readonly="1"/>
+              <field name="push_name" readonly="1"/>
+            </group>
+            <group>
+              <field name="current_step_id" readonly="1"/>
+              <field name="retry_count" readonly="1"/>
+              <field name="start_date" readonly="1"/>
+              <field name="last_activity" readonly="1"/>
+              <field name="end_date" readonly="1"
+                     attrs="{'invisible': [('end_date', '=', False)]}"/>
+              <field name="channel_id" readonly="1"
+                     attrs="{'invisible': [('channel_id', '=', False)]}"/>
+              <field name="chat_jid" readonly="1" groups="base.group_no_one"/>
+            </group>
+          </group>
+          <notebook>
+            <page string="Transcript" name="transcript">
+              <field name="line_ids" readonly="1" nolabel="1">
+                <tree decoration-muted="direction == 'note'"
+                      decoration-info="direction == 'out'">
+                  <field name="date" string="Time" widget="datetime"/>
+                  <field name="direction"/>
+                  <field name="body"/>
+                  <field name="step_id" optional="show"/>
+                  <field name="message_state" string="Delivery" widget="badge"
+                         optional="show"/>
+                  <field name="message_id" optional="hide"/>
+                </tree>
+              </field>
+            </page>
+            <page string="Collected" name="collected">
+              <field name="value_ids" readonly="1" nolabel="1">
+                <tree>
+                  <field name="key"/>
+                  <field name="label"/>
+                  <field name="value"/>
+                  <field name="answer_id" optional="hide"/>
+                  <field name="step_id" optional="hide"/>
+                </tree>
+              </field>
+              <p class="text-muted">
+                Each value is filed under its step's <b>store key</b>. Later
+                messages quote one back as
+                <code>{{ answer.your_key }}</code>, and a server action reads
+                the whole set from its context.
+              </p>
+            </page>
+          </notebook>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="whatsmeow_bot_chat_view_tree" model="ir.ui.view">
+    <field name="name">whatsmeow.bot.chat.tree</field>
+    <field name="model">whatsmeow.bot.chat</field>
+    <field name="arch" type="xml">
+      <tree create="false"
+            decoration-info="state == 'running'"
+            decoration-success="state == 'done'"
+            decoration-warning="state == 'handover'"
+            decoration-muted="state in ('expired', 'cancelled')">
+        <field name="last_activity" string="Last Activity"/>
+        <field name="bot_id"/>
+        <field name="session_id"/>
+        <field name="partner_id"/>
+        <field name="phone" optional="show"/>
+        <field name="push_name" optional="hide"/>
+        <field name="current_step_id" optional="show"/>
+        <field name="value_count" string="Answers"/>
+        <field name="state" widget="badge"/>
+      </tree>
+    </field>
+  </record>
+
+  <record id="whatsmeow_bot_chat_view_search" model="ir.ui.view">
+    <field name="name">whatsmeow.bot.chat.search</field>
+    <field name="model">whatsmeow.bot.chat</field>
+    <field name="arch" type="xml">
+      <search>
+        <field name="name" string="Chat"/>
+        <field name="partner_id"/>
+        <field name="phone"/>
+        <field name="bot_id"/>
+        <field name="session_id"/>
+        <filter name="running" string="Running" domain="[('state','=','running')]"/>
+        <filter name="handover" string="With an operator"
+                domain="[('state','=','handover')]"/>
+        <filter name="done" string="Completed" domain="[('state','=','done')]"/>
+        <separator/>
+        <filter name="today" string="Today"
+                domain="[('last_activity','&gt;=', context_today().strftime('%Y-%m-%d 00:00:00'))]"/>
+        <group name="group_by">
+          <filter name="group_bot" string="Chatbot" domain="[]"
+                  context="{'group_by': 'bot_id'}"/>
+          <filter name="group_session" string="Number" domain="[]"
+                  context="{'group_by': 'session_id'}"/>
+          <filter name="group_state" string="Status" domain="[]"
+                  context="{'group_by': 'state'}"/>
+          <filter name="group_step" string="Waiting At" domain="[]"
+                  context="{'group_by': 'current_step_id'}"/>
+        </group>
+      </search>
+    </field>
+  </record>
+
+  <record id="whatsmeow_bot_chat_action" model="ir.actions.act_window">
+    <field name="name">Chatbot Chats</field>
+    <field name="res_model">whatsmeow.bot.chat</field>
+    <field name="view_mode">tree,form</field>
+    <field name="context">{'search_default_group_bot': 1}</field>
+    <field name="help" type="html">
+      <p class="o_view_nocontent_smiling_face">No chatbot conversations yet</p>
+      <p>
+        Every conversation a bot holds lands here — what it said, what the
+        contact answered, and how it ended.
+      </p>
+    </field>
+  </record>
+
+  <record id="whatsmeow_bot_chat_value_view_tree" model="ir.ui.view">
+    <field name="name">whatsmeow.bot.chat.value.tree</field>
+    <field name="model">whatsmeow.bot.chat.value</field>
+    <field name="arch" type="xml">
+      <tree create="false">
+        <field name="chat_id"/>
+        <field name="partner_id"/>
+        <field name="key"/>
+        <field name="label" optional="hide"/>
+        <field name="value"/>
+        <field name="bot_id" optional="hide"/>
+      </tree>
+    </field>
+  </record>
+
+  <record id="whatsmeow_bot_chat_value_action" model="ir.actions.act_window">
+    <field name="name">Collected Answers</field>
+    <field name="res_model">whatsmeow.bot.chat.value</field>
+    <field name="view_mode">tree</field>
+    <field name="context">{'search_default_group_key': 1}</field>
+  </record>
+
+  <record id="whatsmeow_bot_chat_value_view_search" model="ir.ui.view">
+    <field name="name">whatsmeow.bot.chat.value.search</field>
+    <field name="model">whatsmeow.bot.chat.value</field>
+    <field name="arch" type="xml">
+      <search>
+        <field name="key"/>
+        <field name="value"/>
+        <field name="partner_id"/>
+        <group name="group_by">
+          <filter name="group_key" string="Key" domain="[]"
+                  context="{'group_by': 'key'}"/>
+          <filter name="group_bot" string="Chatbot" domain="[]"
+                  context="{'group_by': 'bot_id'}"/>
+        </group>
+      </search>
+    </field>
+  </record>
+
+</odoo>

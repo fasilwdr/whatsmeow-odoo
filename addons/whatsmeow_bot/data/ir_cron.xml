@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <!-- Odoo 16 counts calls: `numbercall` defaults to 1, which would run this
+       exactly once and then deactivate it. -1 is "no limit". -->
+  <record id="cron_whatsmeow_bot_expire" model="ir.cron">
+    <field name="name">Whatsmeow: expire idle chatbot chats</field>
+    <field name="model_id" ref="model_whatsmeow_bot_chat"/>
+    <field name="state">code</field>
+    <field name="code">model.cron_expire()</field>
+    <field name="user_id" ref="base.user_root"/>
+    <field name="interval_number">10</field>
+    <field name="interval_type">minutes</field>
+    <field name="numbercall">-1</field>
+    <field name="doall" eval="False"/>
+    <field name="active" eval="True"/>
+  </record>
+</odoo>
