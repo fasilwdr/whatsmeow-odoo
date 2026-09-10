@@ -11,7 +11,7 @@ import qrcode
 
 from odoo import _, api, fields, models
 from odoo.addons.base.models.res_partner import _tz_get
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 
 _logger = logging.getLogger(__name__)
 
@@ -65,6 +65,22 @@ class WhatsmeowSession(models.Model):
     jid = fields.Char(string="WhatsApp JID", readonly=True)
     qr_image = fields.Binary(string="Pairing QR", readonly=True, attachment=False)
     last_error = fields.Char(readonly=True)
+    # One gateway can serve several Odoo databases, so it has to be told where
+    # to post this session's events. These two record what it says it is doing,
+    # which is the only way an operator finds out that the silence is on our
+    # end rather than WhatsApp's.
+    gateway_webhook_url = fields.Char(
+        string="Gateway Posts To", readonly=True, copy=False,
+        help="The address the gateway has on file for this session. It should "
+             "match the connection's Webhook URL; the refresh cron repairs it "
+             "if it drifts.",
+    )
+    webhook_error = fields.Char(
+        string="Webhook Error", readonly=True, copy=False,
+        help="The gateway's last failure delivering an event to this Odoo. "
+             "Set means inbound messages are being lost, however healthy the "
+             "WhatsApp connection looks.",
+    )
     message_ids = fields.One2many("whatsmeow.message", "session_id")
 
     send_delay_min = fields.Integer(
@@ -550,6 +566,12 @@ class WhatsmeowSession(models.Model):
             "last_error": data.get("error") or False,
             "jid": data.get("jid") or self.jid,
         }
+        # Only when the gateway actually said something about them: the QR
+        # payload merged in by action_refresh carries neither.
+        if "webhook_url" in data:
+            vals["gateway_webhook_url"] = data.get("webhook_url") or False
+        if "webhook_error" in data or "webhook_ok_at" in data:
+            vals["webhook_error"] = data.get("webhook_error") or False
         qr_string = data.get("qr")
         if qr_string:
             buf = io.BytesIO()
@@ -559,10 +581,63 @@ class WhatsmeowSession(models.Model):
             vals["qr_image"] = False
         self.write(vals)
 
+    # -- gateway registration -------------------------------------------------
+    def _registration_payload(self):
+        """What this session tells the gateway about the Odoo behind it.
+
+        Sent on every start, not only at pairing: a session that is already
+        paired never pairs again, so pairing is the one moment that cannot be
+        relied on to re-point an Odoo that has moved. The secret is the
+        connection's, so the inbound controller keeps routing secret →
+        connection → session exactly as before.
+        """
+        self.ensure_one()
+        conn = self.connection_id.sudo()
+        return {
+            "webhook_url": conn.webhook_url or "",
+            "webhook_secret": conn.webhook_secret or "",
+            "label": f"{self.env.cr.dbname}: {self.name}",
+        }
+
+    def _sync_webhook(self, data):
+        """Re-point a gateway that is posting this session's events elsewhere.
+
+        A gateway restored from a backup, or an Odoo that changed domain, leaves
+        the two ends disagreeing about where events go — and the symptom is
+        silence, which nobody reports. So the refresh cron repairs it rather
+        than waiting for someone to notice.
+        """
+        self.ensure_one()
+        wanted = self.connection_id.webhook_url
+        if not wanted or data.get("webhook_url") == wanted:
+            return
+        try:
+            self._gw("PUT", f"/sessions/{self.code}/webhook", self._registration_payload())
+        except UserError as exc:
+            # A repair that rides along with the status refresh must never break
+            # it. Someone pressing Refresh Status wants to see the number's
+            # state, and a gateway older than this endpoint answers 404 to every
+            # session it owns — which would make the button useless on exactly
+            # the installs that most need looking at. Record it and carry on.
+            _logger.warning("whatsmeow: session %s could not be re-pointed at %s: %s",
+                            self.code, wanted, exc)
+            self.webhook_error = _(
+                "The gateway would not accept where to post this session's "
+                "events (%(error)s). If it was installed before this feature, "
+                "rebuild it; otherwise press Start / Pair to register again.",
+                error=str(exc),
+            )
+            return
+        self.gateway_webhook_url = wanted
+        self.webhook_error = False
+        _logger.info("whatsmeow: session %s re-pointed at %s (gateway had %r)",
+                     self.code, wanted, data.get("webhook_url"))
+
     # -- UI actions -----------------------------------------------------------
     def action_start(self):
         for rec in self:
-            rec._apply_state(rec._gw("POST", f"/sessions/{rec.code}/start"))
+            rec._apply_state(rec._gw(
+                "POST", f"/sessions/{rec.code}/start", rec._registration_payload()))
 
     def action_refresh(self):
         for rec in self:
@@ -570,11 +645,26 @@ class WhatsmeowSession(models.Model):
             if data.get("status") == "qr":
                 data.update(rec._gw("GET", f"/sessions/{rec.code}/qr"))
             rec._apply_state(data)
+            rec._sync_webhook(data)
 
     def action_logout(self):
         for rec in self:
             rec._gw("POST", f"/sessions/{rec.code}/logout")
             rec.write({"status": "logged_out", "qr_image": False, "jid": False})
+
+    def action_forget(self):
+        """Drop this session from the gateway: its store, its media, everything.
+
+        Deliberately a button of its own rather than something `unlink` does:
+        this unpairs the device, and deleting a mistyped Odoo record is a
+        routine act that must not cost a WhatsApp pairing.
+        """
+        for rec in self:
+            rec._gw("DELETE", f"/sessions/{rec.code}")
+            rec.write({
+                "status": "draft", "qr_image": False, "jid": False,
+                "gateway_webhook_url": False, "webhook_error": False,
+            })
 
     @api.model
     def cron_refresh_all(self):

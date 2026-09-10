@@ -24,14 +24,27 @@
               <field name="base_url" widget="url"/>
               <field name="active" invisible="1"/>
             </group>
+            <group string="Callback" groups="whatsmeow.group_whatsmeow_manager">
+              <field name="callback_base_url" placeholder="https://acme.example.com"/>
+              <field name="webhook_url" widget="url" readonly="1"/>
+            </group>
             <group string="Credentials" groups="whatsmeow.group_whatsmeow_manager">
               <field name="api_key" password="True"/>
               <field name="webhook_secret" password="True"/>
             </group>
           </group>
           <div class="text-muted">
-            These must match <code>WMG_API_KEY</code> and <code>WMG_WEBHOOK_SECRET</code>
-            in the gateway's <code>gateway.env</code>.
+            The API Key identifies this Odoo to the gateway: one gateway can
+            serve several, and each sees only its own sessions. It must match one
+            of the keys in the gateway's <code>WMG_API_KEYS</code> (or
+            <code>WMG_API_KEY</code> on a single-client gateway).
+            <br/>
+            The Webhook Secret is what the gateway sends back with every event,
+            and is how this database recognises them — pick a fresh one per
+            database rather than sharing the gateway's.
+            <br/>
+            Starting a session tells the gateway the <b>Webhook URL</b> above, so
+            it has to be an address the gateway can reach from wherever it runs.
           </div>
         </sheet>
       </form>

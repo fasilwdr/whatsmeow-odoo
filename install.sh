@@ -10,6 +10,15 @@
 #
 # Re-running is safe: it keeps existing secrets, rebuilds and restarts.
 #
+# One gateway can serve several Odoo databases. Each gets its own API key, and
+# sees only the sessions started with it:
+#
+#     sudo ./install.sh --add-client acme
+#
+# prints a key to paste into that Odoo's Gateway record. The first install
+# generates a key for the client `default`, which is what a single-Odoo setup
+# uses and needs no further thought.
+#
 # By default this builds the whatsmeow version pinned in gateway/go.mod. That pin is
 # deliberate: whatsmeow has no stable releases and its API drifts, so an unattended
 # upgrade is how a working gateway silently stops compiling. To move the pin on
@@ -42,6 +51,60 @@ log() { echo -e "\033[1;32m[whatsmeow-install]\033[0m $*"; }
 err() { echo -e "\033[1;31m[whatsmeow-install]\033[0m $*" >&2; }
 
 [ "$(id -u)" -eq 0 ] || { err "Please run as root (sudo)."; exit 1; }
+
+# ---- add a client to an installed gateway ----------------------------------
+# Deliberately its own path: adding a client must not rebuild the binary or
+# touch a paired session. It edits one line of the env file and restarts.
+if [ "${1:-}" = "--add-client" ]; then
+  LABEL="${2:-}"
+  ENV_FILE="$INSTALL_DIR/gateway.env"
+  case "$LABEL" in
+    ""|*[!a-z0-9_-]*)
+      err "Usage: $0 --add-client <label>   (lowercase letters, digits, '-', '_')"
+      exit 1 ;;
+  esac
+  [ -f "$ENV_FILE" ] || { err "No gateway installed at $INSTALL_DIR (run $0 first)."; exit 1; }
+
+  CURRENT="$(grep -E '^WMG_API_KEYS=' "$ENV_FILE" | head -1 | cut -d= -f2- || true)"
+  case ",$CURRENT," in
+    *",$LABEL:"*)
+      err "Client '$LABEL' already has a key. Remove its entry from WMG_API_KEYS"
+      err "in $ENV_FILE first if you mean to rotate it."
+      exit 1 ;;
+  esac
+
+  NEW_KEY="$(openssl rand -hex 32)"
+  if [ -n "$CURRENT" ]; then
+    NEW_VALUE="$CURRENT,$LABEL:$NEW_KEY"
+  else
+    NEW_VALUE="$LABEL:$NEW_KEY"
+  fi
+  # awk, not sed: the value is full of characters sed would read as syntax.
+  if grep -qE '^WMG_API_KEYS=' "$ENV_FILE"; then
+    awk -v v="$NEW_VALUE" \
+        'index($0, "WMG_API_KEYS=") == 1 { print "WMG_API_KEYS=" v; next } { print }' \
+        "$ENV_FILE" > "$ENV_FILE.tmp"
+    mv "$ENV_FILE.tmp" "$ENV_FILE"
+  else
+    printf 'WMG_API_KEYS=%s\n' "$NEW_VALUE" >> "$ENV_FILE"
+  fi
+  chmod 600 "$ENV_FILE"
+  systemctl restart whatsmeow-gateway 2>/dev/null || true
+
+  echo
+  log "Client '$LABEL' added."
+  echo "--------------------------------------------------------------------"
+  echo "  In that Odoo: WhatsApp > Configuration > Gateways > New"
+  echo
+  echo "    API Key       : ${NEW_KEY}"
+  echo "    Webhook Secret: $(openssl rand -hex 32)   <-- fresh, per database"
+  echo "    This Odoo's URL: https://<that odoo's hostname>"
+  echo
+  echo "  The gateway must be able to reach that URL, and every session"
+  echo "  started with this key is invisible to the other clients."
+  echo "--------------------------------------------------------------------"
+  exit 0
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -195,7 +258,12 @@ WMG_WEBHOOK_SECRET=$(openssl rand -hex 32)
 WMG_ODOO_WEBHOOK_URL=$ODOO_WEBHOOK_URL
 WMG_DATA_DIR=$DATA_DIR
 
-# Optional tunables (media size/TTL, recipient-check budget, webhook workers)
+# Serving another Odoo from this gateway: sudo install.sh --add-client <label>
+# adds a key here as WMG_API_KEYS=label:key,... The key above stays valid as the
+# client `default`, which is what the sessions installed before you read this
+# are filed under.
+
+# Optional tunables (media size/TTL, recipient-check budget, webhook queue)
 # have working defaults and are left out on purpose. See gateway.env.example in
 # the repo for the full list; add a line here and restart to change one.
 ENV
@@ -302,8 +370,11 @@ echo
 echo "    Gateway URL     : http://${PROBE_HOST}:${PROBE_PORT}"
 echo "    API Key         : ${API_KEY}"
 echo "    Webhook Secret  : ${WEBHOOK_SECRET}"
+echo "    This Odoo's URL : leave empty unless Odoo is behind a proxy"
 echo
+echo "  Another Odoo on this gateway: sudo $0 --add-client <label>"
 echo "  Health check      : curl ${PROBE_URL}"
 echo "  Logs              : journalctl -u whatsmeow-gateway -f"
 echo "  Session stores    : ${ACTUAL_DATA_DIR}  <-- back this up, it holds the pairing keys"
+echo "  Session registry  : ${ACTUAL_DATA_DIR}/registry.json  <-- owners + webhook URLs; back this up too"
 echo "--------------------------------------------------------------------"

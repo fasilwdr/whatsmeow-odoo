@@ -7,6 +7,9 @@ from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
 
+# Must match the route in controllers/webhook.py.
+WEBHOOK_PATH = "/whatsmeow/webhook"
+
 REQUEST_TIMEOUT = 20
 # Uploading/downloading media is slower than a status poll; give it room.
 MEDIA_TIMEOUT = 300
@@ -33,6 +36,17 @@ class WhatsmeowConnection(models.Model):
         help="Must match WMG_WEBHOOK_SECRET on this gateway. Used to route "
              "inbound webhooks back to this connection.",
     )
+    callback_base_url = fields.Char(
+        string="This Odoo's URL", groups="whatsmeow.group_whatsmeow_manager",
+        help="Where this Odoo is reachable *from the gateway*, e.g. "
+             "https://acme.example.com. Sent to the gateway when a session "
+             "starts, so one gateway can serve several Odoo databases. Leave "
+             "empty to use the system's Web Base URL.",
+    )
+    webhook_url = fields.Char(
+        compute="_compute_webhook_url", string="Webhook URL",
+        help="The address the gateway posts this connection's events to.",
+    )
     active = fields.Boolean(default=True)
     session_ids = fields.One2many("whatsmeow.session", "connection_id")
     session_count = fields.Integer(compute="_compute_session_count")
@@ -46,6 +60,20 @@ class WhatsmeowConnection(models.Model):
     def _compute_session_count(self):
         for rec in self:
             rec.session_count = len(rec.session_ids)
+
+    @api.depends("callback_base_url")
+    def _compute_webhook_url(self):
+        """Where this Odoo wants the gateway to post.
+
+        The system parameter is the sane default, but it is wrong often enough
+        — behind a proxy, on a staging clone restored from production — that
+        the connection must be able to override it. Read through sudo because
+        `callback_base_url` is a manager-only field and any user may send.
+        """
+        default = self.env["ir.config_parameter"].sudo().get_param("web.base.url") or ""
+        for rec in self:
+            base = (rec.sudo().callback_base_url or default).strip().rstrip("/")
+            rec.webhook_url = f"{base}{WEBHOOK_PATH}" if base else False
 
     # -- shared HTTP helper ---------------------------------------------------
     def _call(self, method, path, payload=None, timeout=REQUEST_TIMEOUT):
@@ -93,16 +121,22 @@ class WhatsmeowConnection(models.Model):
         return resp.content, resp.headers
 
     def action_test(self):
-        # Hits an authed endpoint so it validates the API key, not just reachability.
+        # Hits an authed endpoint so it validates the API key, not just
+        # reachability. The gateway answers with the sessions *this key* owns,
+        # which is also the quickest way to spot a key pasted into the wrong
+        # database: the reply lists somebody else's numbers, or none at all.
         self.ensure_one()
-        self._request("GET", "/sessions")
+        sessions = self._request("GET", "/sessions") or []
+        names = ", ".join(s.get("session", "?") for s in sessions) or _("none yet")
         return {
             "type": "ir.actions.client",
             "tag": "display_notification",
             "params": {
                 "type": "success",
                 "sticky": False,
-                "message": _("Gateway '%s' reachable and key valid.", self.name),
+                "message": _("Gateway '%(name)s' reachable and key valid. "
+                             "Sessions on this key: %(sessions)s.",
+                             name=self.name, sessions=names),
                 "next": {"type": "ir.actions.act_window_close"},
             },
         }

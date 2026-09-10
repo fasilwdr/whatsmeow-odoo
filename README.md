@@ -36,7 +36,9 @@ for the mitigations built in. They reduce risk. They do not eliminate it.
 
 ## Architecture
 
-One Odoo can drive several gateways; one gateway can hold several WhatsApp numbers.
+One Odoo can drive several gateways; one gateway can hold several WhatsApp numbers
+**and serve several Odoo databases**, each with its own key, its own sessions and
+its own webhook URL.
 
 ```mermaid
 flowchart LR
@@ -54,8 +56,10 @@ flowchart LR
     gw <-- "WhatsApp Web<br/>multi-device" --> WA(("WhatsApp"))
 ```
 
-Outbound goes Odoo → gateway over REST, authenticated with an API key. Inbound
-arrives at `/whatsmeow/webhook`, routed to the right connection by the
+Outbound goes Odoo → gateway over REST, authenticated with an API key — which
+also says *which* Odoo is calling, so a client can only ever reach its own
+sessions. Inbound arrives at `/whatsmeow/webhook`, at the address that session
+registered when it started, routed to the right connection by the
 `X-Webhook-Secret` header.
 
 ## Modules
@@ -127,6 +131,10 @@ The gateway listens on `127.0.0.1` only. Put Odoo on the same host, or front it 
 TLS and firewall it — the API key is the only thing between the internet and your
 WhatsApp account.
 
+To serve a second Odoo from the same gateway, `sudo ./install.sh --add-client acme`
+prints a key for it. Sessions are namespaced per client, so two databases may both
+call their number `main`, and neither can see the other's.
+
 ### 2. The Odoo modules
 
 Add `addons/` to your Odoo `addons_path`, then:
@@ -141,8 +149,9 @@ odoo-bin -c odoo.conf -d <database> -i whatsmeow_marketing --stop-after-init
 
 ### 3. Pair a number
 
-1. **WhatsApp → Configuration → Gateways** — create one, paste the gateway URL,
-   API key and webhook secret, hit **Test Connection**.
+1. **WhatsApp → Configuration → Gateways** — create one, paste the gateway URL and
+   API key, set a webhook secret of your own, and fill in **This Odoo's URL** if
+   Odoo is behind a proxy. Hit **Test Connection**.
 2. **WhatsApp → Configuration → Sessions** — create one, give it a code, **Start**.
 3. Scan the QR with the phone (WhatsApp → *Linked devices* → *Link a device*).
 
@@ -156,14 +165,16 @@ The gateway reads `/opt/whatsmeow-gateway/gateway.env`. Defaults are sensible;
 | Variable | Default | Purpose |
 |---|---|---|
 | `WMG_LISTEN` | `127.0.0.1:8080` | Listen address |
-| `WMG_API_KEY` | *(generated)* | Bearer key Odoo must present |
-| `WMG_WEBHOOK_SECRET` | *(generated)* | Sent as `X-Webhook-Secret`; routes to the connection |
-| `WMG_ODOO_WEBHOOK_URL` | `http://127.0.0.1:8069/whatsmeow/webhook` | Where events go |
-| `WMG_DATA_DIR` | `/var/lib/whatsmeow-gateway` | Session stores and staged media |
+| `WMG_API_KEY` | *(generated)* | Key for the client `default` — the single-Odoo form |
+| `WMG_API_KEYS` | – | `label:key,...` — one key per Odoo database |
+| `WMG_WEBHOOK_SECRET` | *(generated)* | Legacy default; each session now carries its own |
+| `WMG_ODOO_WEBHOOK_URL` | `http://127.0.0.1:8069/whatsmeow/webhook` | Legacy default; each session now carries its own |
+| `WMG_DATA_DIR` | `/var/lib/whatsmeow-gateway` | Session stores, `registry.json` and staged media |
 | `WMG_MAX_MEDIA_MB` | `100` | Largest media accepted, either direction |
 | `WMG_MEDIA_TTL_HOURS` | `24` | Before uncollected media is GC'd |
 | `WMG_CHECK_PER_HOUR` | `500` | Uncached number lookups per session per hour |
-| `WMG_WEBHOOK_WORKERS` | `4` | Concurrent webhook posts — a safety limit, not a throughput dial |
+| `WMG_WEBHOOK_QUEUE` | `512` | Events buffered per session — a safety limit, not a throughput dial |
+| `WMG_MAX_SESSIONS_PER_CLIENT` | `10` | Sessions one Odoo may register |
 
 Two pairs must be kept in sync across the language boundary, and both are commented
 at each site: `WMG_CHECK_TTL_DAYS` ↔ `REGISTRATION_TTL_DAYS`, and

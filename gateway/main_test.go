@@ -652,83 +652,92 @@ func TestIdempotencyKeyDecodesFromOdooPayload(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // One message to a big group produces a receipt per participant. Posting them
-// all at once once exhausted an Odoo's threads; the queue is what bounds it.
-func TestNotifyOdooNeverBlocksTheEventHandler(t *testing.T) {
-	prevURL, prevQueue := odooWebhookURL, webhookQueue
-	defer func() { odooWebhookURL, webhookQueue = prevURL, prevQueue }()
-
-	odooWebhookURL = "http://127.0.0.1:1/whatsmeow/webhook"
-	webhookQueue = make(chan webhookJob, 4) // deliberately tiny; no workers drain it
+// all at once once exhausted an Odoo's threads; the queue is what bounds it,
+// and enqueueing must never block whatever the queue's state.
+func TestNotifyNeverBlocksTheEventHandler(t *testing.T) {
+	// A sender with no run() goroutine: nothing will ever drain this queue.
+	s := &Session{Name: "main", Owner: "acme", UID: "u_acme_main", hooks: &webhookSender{
+		client: "acme", name: "main",
+		queue: make(chan webhookJob, 4), done: make(chan struct{}),
+	}}
 
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
 		for i := 0; i < 200; i++ { // far more than the queue holds
-			notifyOdoo("test_me", "message.receipt", map[string]any{"n": i})
+			s.notify("message.receipt", map[string]any{"n": i})
 		}
 	}()
 
 	select {
 	case <-done:
 	case <-time.After(5 * time.Second):
-		t.Fatal("notifyOdoo blocked on a full queue: this stalls the WhatsApp " +
+		t.Fatal("notify blocked on a full queue: this stalls the WhatsApp " +
 			"connection, since it runs on whatsmeow's event handler")
 	}
-	if len(webhookQueue) != 4 {
-		t.Errorf("queue holds %d, want it capped at 4", len(webhookQueue))
+	if len(s.hooks.queue) != 4 {
+		t.Errorf("queue holds %d, want it capped at 4", len(s.hooks.queue))
 	}
 }
 
-// The incident this fixes: one reply to a group produced ~62 receipts at once,
-// each posted on its own goroutine. Odoo's threaded server spawns a thread per
-// request, ran out, and died — after which the retries kept it down. Prove the
-// pool bounds concurrency no matter how many events arrive together.
-func TestWebhookWorkersBoundConcurrency(t *testing.T) {
-	prevURL, prevQueue, prevWorkers := odooWebhookURL, webhookQueue, webhookWorkers
-	defer func() {
-		odooWebhookURL, webhookQueue, webhookWorkers = prevURL, prevQueue, prevWorkers
-	}()
+// The property that makes one gateway safe for several Odoos: a client whose
+// Odoo is down must not hold up anybody else's events. Under the old shared
+// worker pool, four stuck deliveries occupied every worker and stalled every
+// other client behind them.
+func TestOneDeadOdooDoesNotHoldUpAnother(t *testing.T) {
+	resetGatewayState(t)
 
-	var inFlight, maxInFlight, total int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		n := atomic.AddInt32(&inFlight, 1)
-		for {
-			old := atomic.LoadInt32(&maxInFlight)
-			if n <= old || atomic.CompareAndSwapInt32(&maxInFlight, old, n) {
-				break
-			}
+	block := make(chan struct{})
+	stuck := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-block // this Odoo has stopped answering
+	}))
+	var delivered, wrongSecret int32
+	healthy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Each session carries its own secret, from the registry: it is what
+		// the receiving Odoo routes the event by, so a shared one would be
+		// rejected by everyone it was not issued to.
+		if r.Header.Get("X-Webhook-Secret") != "secret" {
+			atomic.AddInt32(&wrongSecret, 1)
 		}
-		time.Sleep(2 * time.Millisecond) // Odoo is not instant
-		atomic.AddInt32(&total, 1)
-		atomic.AddInt32(&inFlight, -1)
+		atomic.AddInt32(&delivered, 1)
 		w.WriteHeader(http.StatusOK)
 	}))
-	defer srv.Close()
 
-	odooWebhookURL = srv.URL
-	webhookWorkers = 4
-	startWebhookWorkers()
+	dead := mountSession(t, "dead_co", "main")
+	live := mountSession(t, "live_co", "main")
+	setWebhook(t, "dead_co", "main", stuck.URL)
+	setWebhook(t, "live_co", "main", healthy.URL)
+	dead.hooks = newWebhookSender("dead_co", "main")
+	live.hooks = newWebhookSender("live_co", "main")
 
-	const events = 200 // a very large group
+	// Ordered by hand rather than by defer: release the hung delivery, let the
+	// senders finish, and only then tear down what they read.
+	t.Cleanup(func() {
+		close(block)
+		for _, w := range []*webhookSender{dead.hooks, live.hooks} {
+			w.stop()
+			w.wait(5 * time.Second)
+		}
+		stuck.Close()
+		healthy.Close()
+	})
+
+	const events = 20
 	for i := 0; i < events; i++ {
-		notifyOdoo("test_me", "message.receipt", map[string]any{"n": i})
+		dead.notify("message.receipt", map[string]any{"n": i})
+		live.notify("message.receipt", map[string]any{"n": i})
 	}
 
-	deadline := time.Now().Add(20 * time.Second)
-	for atomic.LoadInt32(&total) < events && time.Now().Before(deadline) {
+	deadline := time.Now().Add(10 * time.Second)
+	for atomic.LoadInt32(&delivered) < events && time.Now().Before(deadline) {
 		time.Sleep(10 * time.Millisecond)
 	}
-
-	if got := atomic.LoadInt32(&total); got != events {
-		t.Fatalf("Odoo received %d of %d events; none may be dropped when it is healthy", got, events)
+	if got := atomic.LoadInt32(&delivered); got != events {
+		t.Fatalf("the healthy Odoo received %d of %d events while another client's "+
+			"Odoo hung: one client's outage is still everybody's", got, events)
 	}
-	peak := atomic.LoadInt32(&maxInFlight)
-	if peak > int32(webhookWorkers) {
-		t.Errorf("peak concurrency %d exceeded the %d workers: the fan-out is still unbounded",
-			peak, webhookWorkers)
-	} else {
-		t.Logf("delivered %d events with peak concurrency %d (workers=%d)",
-			atomic.LoadInt32(&total), peak, webhookWorkers)
+	if n := atomic.LoadInt32(&wrongSecret); n != 0 {
+		t.Errorf("%d event(s) arrived without this session's own webhook secret", n)
 	}
 }
 
@@ -845,10 +854,11 @@ func TestCheckRejectsAnOversizedBatch(t *testing.T) {
 	checkMaxBatch = 2
 	defer func() { checkMaxBatch = old }()
 
-	manager = &Manager{sessions: map[string]*Session{"acme": {Name: "acme"}}}
+	resetGatewayState(t)
+	mountSession(t, "acme", "sales")
 	body := strings.NewReader(`{"phones":["1","2","3"]}`)
-	req := httptest.NewRequest(http.MethodPost, "/sessions/acme/check", body)
-	req.SetPathValue("name", "acme")
+	req := asClient(httptest.NewRequest(http.MethodPost, "/sessions/sales/check", body), "acme")
+	req.SetPathValue("name", "sales")
 	rec := httptest.NewRecorder()
 	handleCheck(rec, req)
 
@@ -860,7 +870,8 @@ func TestCheckRejectsAnOversizedBatch(t *testing.T) {
 func TestCheckAnswersFromCacheWithoutAskingWhatsApp(t *testing.T) {
 	// No Client on the session: if the handler tried to query, it would panic,
 	// which is exactly the assertion — a cached batch must not touch WhatsApp.
-	manager = &Manager{sessions: map[string]*Session{"acme": {Name: "acme"}}}
+	resetGatewayState(t)
+	mountSession(t, "acme", "sales")
 	checkGuard = &checkCache{byNumber: map[string]checkEntry{}, spent: map[string]*checkBudget{}}
 	checkGuard.store("447700900123", true, "447700900123@s.whatsapp.net")
 	checkGuard.store("447700900999", false, "")
@@ -870,8 +881,8 @@ func TestCheckAnswersFromCacheWithoutAskingWhatsApp(t *testing.T) {
 	// the number, and inventing that rule here would disagree with how
 	// resolveTarget and Odoo's own matching read a number.
 	body := strings.NewReader(`{"phones":["+44 7700 900123","44-7700-900999","447700900123"]}`)
-	req := httptest.NewRequest(http.MethodPost, "/sessions/acme/check", body)
-	req.SetPathValue("name", "acme")
+	req := asClient(httptest.NewRequest(http.MethodPost, "/sessions/sales/check", body), "acme")
+	req.SetPathValue("name", "sales")
 	rec := httptest.NewRecorder()
 	handleCheck(rec, req)
 

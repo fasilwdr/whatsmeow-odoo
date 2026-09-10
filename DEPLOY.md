@@ -106,20 +106,32 @@ The script ends by printing a gateway URL, an API key and a webhook secret.
 1. Put the three add-ons on Odoo's `addons_path`: `whatsmeow` (required), plus
    `whatsmeow_discuss` and `whatsmeow_template` if you want them. Restart Odoo
    and install `whatsmeow` from Apps.
-2. **WhatsApp → Configuration → Gateways → New.** Paste the URL, API key and
-   webhook secret, save, and press **Test Connection**. It must go green before
-   anything else will work.
+2. **WhatsApp → Configuration → Gateways → New.** Paste the URL and API key,
+   set a webhook secret of your own (`openssl rand -hex 32` — one per database,
+   not the gateway's), and fill in **This Odoo's URL** if Odoo sits behind a
+   proxy or is not reachable at its Web Base URL. Save, then press **Test
+   Connection**: it must go green, and it lists the sessions this key already
+   owns — a good way to catch a key pasted into the wrong database.
 3. **WhatsApp → Configuration → Sessions → New.** Pick the gateway and give the
    session a code — lowercase letters, digits, `_` and `-`, up to 40 characters.
-   The code names the session's store on disk, so treat it as permanent.
+   The code is how this Odoo addresses the session forever after, so treat it as
+   permanent. It only has to be unique *within this database*: two clients on one
+   gateway may both call their number `main`.
 4. Press **Start / Pair**, scan the QR with WhatsApp on the phone
    (*Settings → Linked devices → Link a device*). The QR expires in seconds;
    press **Refresh Status** for a new one. The status goes **Connected** once
    paired.
 
+**Start / Pair** is also what tells the gateway where to post this session's
+events — the Webhook URL and secret from step 2, stored per session in
+`registry.json`. So if you change **This Odoo's URL** later, press **Start /
+Pair** again (it does not re-pair an already-paired number); the session-status
+cron repairs a mismatch on its own within the hour.
+
 Send a test message from Odoo, and reply from the phone to confirm the webhook
-comes back. If outbound works but inbound never arrives, the problem is
-`WMG_ODOO_WEBHOOK_URL` (see [§8](#8-troubleshooting)).
+comes back. If outbound works but inbound never arrives, the session form shows
+the gateway's own error under *The gateway cannot reach this Odoo*
+(see [§8](#8-troubleshooting)).
 
 Odoo drives the rest on four crons (queue, inbound media, recipient validation,
 session status), so the Odoo cron worker must actually be running — with
@@ -127,14 +139,43 @@ session status), so the Odoo cron worker must actually be running — with
 
 ### Reaching Odoo across hosts
 
-If the gateway and Odoo are on different machines, `ODOO_WEBHOOK_URL` must be an
-address the gateway can resolve, and the gateway's own `LISTEN_ADDR` must be one
-Odoo can reach — `127.0.0.1` will not do for either.
+If the gateway and Odoo are on different machines, **This Odoo's URL** on the
+Gateway record must be an address the gateway can resolve, and the gateway's own
+`LISTEN_ADDR` must be one Odoo can reach — `127.0.0.1` will not do for either.
 
 Both directions carry a shared secret in a header and are otherwise unprotected,
 so anything crossing a network you do not control belongs behind TLS: terminate
 it at a reverse proxy in front of each side and keep the services themselves on
 the loopback. Point Odoo's Gateway URL at the proxy, not at the binary.
+
+A gateway that is not on loopback refuses to register a plain-`http` webhook URL
+for a public host, and refuses a private/LAN one altogether, on the grounds that
+a shared gateway should not be POSTing into its own network because a client
+asked it to. `WMG_WEBHOOK_ALLOW_INSECURE=1` and `WMG_WEBHOOK_ALLOW_PRIVATE=1`
+override each of those if your network genuinely is the trust boundary.
+
+### One gateway, several Odoos
+
+A gateway serves as many Odoo databases as you like. Each gets its own API key:
+
+```bash
+sudo ./install.sh --add-client acme
+```
+
+That prints a key to paste into that Odoo's Gateway record, and restarts the
+service. From then on the two installs are separate in every way that matters:
+a client sees only the sessions started with its own key — `GET /sessions`,
+sending, media, logout, all of it — and its events go only to the URL its own
+sessions registered. Session codes are namespaced per client, so `main` in one
+Odoo and `main` in another are different numbers with different stores.
+
+The key from the first install stays valid as the client `default`, and the
+sessions that existed before you added anyone are filed under it, so an existing
+single-Odoo gateway needs no changes at all.
+
+A shared gateway is a shared blast radius: it is one process, one machine and
+one WhatsApp connection pool. Keep clients whose uptime you have promised
+separately on separate gateways, and expose the shared one over TLS only.
 
 ## 4. Day-to-day
 
@@ -158,9 +199,16 @@ systemctl start whatsmeow-gateway
 ```
 
 Stop the service first: SQLite files copied from under a running writer can be
-restored into a corrupt state. `gateway.env` is worth keeping too — the API key
-and webhook secret in it are what the Odoo connection record expects; restoring
-data without it means editing the credentials in Odoo.
+restored into a corrupt state. `gateway.env` is worth keeping too — the API keys
+in it are what the Odoo connection records expect; restoring data without it
+means editing the credentials in Odoo.
+
+`registry.json` sits in the same directory and is small, plain JSON, and just as
+important: it records who owns each session and where its events go. Restore the
+stores without it and the gateway comes up owning nothing — the next **Start /
+Pair** would claim a *fresh* store and ask for a new QR on a number that is
+already paired. It is also the file to edit by hand when a client changes
+domain and you would rather not wait for Odoo to re-register.
 
 The `media/` subdirectory inside it is a staging area, not state — inbound files
 wait there for Odoo to fetch, and anything uncollected is deleted after

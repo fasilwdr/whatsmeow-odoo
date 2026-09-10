@@ -15,6 +15,12 @@
           <button name="action_logout" type="object" string="Logout"
                   invisible="status not in ('connected', 'qr', 'disconnected')"
                   confirm="Unpair this WhatsApp number? It will need a new QR scan."/>
+          <button name="action_forget" type="object" string="Forget on Gateway"
+                  groups="whatsmeow.group_whatsmeow_manager"
+                  invisible="status == 'draft'"
+                  confirm="Delete this session from the gateway, including its
+                           pairing and any media it has not handed over yet?
+                           The number will need a fresh QR scan."/>
           <field name="status" widget="statusbar"
                  statusbar_visible="draft,qr,connected"/>
         </header>
@@ -36,6 +42,8 @@
                      options="{'no_create': True}"/>
               <field name="jid"/>
               <field name="last_error" invisible="not last_error" class="text-danger"/>
+              <field name="gateway_webhook_url" invisible="not gateway_webhook_url"
+                     groups="whatsmeow.group_whatsmeow_manager"/>
             </group>
             <group string="Send Throttle" name="throttle">
               <field name="send_delay_min"/>
@@ -49,6 +57,13 @@
               </div>
             </group>
           </group>
+          <div class="alert alert-warning" role="alert" invisible="not webhook_error">
+            <b>The gateway cannot reach this Odoo.</b>
+            <field name="webhook_error" nolabel="1" readonly="1" class="oe_inline"/><br/>
+            Outgoing messages still work; inbound ones are being dropped. Check
+            the connection's <b>This Odoo's URL</b> — the gateway has to reach
+            it from wherever it runs.
+          </div>
           <div class="alert alert-danger" role="alert" invisible="not queue_paused">
             <b>Queue paused.</b> <field name="queue_pause_reason" nolabel="1"
                                         readonly="1" class="oe_inline"/><br/>

@@ -10,7 +10,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -44,36 +43,23 @@ import (
 // ---------------------------------------------------------------------------
 
 var (
-	listenAddr     = envOr("WMG_LISTEN", "127.0.0.1:8080")
-	apiKey         = os.Getenv("WMG_API_KEY")          // required
-	odooWebhookURL = os.Getenv("WMG_ODOO_WEBHOOK_URL") // e.g. https://odoo.example.com/whatsmeow/webhook
-	webhookSecret  = os.Getenv("WMG_WEBHOOK_SECRET")   // shared secret sent to Odoo
-	dataDir        = envOr("WMG_DATA_DIR", "./data")   // one sqlite DB per session
+	listenAddr = envOr("WMG_LISTEN", "127.0.0.1:8080")
+	// Where a single-tenant install's events used to go. Kept only as the
+	// defaults adopted on the first boot after the upgrade — from then on every
+	// session's own target lives in registry.json. See registry.adoptLegacy.
+	odooWebhookURL = os.Getenv("WMG_ODOO_WEBHOOK_URL")
+	webhookSecret  = os.Getenv("WMG_WEBHOOK_SECRET")
+	dataDir        = envOr("WMG_DATA_DIR", "./data") // one sqlite store per session
+	registryPath   = filepath.Join(dataDir, "registry.json")
 	nonDigits      = regexp.MustCompile(`\D`)
 
 	// Inbound media is downloaded to disk and fetched by Odoo over the API
 	// rather than inlined into the webhook: WhatsApp allows ~100MB files, and
-	// notifyOdoo retries, so a big payload would be re-sent several times.
+	// webhook delivery retries, so a big payload would be re-sent several times.
 	mediaDir      = filepath.Join(dataDir, "media")
 	maxMediaBytes = int64(envIntOr("WMG_MAX_MEDIA_MB", 100)) << 20
 	mediaTTL      = time.Duration(envIntOr("WMG_MEDIA_TTL_HOURS", 24)) * time.Hour
-
-	// WhatsApp emits a delivery *and* a read receipt per participant, so one
-	// message to a large group turns into dozens of events at once. Posting
-	// them all concurrently once took an Odoo down: its threaded dev server
-	// spawns a thread per request, and it ran out of threads. Webhooks
-	// therefore go through a fixed pool of senders.
-	webhookWorkers   = envIntOr("WMG_WEBHOOK_WORKERS", 4)
-	webhookQueueSize = envIntOr("WMG_WEBHOOK_QUEUE", 2048)
-	webhookQueue     chan webhookJob
 )
-
-// webhookJob is one event waiting to be posted to Odoo.
-type webhookJob struct {
-	session string
-	event   string
-	body    []byte
-}
 
 func envOr(key, def string) string {
 	if v := os.Getenv(key); v != "" {
@@ -97,9 +83,16 @@ func envIntOr(key string, def int) int {
 // ---------------------------------------------------------------------------
 
 type Session struct {
+	// Name is what Odoo calls this session (its `code`) and what it sees in
+	// every payload. Owner is the client the key on the request must belong to.
+	// UID is the opaque handle everything on disk and in the caches is filed
+	// under, so two clients may both call their number `main`.
 	Name      string
+	Owner     string
+	UID       string
 	Client    *whatsmeow.Client
 	container *sqlstore.Container
+	hooks     *webhookSender
 
 	mu      sync.Mutex
 	Status  string // starting | qr | connected | disconnected | logged_out | error
@@ -115,6 +108,39 @@ func (s *Session) set(status, qr, errMsg string) {
 	s.LastErr = errMsg
 }
 
+// notify queues one event for this session's Odoo. It never blocks: it runs on
+// whatsmeow's event handler, and stalling there stalls the WhatsApp connection.
+func (s *Session) notify(event string, data map[string]any) {
+	if s.hooks == nil {
+		return
+	}
+	body, err := json.Marshal(map[string]any{
+		"session": s.Name,
+		"event":   event,
+		"data":    data,
+	})
+	if err != nil {
+		log.Printf("[%s/%s] webhook build error: %v", s.Owner, s.Name, err)
+		return
+	}
+	s.hooks.enqueue(webhookJob{event: event, body: body})
+}
+
+// sendKey scopes an idempotency key to this session. Odoo derives its key from
+// the database name and the record id, so two clients whose database happens to
+// have the same name would collide — and a collision *replays* the first send,
+// silently never delivering the second client's message while Odoo records it
+// as sent. An empty key still means "the caller opted out of deduplication".
+func (s *Session) sendKey(key string) string {
+	if key == "" {
+		return ""
+	}
+	return s.UID + "|" + key
+}
+
+// label names the session in logs: the same name may exist for several clients.
+func (s *Session) label() string { return s.Owner + "/" + s.Name }
+
 func (s *Session) snapshot() (string, string, string, string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -125,6 +151,8 @@ func (s *Session) snapshot() (string, string, string, string) {
 	return s.Status, s.QRCode, s.LastErr, jid
 }
 
+// Sessions are keyed by their registry UID, not by name: two unrelated Odoos
+// may both call their number `main`, and they must not meet.
 type Manager struct {
 	mu       sync.Mutex
 	sessions map[string]*Session
@@ -134,34 +162,55 @@ var manager = &Manager{sessions: map[string]*Session{}}
 
 var sessionNameRe = regexp.MustCompile(`^[a-z0-9_-]{1,40}$`)
 
-func (m *Manager) get(name string) *Session {
+func (m *Manager) get(uid string) *Session {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.sessions[name]
+	return m.sessions[uid]
+}
+
+// forget disconnects a session and drops it, so its name is free again.
+func (m *Manager) forget(uid string) {
+	m.mu.Lock()
+	s, ok := m.sessions[uid]
+	delete(m.sessions, uid)
+	m.mu.Unlock()
+	if !ok {
+		return
+	}
+	if s.hooks != nil {
+		s.hooks.stop()
+	}
+	if s.Client != nil {
+		s.Client.Disconnect()
+	}
 }
 
 // StartSession creates (or reuses) a session and connects it. If the device
 // is not yet paired, the QR pairing loop is started and the latest code is
 // exposed via GET /sessions/{name}/qr for Odoo to render.
-func (m *Manager) StartSession(name string) (*Session, error) {
-	if !sessionNameRe.MatchString(name) {
+func (m *Manager) StartSession(e registryEntry) (*Session, error) {
+	if !sessionNameRe.MatchString(e.Name) {
 		return nil, fmt.Errorf("invalid session name (use a-z, 0-9, '-', '_')")
 	}
 
 	m.mu.Lock()
-	if s, ok := m.sessions[name]; ok {
-		m.mu.Unlock()
-		st, _, _, _ := s.snapshot()
+	prev, running := m.sessions[e.UID]
+	m.mu.Unlock()
+	if running {
+		st, _, _, _ := prev.snapshot()
 		if st == "connected" || st == "qr" || st == "starting" {
-			return s, nil // already running
+			return prev, nil // already running
 		}
-		// fall through: restart a dead session
-	} else {
-		m.mu.Unlock()
+		// fall through: restart a dead session, keeping its webhook sender so
+		// a restart loop cannot leak a goroutine per attempt.
 	}
 
-	dbPath := filepath.Join(dataDir, name+".db")
-	dbLog := waLog.Stdout("db/"+name, "WARN", true)
+	dbPath := e.storePath()
+	if err := os.MkdirAll(filepath.Dir(dbPath), 0o700); err != nil {
+		return nil, fmt.Errorf("create store dir: %w", err)
+	}
+	label := e.Client + "/" + e.Name
+	dbLog := waLog.Stdout("db/"+label, "WARN", true)
 
 	ctx := context.Background()
 	container, err := sqlstore.New(ctx, "sqlite3",
@@ -175,14 +224,21 @@ func (m *Manager) StartSession(name string) (*Session, error) {
 		return nil, fmt.Errorf("get device: %w", err)
 	}
 
-	clientLog := waLog.Stdout("wa/"+name, "INFO", true)
+	clientLog := waLog.Stdout("wa/"+label, "INFO", true)
 	client := whatsmeow.NewClient(device, clientLog)
 
-	s := &Session{Name: name, Client: client, container: container, Status: "starting"}
+	hooks := newWebhookSender(e.Client, e.Name)
+	if running && prev.hooks != nil {
+		hooks = prev.hooks
+	}
+	s := &Session{
+		Name: e.Name, Owner: e.Client, UID: e.UID,
+		Client: client, container: container, hooks: hooks, Status: "starting",
+	}
 	client.AddEventHandler(makeEventHandler(s))
 
 	m.mu.Lock()
-	m.sessions[name] = s
+	m.sessions[e.UID] = s
 	m.mu.Unlock()
 
 	if client.Store.ID == nil {
@@ -203,11 +259,11 @@ func (m *Manager) StartSession(name string) (*Session, error) {
 					s.set("qr", evt.Code, "")
 				case "success":
 					s.set("connected", "", "")
-					notifyOdoo(s.Name, "session.paired", map[string]any{})
+					s.notify("session.paired", map[string]any{})
 				case "timeout":
 					s.set("disconnected", "", "QR pairing timed out; start again")
 				default:
-					log.Printf("[%s] QR event: %s", s.Name, evt.Event)
+					log.Printf("[%s] QR event: %s", label, evt.Event)
 				}
 			}
 		}()
@@ -221,25 +277,22 @@ func (m *Manager) StartSession(name string) (*Session, error) {
 	return s, nil
 }
 
-// restoreExisting reconnects every previously-paired session found on disk
-// so the gateway survives restarts without re-pairing.
+// restoreExisting reconnects every previously-paired session so the gateway
+// survives restarts without re-pairing. It walks the registry rather than the
+// directory: a session's owner and webhook target are not recoverable from a
+// filename, and a stray .db copied into the data dir is no longer silently
+// promoted into a live session.
 func (m *Manager) restoreExisting() {
-	entries, err := os.ReadDir(dataDir)
-	if err != nil {
-		return
-	}
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".db") {
+	for _, e := range reg.all() {
+		if _, err := os.Stat(e.storePath()); err != nil {
+			// Claimed but never paired: there is nothing to reconnect, and
+			// Odoo will POST /start when it wants the QR.
 			continue
 		}
-		name := strings.TrimSuffix(e.Name(), ".db")
-		if !sessionNameRe.MatchString(name) {
-			continue
-		}
-		if _, err := m.StartSession(name); err != nil {
-			log.Printf("[%s] restore failed: %v", name, err)
+		if _, err := m.StartSession(e); err != nil {
+			log.Printf("[%s/%s] restore failed: %v", e.Client, e.Name, err)
 		} else {
-			log.Printf("[%s] restored", name)
+			log.Printf("[%s/%s] restored", e.Client, e.Name)
 		}
 	}
 }
@@ -260,7 +313,7 @@ func makeEventHandler(s *Session) func(interface{}) {
 			// own event so Odoo can put it on the target message instead of
 			// storing a noisy "[reaction] 👍" line of its own.
 			if react := reactionOf(v.Message); react != nil {
-				notifyOdoo(s.Name, "message.reaction", s.reactionPayload(v, react))
+				s.notify("message.reaction", s.reactionPayload(v, react))
 				return
 			}
 			text := extractText(v.Message)
@@ -272,7 +325,7 @@ func makeEventHandler(s *Session) func(interface{}) {
 				err := s.downloadMedia(ctx, v.Info.ID, info)
 				cancel()
 				if err != nil {
-					log.Printf("[%s] media download failed for %s: %v", s.Name, v.Info.ID, err)
+					log.Printf("[%s] media download failed for %s: %v", s.label(), v.Info.ID, err)
 					if text == "" {
 						text = "[" + info.Kind + " could not be downloaded: " + err.Error() + "]"
 					}
@@ -310,14 +363,14 @@ func makeEventHandler(s *Session) func(interface{}) {
 			if senderPN.IsEmpty() {
 				// Better an empty phone Odoo can flag than a LID masquerading as one.
 				log.Printf("[%s] could not resolve a phone number for sender %s (mode=%s)",
-					s.Name, sender, v.Info.AddressingMode)
+					s.label(), sender, v.Info.AddressingMode)
 			}
 			// Chat is the conversation (the group, or the contact for a 1:1);
 			// Sender is the individual who wrote. They differ only in groups,
 			// and a reply has to go to the Chat.
 			chatName := ""
 			if v.Info.IsGroup {
-				chatName = groupNameCache.lookup(s.Client, v.Info.Chat)
+				chatName = groupNameCache.lookup(s.UID, s.Client, v.Info.Chat)
 			}
 			payload := map[string]any{
 				"wa_message_id":   v.Info.ID,
@@ -341,11 +394,11 @@ func makeEventHandler(s *Session) func(interface{}) {
 				// Metadata only; Odoo pulls the bytes from /media/{id}.
 				payload["media"] = media
 			}
-			notifyOdoo(s.Name, "message.received", payload)
+			s.notify("message.received", payload)
 
 		case *events.Receipt:
 			if v.Type == types.ReceiptTypeDelivered || v.Type == types.ReceiptTypeRead {
-				notifyOdoo(s.Name, "message.receipt", map[string]any{
+				s.notify("message.receipt", map[string]any{
 					"receipt_type":   string(v.Type),
 					"wa_message_ids": v.MessageIDs,
 					"chat_jid":       v.Chat.String(),
@@ -355,19 +408,19 @@ func makeEventHandler(s *Session) func(interface{}) {
 
 		case *events.GroupInfo:
 			// A rename would otherwise sit stale in the cache for an hour.
-			groupNameCache.forget(v.JID)
+			groupNameCache.forget(s.UID, v.JID)
 
 		case *events.Connected:
 			s.set("connected", "", "")
-			notifyOdoo(s.Name, "session.connected", map[string]any{})
+			s.notify("session.connected", map[string]any{})
 
 		case *events.Disconnected:
 			s.set("disconnected", "", "")
-			notifyOdoo(s.Name, "session.disconnected", map[string]any{})
+			s.notify("session.disconnected", map[string]any{})
 
 		case *events.LoggedOut:
 			s.set("logged_out", "", "logged out from phone or banned")
-			notifyOdoo(s.Name, "session.logged_out", map[string]any{
+			s.notify("session.logged_out", map[string]any{
 				"reason": v.Reason.String(),
 			})
 		}
@@ -397,8 +450,13 @@ type mediaInfo struct {
 // anything else must never reach the filesystem.
 var safeID = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,128}$`)
 
-func mediaPath(session, id string) (string, error) {
-	if !sessionNameRe.MatchString(session) || !safeID.MatchString(id) {
+// uidRe covers both shapes a session UID takes: the generated hex of a session
+// claimed through the registry, and the old session name of one adopted from a
+// single-tenant install, whose media directory must keep working.
+var uidRe = regexp.MustCompile(`^[a-z0-9_-]{1,64}$`)
+
+func mediaPath(uid, id string) (string, error) {
+	if !uidRe.MatchString(uid) || !safeID.MatchString(id) {
 		return "", fmt.Errorf("invalid session or message id")
 	}
 	// safeID permits dots, so "." and ".." still slip through the regex and
@@ -406,7 +464,7 @@ func mediaPath(session, id string) (string, error) {
 	if strings.Trim(id, ".") == "" {
 		return "", fmt.Errorf("invalid message id")
 	}
-	return filepath.Join(mediaDir, session, id), nil
+	return filepath.Join(mediaDir, uid, id), nil
 }
 
 // extractMedia returns the downloadable part of a message, if it has one.
@@ -496,7 +554,7 @@ func filenameFor(info *mediaInfo, id string) string {
 // downloadMedia fetches the media for a message and writes it next to a small
 // JSON sidecar holding its metadata.
 func (s *Session) downloadMedia(ctx context.Context, id string, info *mediaInfo) error {
-	path, err := mediaPath(s.Name, id)
+	path, err := mediaPath(s.UID, id)
 	if err != nil {
 		return err
 	}
@@ -588,8 +646,11 @@ const groupNameTTL = time.Hour
 var groupNameCache = &groupNames{entries: map[string]groupNameEntry{}}
 
 // lookup returns the group's subject, or "" when WhatsApp won't tell us.
-func (g *groupNames) lookup(cli *whatsmeow.Client, chat types.JID) string {
-	key := chat.String()
+//
+// Keyed by session as well as by group: a subject fetched with one client's
+// credentials must not be served to another, even though the JID is global.
+func (g *groupNames) lookup(uid string, cli *whatsmeow.Client, chat types.JID) string {
+	key := uid + "|" + chat.String()
 	g.mu.Lock()
 	entry, ok := g.entries[key]
 	g.mu.Unlock()
@@ -613,9 +674,9 @@ func (g *groupNames) lookup(cli *whatsmeow.Client, chat types.JID) string {
 	return name
 }
 
-func (g *groupNames) forget(chat types.JID) {
+func (g *groupNames) forget(uid string, chat types.JID) {
 	g.mu.Lock()
-	delete(g.entries, chat.String())
+	delete(g.entries, uid+"|"+chat.String())
 	g.mu.Unlock()
 }
 
@@ -769,84 +830,6 @@ func quotedID(msg *waE2E.Message) string {
 		}
 	}
 	return ""
-}
-
-// notifyOdoo posts an event to the Odoo webhook with retries, so a short
-// Odoo outage doesn't silently drop inbound messages.
-func notifyOdoo(session, event string, data map[string]any) {
-	if odooWebhookURL == "" {
-		return
-	}
-	payload := map[string]any{
-		"session": session,
-		"event":   event,
-		"data":    data,
-	}
-	body, err := json.Marshal(payload)
-	if err != nil {
-		log.Printf("[%s] webhook build error: %v", session, err)
-		return
-	}
-
-	// Never block: this runs on whatsmeow's event handler, and stalling there
-	// stalls the WhatsApp connection itself. A full queue means Odoo has been
-	// unreachable for a long while, and the workers are already giving up on
-	// events anyway — dropping here is the same loss, without the backpressure.
-	select {
-	case webhookQueue <- webhookJob{session: session, event: event, body: body}:
-	default:
-		log.Printf("[%s] webhook queue full (%d), dropping event %s",
-			session, webhookQueueSize, event)
-	}
-}
-
-// startWebhookWorkers must run before any session connects, so no event can
-// find a nil queue and be dropped on the floor at boot.
-func startWebhookWorkers() {
-	webhookQueue = make(chan webhookJob, webhookQueueSize)
-	for i := 0; i < webhookWorkers; i++ {
-		go func() {
-			for job := range webhookQueue {
-				postToOdoo(job)
-			}
-		}()
-	}
-	log.Printf("webhook: %d workers, queue %d", webhookWorkers, webhookQueueSize)
-}
-
-// webhookClient is shared so the pool reuses connections instead of opening a
-// fresh one per attempt.
-var webhookClient = &http.Client{Timeout: 15 * time.Second}
-
-func postToOdoo(job webhookJob) {
-	backoff := 2 * time.Second
-	for attempt := 1; attempt <= 4; attempt++ {
-		req, err := http.NewRequest(http.MethodPost, odooWebhookURL, bytes.NewReader(job.body))
-		if err != nil {
-			log.Printf("[%s] webhook build error: %v", job.session, err)
-			return
-		}
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("X-Webhook-Secret", webhookSecret)
-
-		resp, err := webhookClient.Do(req)
-		if err == nil {
-			// Drain before closing, so the connection can be reused.
-			io.Copy(io.Discard, resp.Body)
-			resp.Body.Close()
-			if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-				return
-			}
-			log.Printf("[%s] odoo webhook HTTP %d (attempt %d)", job.session, resp.StatusCode, attempt)
-		} else {
-			log.Printf("[%s] odoo webhook error: %v (attempt %d)", job.session, err, attempt)
-		}
-		if attempt < 4 {
-			time.Sleep(backoff)
-			backoff *= 2
-		}
-	}
-	log.Printf("[%s] odoo webhook: giving up on event %s", job.session, job.event)
 }
 
 // ---------------------------------------------------------------------------
@@ -1064,7 +1047,8 @@ type checkCache struct {
 	// Keyed by bare digits. Whether a number is on WhatsApp is a property of
 	// the number, not of the session that asked, so the cache is global.
 	byNumber map[string]checkEntry
-	// Per-session spend, so one busy client cannot burn another's budget.
+	// Per-session spend, keyed by UID so one busy client cannot burn another's
+	// budget by naming its session the same thing.
 	spent map[string]*checkBudget
 	ttl   time.Duration
 }
@@ -1195,11 +1179,11 @@ func handleCheck(w http.ResponseWriter, r *http.Request) {
 				"error": "session not connected (status: " + status + ")"})
 			return
 		}
-		granted := checkGuard.grant(s.Name, len(ask))
+		granted := checkGuard.grant(s.UID, len(ask))
 		if granted < len(ask) {
 			throttled = true
 			log.Printf("[%s] check: hourly budget allows %d of %d lookups",
-				s.Name, granted, len(ask))
+				s.label(), granted, len(ask))
 		}
 		ask = ask[:granted]
 	}
@@ -1302,19 +1286,94 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
+// ctxClient carries the calling Odoo, resolved from its API key by
+// authMiddleware. Every session lookup goes through it.
+type ctxKey int
+
+const ctxClient ctxKey = 0
+
+func callerOf(r *http.Request) apiClient {
+	c, _ := r.Context().Value(ctxClient).(apiClient)
+	return c
+}
+
+// requireSession resolves {name} inside the calling client's namespace. A name
+// belonging to a different Odoo is simply not found: the client is half of the
+// key, so there is no path from one install to another's number, its media or
+// its logout button.
 func requireSession(w http.ResponseWriter, r *http.Request) *Session {
-	name := r.PathValue("name")
-	s := manager.get(name)
-	if s == nil {
+	entry, ok := reg.get(callerOf(r).Label, r.PathValue("name"))
+	if !ok {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "unknown session; start it first"})
+		return nil
+	}
+	s := manager.get(entry.UID)
+	if s == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{
+			"error": "session is registered but not running; start it first"})
 		return nil
 	}
 	return s
 }
 
+// registration is what Odoo tells the gateway about itself: where to post this
+// session's events, and with which secret. Every field is optional so a
+// pre-registry Odoo keeps working — it starts its session with whatever target
+// is already on file.
+type registration struct {
+	WebhookURL    string `json:"webhook_url"`
+	WebhookSecret string `json:"webhook_secret"`
+	Label         string `json:"label"`
+}
+
+func decodeRegistration(r *http.Request) (registration, error) {
+	var req registration
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
+		return req, err
+	}
+	if req.WebhookURL != "" {
+		if err := validateWebhookURL(req.WebhookURL); err != nil {
+			return req, err
+		}
+	}
+	return req, nil
+}
+
+// handleStart claims the name for the calling client on first use and connects
+// it. Odoo re-asserts its webhook target on every start rather than only at
+// pairing: a session that is already paired never pairs again, so pairing is
+// the one moment that cannot be relied on to re-point an Odoo that has moved.
 func handleStart(w http.ResponseWriter, r *http.Request) {
+	c := callerOf(r)
 	name := r.PathValue("name")
-	s, err := manager.StartSession(name)
+	if !sessionNameRe.MatchString(name) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": "invalid session name (use a-z, 0-9, '-', '_')"})
+		return
+	}
+	req, err := decodeRegistration(r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	if _, known := reg.get(c.Label, name); !known &&
+		maxSessionsPerClient > 0 && reg.count(c.Label) >= maxSessionsPerClient {
+		writeJSON(w, http.StatusConflict, map[string]string{
+			"error": fmt.Sprintf("client %q already has %d sessions (WMG_MAX_SESSIONS_PER_CLIENT)",
+				c.Label, maxSessionsPerClient)})
+		return
+	}
+	entry, err := reg.claim(c, name, req.WebhookURL, req.WebhookSecret, req.Label)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	if entry.WebhookURL == "" {
+		log.Printf("[%s/%s] no webhook_url registered: this session's events will be dropped",
+			entry.Client, entry.Name)
+	}
+
+	s, err := manager.StartSession(entry)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -1322,7 +1381,55 @@ func handleStart(w http.ResponseWriter, r *http.Request) {
 	status, qr, lastErr, jid := s.snapshot()
 	writeJSON(w, http.StatusOK, map[string]any{
 		"session": name, "status": status, "qr": qr, "error": lastErr, "jid": jid,
+		"webhook_url": entry.WebhookURL,
 	})
+}
+
+// handleSetWebhook re-points a session without restarting it.
+func handleSetWebhook(w http.ResponseWriter, r *http.Request) {
+	c := callerOf(r)
+	name := r.PathValue("name")
+	if _, ok := reg.get(c.Label, name); !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "unknown session"})
+		return
+	}
+	req, err := decodeRegistration(r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	if req.WebhookURL == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "'webhook_url' is required"})
+		return
+	}
+	entry, err := reg.setWebhook(c.Label, name, req.WebhookURL, req.WebhookSecret)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"session": entry.Name, "webhook_url": entry.WebhookURL,
+	})
+}
+
+// handleForget drops a session entirely: its registry row, its WhatsApp store
+// and any media Odoo never collected. Destructive on purpose and deliberately
+// not wired to Odoo's own record deletion — this unpairs a device.
+func handleForget(w http.ResponseWriter, r *http.Request) {
+	c := callerOf(r)
+	entry, ok := reg.remove(c.Label, r.PathValue("name"))
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "unknown session"})
+		return
+	}
+	manager.forget(entry.UID)
+	store := entry.storePath()
+	for _, suffix := range []string{"", "-wal", "-shm"} {
+		_ = os.Remove(store + suffix)
+	}
+	_ = os.RemoveAll(entry.mediaDirPath())
+	log.Printf("[%s/%s] forgotten: store and media removed", entry.Client, entry.Name)
+	writeJSON(w, http.StatusOK, map[string]string{"status": "forgotten"})
 }
 
 func handleStatus(w http.ResponseWriter, r *http.Request) {
@@ -1331,9 +1438,20 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	status, _, lastErr, jid := s.snapshot()
-	writeJSON(w, http.StatusOK, map[string]any{
+	out := map[string]any{
 		"session": s.Name, "status": status, "error": lastErr, "jid": jid,
-	})
+	}
+	// The webhook target and its health ride along, so Odoo can tell an
+	// operator that the broken half is its own end rather than the number.
+	if e, ok := reg.get(s.Owner, s.Name); ok {
+		out["webhook_url"] = e.WebhookURL
+	}
+	if s.hooks != nil {
+		for k, v := range s.hooks.health() {
+			out[k] = v
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func handleQR(w http.ResponseWriter, r *http.Request) {
@@ -1375,12 +1493,13 @@ func handleSend(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Replay a send we have already made rather than delivering it twice.
-	out, replay := sendGuard.begin(req.Key)
+	key := s.sendKey(req.Key)
+	out, replay := sendGuard.begin(key)
 	if replay {
-		writeReplay(w, s.Name, req.Key, out, false)
+		writeReplay(w, s.label(), req.Key, out, false)
 		return
 	}
-	defer sendGuard.resolve(req.Key, out, "", "", time.Time{}, errSendIncomplete)
+	defer sendGuard.resolve(key, out, "", "", time.Time{}, errSendIncomplete)
 
 	simulateTyping(r.Context(), s.Client, jid, req.TypingMS, types.ChatPresenceMediaText)
 
@@ -1393,7 +1512,7 @@ func handleSend(w http.ResponseWriter, r *http.Request) {
 		}}
 	}
 	resp, err := s.Client.SendMessage(r.Context(), jid, msg)
-	sendGuard.resolve(req.Key, out, resp.ID, "", resp.Timestamp, err)
+	sendGuard.resolve(key, out, resp.ID, "", resp.Timestamp, err)
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "send failed: " + err.Error()})
 		return
@@ -1533,7 +1652,7 @@ func handleGetMedia(w http.ResponseWriter, r *http.Request) {
 	if s == nil {
 		return
 	}
-	path, err := mediaPath(s.Name, r.PathValue("id"))
+	path, err := mediaPath(s.UID, r.PathValue("id"))
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
@@ -1571,7 +1690,7 @@ func handleDeleteMedia(w http.ResponseWriter, r *http.Request) {
 	if s == nil {
 		return
 	}
-	path, err := mediaPath(s.Name, r.PathValue("id"))
+	path, err := mediaPath(s.UID, r.PathValue("id"))
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
@@ -1709,22 +1828,23 @@ func handleSendMedia(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Claimed before the upload: replaying must not re-upload the file either.
-	out, replay := sendGuard.begin(req.Key)
+	key := s.sendKey(req.Key)
+	out, replay := sendGuard.begin(key)
 	if replay {
-		writeReplay(w, s.Name, req.Key, out, true)
+		writeReplay(w, s.label(), req.Key, out, true)
 		return
 	}
-	defer sendGuard.resolve(req.Key, out, "", "", time.Time{}, errSendIncomplete)
+	defer sendGuard.resolve(key, out, "", "", time.Time{}, errSendIncomplete)
 
 	up, err := s.Client.Upload(r.Context(), data, mediaType)
 	if err != nil {
-		sendGuard.resolve(req.Key, out, "", "", time.Time{}, err)
+		sendGuard.resolve(key, out, "", "", time.Time{}, err)
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "upload failed: " + err.Error()})
 		return
 	}
 	msg, err := buildMediaMessage(kind, req, up)
 	if err != nil {
-		sendGuard.resolve(req.Key, out, "", "", time.Time{}, err)
+		sendGuard.resolve(key, out, "", "", time.Time{}, err)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
@@ -1739,7 +1859,7 @@ func handleSendMedia(w http.ResponseWriter, r *http.Request) {
 	simulateTyping(r.Context(), s.Client, jid, req.TypingMS, presenceMedia)
 
 	resp, err := s.Client.SendMessage(r.Context(), jid, msg)
-	sendGuard.resolve(req.Key, out, resp.ID, kind, resp.Timestamp, err)
+	sendGuard.resolve(key, out, resp.ID, kind, resp.Timestamp, err)
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "send failed: " + err.Error()})
 		return
@@ -1763,19 +1883,21 @@ func handleLogout(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "logged_out"})
 }
 
+// handleList shows the calling client its own sessions and nobody else's,
+// including ones registered but not currently running.
 func handleList(w http.ResponseWriter, r *http.Request) {
-	manager.mu.Lock()
-	names := make([]string, 0, len(manager.sessions))
-	for n := range manager.sessions {
-		names = append(names, n)
-	}
-	manager.mu.Unlock()
-
+	c := callerOf(r)
 	out := []map[string]any{}
-	for _, n := range names {
-		s := manager.get(n)
-		status, _, lastErr, jid := s.snapshot()
-		out = append(out, map[string]any{"session": n, "status": status, "error": lastErr, "jid": jid})
+	for _, e := range reg.list(c.Label) {
+		row := map[string]any{
+			"session": e.Name, "status": "stopped", "error": "", "jid": "",
+			"webhook_url": e.WebhookURL,
+		}
+		if s := manager.get(e.UID); s != nil {
+			status, _, lastErr, jid := s.snapshot()
+			row["status"], row["error"], row["jid"] = status, lastErr, jid
+		}
+		out = append(out, row)
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -1786,19 +1908,20 @@ func authMiddleware(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		if apiKey == "" || r.Header.Get("X-Api-Key") != apiKey {
+		c, ok := clientFor(r.Header.Get("X-Api-Key"))
+		if !ok {
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid or missing X-Api-Key"})
 			return
 		}
-		next.ServeHTTP(w, r)
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxClient, c)))
 	})
 }
 
 // ---------------------------------------------------------------------------
 
 func main() {
-	if apiKey == "" {
-		log.Fatal("WMG_API_KEY must be set")
+	if err := loadAPIKeys(); err != nil {
+		log.Fatal(err)
 	}
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
 		log.Fatalf("cannot create data dir: %v", err)
@@ -1807,8 +1930,14 @@ func main() {
 		log.Fatalf("cannot create media dir: %v", err)
 	}
 
-	// Before restoreExisting: reconnecting a session emits events immediately.
-	startWebhookWorkers()
+	// Before restoreExisting: reconnecting a session emits events immediately,
+	// and an event with nowhere to go is a lost message.
+	if err := reg.load(registryPath); err != nil {
+		log.Fatalf("registry: %v", err)
+	}
+	if err := reg.adoptLegacy(odooWebhookURL, webhookSecret); err != nil {
+		log.Printf("registry: adopting existing sessions failed: %v", err)
+	}
 
 	manager.restoreExisting()
 	go mediaGC()
@@ -1819,6 +1948,8 @@ func main() {
 	})
 	mux.HandleFunc("GET /sessions", handleList)
 	mux.HandleFunc("POST /sessions/{name}/start", handleStart)
+	mux.HandleFunc("PUT /sessions/{name}/webhook", handleSetWebhook)
+	mux.HandleFunc("DELETE /sessions/{name}", handleForget)
 	mux.HandleFunc("GET /sessions/{name}/status", handleStatus)
 	mux.HandleFunc("GET /sessions/{name}/qr", handleQR)
 	mux.HandleFunc("POST /sessions/{name}/send", handleSend)
@@ -1837,7 +1968,8 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("whatsmeow-gateway listening on %s (data dir: %s)", listenAddr, dataDir)
+		log.Printf("whatsmeow-gateway listening on %s (data dir: %s, %d client(s), %d session(s))",
+			listenAddr, dataDir, len(apiClients), len(reg.all()))
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("http server: %v", err)
 		}
@@ -1854,6 +1986,9 @@ func main() {
 
 	manager.mu.Lock()
 	for _, s := range manager.sessions {
+		if s.hooks != nil {
+			s.hooks.stop()
+		}
 		s.Client.Disconnect()
 	}
 	manager.mu.Unlock()

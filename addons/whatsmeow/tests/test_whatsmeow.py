@@ -1983,3 +1983,106 @@ class TestMarkupRendering(TransactionCase):
             "Hello <em>ACME Ltd</em>,<br/><br/>"
             "<strong>Quotation S05504</strong> is ready.",
         )
+
+
+@tagged("post_install", "-at_install")
+class TestGatewayRegistration(WhatsmeowCommon):
+    """One gateway now serves several Odoo databases, so each session has to
+    tell it where this Odoo lives. See PLAN.md §14."""
+
+    def test_webhook_url_defaults_to_the_system_base_url(self):
+        self.env["ir.config_parameter"].sudo().set_param(
+            "web.base.url", "https://odoo.example.com")
+        self.connection.invalidate_recordset(["webhook_url"])
+        self.assertEqual(self.connection.webhook_url,
+                         "https://odoo.example.com/whatsmeow/webhook")
+
+    def test_connection_override_wins_over_the_system_parameter(self):
+        """A staging clone restored from production has the wrong base URL, and
+        a proxy makes it wrong for everyone — so the connection may override."""
+        self.env["ir.config_parameter"].sudo().set_param(
+            "web.base.url", "https://odoo.example.com")
+        self.connection.callback_base_url = "https://acme.example.com/"
+        self.assertEqual(self.connection.webhook_url,
+                         "https://acme.example.com/whatsmeow/webhook")
+
+    def test_start_registers_this_odoo_with_the_gateway(self):
+        self.connection.callback_base_url = "https://acme.example.com"
+        with patch.object(type(self.session), "_gw",
+                          return_value={"status": "qr", "qr": "2@abc",
+                                        "webhook_url": "https://acme.example.com/whatsmeow/webhook"}) as gw:
+            self.session.action_start()
+        payload = gw.call_args.args[2]
+        self.assertEqual(payload["webhook_url"], "https://acme.example.com/whatsmeow/webhook")
+        # The connection's secret, so the inbound controller keeps routing
+        # secret -> connection -> session exactly as it did.
+        self.assertEqual(payload["webhook_secret"], "secret-one")
+        self.assertEqual(self.session.gateway_webhook_url,
+                         "https://acme.example.com/whatsmeow/webhook")
+
+    def test_refresh_repairs_a_drifted_webhook(self):
+        """A gateway restored from a backup posts somewhere else, and the only
+        symptom is silence. The refresh cron must notice."""
+        self.connection.callback_base_url = "https://acme.example.com"
+        calls = []
+
+        def fake_gw(record, method, path, payload=None, timeout=None):
+            calls.append((method, path, payload))
+            if path.endswith("/status"):
+                return {"status": "connected",
+                        "webhook_url": "https://old-host.example.com/whatsmeow/webhook"}
+            return {}
+
+        with patch.object(type(self.session), "_gw", autospec=True, side_effect=fake_gw):
+            self.session.action_refresh()
+
+        self.assertIn(("PUT", "/sessions/client_acme/webhook"),
+                      [(m, p) for m, p, _ in calls])
+        self.assertEqual(self.session.gateway_webhook_url,
+                         "https://acme.example.com/whatsmeow/webhook")
+
+    def test_refresh_leaves_a_matching_webhook_alone(self):
+        self.connection.callback_base_url = "https://acme.example.com"
+        wanted = "https://acme.example.com/whatsmeow/webhook"
+        with patch.object(type(self.session), "_gw",
+                          return_value={"status": "connected", "webhook_url": wanted}) as gw:
+            self.session.action_refresh()
+        self.assertNotIn("PUT", [c.args[0] for c in gw.call_args_list])
+
+    def test_a_failing_webhook_is_recorded_on_the_session(self):
+        """Outbound still works while inbound is being dropped, so nothing else
+        on the form would show that this Odoo has gone unreachable."""
+        self.session._apply_state({
+            "status": "connected",
+            "webhook_url": "https://acme.example.com/whatsmeow/webhook",
+            "webhook_error": "connection refused",
+        })
+        self.assertEqual(self.session.webhook_error, "connection refused")
+        self.session._apply_state({"status": "connected", "webhook_ok_at": "2026-09-10T10:00:00Z"})
+        self.assertFalse(self.session.webhook_error)
+
+    def test_forget_asks_the_gateway_to_drop_the_session(self):
+        with patch.object(type(self.session), "_gw", return_value={}) as gw:
+            self.session.action_forget()
+        self.assertEqual(gw.call_args.args[:2], ("DELETE", "/sessions/client_acme"))
+        self.assertEqual(self.session.status, "draft")
+        self.assertFalse(self.session.gateway_webhook_url)
+
+    def test_a_gateway_that_refuses_the_repoint_does_not_break_refresh(self):
+        """An older gateway 404s the webhook endpoint. Refresh Status must still
+        show the number's state — that button is how you diagnose the gateway."""
+        self.connection.callback_base_url = "https://acme.example.com"
+
+        def fake_gw(record, method, path, payload=None, timeout=None):
+            if path.endswith("/status"):
+                return {"status": "connected", "jid": "44770@s.whatsapp.net",
+                        "webhook_url": ""}
+            raise UserError("Gateway error (404): 404 page not found")
+
+        with patch.object(type(self.session), "_gw", autospec=True, side_effect=fake_gw), \
+                mute_logger("odoo.addons.whatsmeow.models.whatsmeow_session"):
+            self.session.action_refresh()
+
+        self.assertEqual(self.session.status, "connected")
+        self.assertEqual(self.session.jid, "44770@s.whatsapp.net")
+        self.assertIn("404", self.session.webhook_error)
