@@ -135,6 +135,11 @@ To serve a second Odoo from the same gateway, `sudo ./install.sh --add-client ac
 prints a key for it. Sessions are namespaced per client, so two databases may both
 call their number `main`, and neither can see the other's.
 
+Prefer containers? `gateway/Dockerfile` and `docker-compose.yml` build and run the
+same binary — `cp gateway/gateway.env.example gateway/gateway.env`, fill in the two
+secrets, `docker compose up -d --build`. Keep the data volume: it holds the pairings.
+See [DEPLOY.md § In Docker](DEPLOY.md#in-docker).
+
 ### 2. The Odoo modules
 
 Add `addons/` to your Odoo `addons_path`, then:

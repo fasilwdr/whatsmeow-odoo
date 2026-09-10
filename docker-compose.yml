@@ -1,0 +1,61 @@
+# Run the gateway from a checkout:
+#
+#     cp gateway/gateway.env.example gateway/gateway.env   # then fill in the secrets
+#     docker compose up -d --build
+#     curl http://127.0.0.1:8080/health
+#
+# gateway.env holds the API keys and the webhook secret; it is gitignored and is
+# read at run time, so it never enters an image layer. `openssl rand -hex 32`
+# generates the values it asks for.
+#
+# Deploying a new version is `docker compose up -d --build`: the volume below
+# keeps the pairings, so the numbers do not have to be scanned again.
+
+services:
+  gateway:
+    build: ./gateway
+    image: whatsmeow-gateway
+    container_name: whatsmeow-gateway
+    restart: unless-stopped
+
+    env_file: ./gateway/gateway.env
+    environment:
+      # Re-asserted over the env file on purpose. gateway.env.example is written
+      # for a bare-metal install and says 127.0.0.1:8080, which inside a
+      # container is the container's own loopback — the published port would
+      # then answer nothing, and the symptom is a gateway that logs "listening"
+      # and is unreachable.
+      WMG_LISTEN: 0.0.0.0:8080
+      WMG_DATA_DIR: /var/lib/whatsmeow-gateway
+      # A container sees only its own interfaces, all of them private, so the
+      # gateway concludes it is on a private network and accepts private webhook
+      # targets — which is right for an Odoo beside it, and wrong on a public
+      # host. If this host is public, uncomment to get the strict policy back.
+      #WMG_WEBHOOK_ALLOW_PRIVATE: "0"
+
+    ports:
+      # Loopback of the *host*: reachable from an Odoo on this machine, from
+      # nowhere else. For an Odoo on another host publish "0.0.0.0:8080:8080",
+      # put TLS in front of it and firewall the port to that host — the API key
+      # is all that stands between a caller and every number on this gateway.
+      - "127.0.0.1:8080:8080"
+
+    volumes:
+      # The pairing keys, the sqlite session stores and registry.json (who owns
+      # each session and where its events go). Back this up; losing registry.json
+      # is worse than losing a store.
+      - gateway-data:/var/lib/whatsmeow-gateway
+
+    extra_hosts:
+      # Odoo running on the host, outside Docker: use
+      # http://host.docker.internal:8069 as "This Odoo's URL" on the Gateway
+      # record. Docker Desktop provides the name already; this line is what makes
+      # it resolve on Linux.
+      - "host.docker.internal:host-gateway"
+
+    # The gateway drains its webhook queues and disconnects each session on
+    # SIGTERM. Docker's default 10s can cut that short.
+    stop_grace_period: 30s
+
+volumes:
+  gateway-data:

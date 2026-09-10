@@ -99,6 +99,80 @@ Note that **8080 is a popular port** and, under WSL2 mirrored networking, a
 listener on the *Windows* side occupies it inside Linux too without appearing in
 `ss` or `netstat`. If 8080 is taken, 8081 is the usual next choice.
 
+### In Docker
+
+`install.sh` and the systemd unit are the supported path, but nothing in the
+gateway needs a host of its own: it is one process, one TCP port and one
+directory of state. `gateway/Dockerfile` builds it, and `docker-compose.yml` at
+the repository root runs it.
+
+```bash
+cp gateway/gateway.env.example gateway/gateway.env   # then fill in the secrets
+docker compose up -d --build
+curl http://127.0.0.1:8080/health
+docker compose logs -f
+```
+
+Or without compose:
+
+```bash
+docker build -t whatsmeow-gateway ./gateway
+docker run -d --name whatsmeow-gateway --restart unless-stopped \
+    -p 127.0.0.1:8080:8080 \
+    -v whatsmeow-gateway-data:/var/lib/whatsmeow-gateway \
+    --env-file gateway/gateway.env \
+    -e WMG_LISTEN=0.0.0.0:8080 \
+    whatsmeow-gateway
+```
+
+The image is a two-stage build: `golang:<go.mod's version>-bookworm` compiles with CGO — that
+is not optional, `go-sqlite3` is a C library — and `debian:bookworm-slim` runs
+the binary as the unprivileged `wagw` (uid 10001) with a CA bundle and nothing
+else. Because of CGO it does not cross-compile usefully: **build it on the
+architecture it will run on**.
+
+What is different from the systemd install, and worth knowing before the first
+`docker run`:
+
+- **There is no installer, so there are no generated secrets.** Copy
+  `gateway/gateway.env.example` to `gateway/gateway.env` and fill in
+  `WMG_API_KEY` and `WMG_WEBHOOK_SECRET` with `openssl rand -hex 32`. It is
+  gitignored, and it is read at run time — no secret goes into an image layer.
+  A second Odoo is a `WMG_API_KEYS=label:key,…` line added by hand in that file
+  plus a restart; `install.sh --add-client` is the same edit with a script
+  around it, and does not apply here.
+- **The bind address must be `0.0.0.0`, and the image sets that.** Loopback
+  inside a container is the container's own, so a `WMG_LISTEN=127.0.0.1:8080`
+  inherited from a bare-metal env file publishes a port that answers nothing.
+  The compose file re-asserts `0.0.0.0:8080` over `env_file` for exactly that
+  reason. Reachability is then decided by the publication:
+  `-p 127.0.0.1:8080:8080` for an Odoo on the same host, `-p 8080:8080` behind
+  TLS and a firewall for one elsewhere.
+- **`/var/lib/whatsmeow-gateway` must be a volume you named.** It holds the
+  pairing keys, the sqlite stores and `registry.json`; losing it means scanning
+  every QR again. A named volume is created from the image with the right
+  ownership. A *bind* mount keeps the host's ownership instead, so
+  `chown 10001:10001` it first or the gateway cannot write its stores.
+- **A container looks private to the gateway even on a public host.** The
+  private-webhook policy asks the machine's own addresses ([§3](#reaching-odoo-across-hosts)),
+  and a container's are all in `172.16/12` — so it concludes it is on somebody's
+  private network and accepts private webhook targets. That is right for an Odoo
+  beside it and wrong on a public host: set `WMG_WEBHOOK_ALLOW_PRIVATE=0` there
+  (the compose file has the line, commented). The startup log always says which
+  policy is in force.
+- **Odoo outside the container** reaches nothing at `127.0.0.1`. Use
+  `http://host.docker.internal:8069` as *This Odoo's URL* on the Gateway record
+  when Odoo runs on the host — the compose file maps that name to the host for
+  you — or put both on one Docker network and use the service name.
+
+Day-to-day maps one to one: `docker compose ps` for `systemctl status`,
+`docker compose logs -f` for `journalctl -f`, `docker compose restart` for
+`systemctl restart`. Deploying a new version is `docker compose up -d --build`;
+the volume survives it, so the numbers stay paired. Back up the volume the same
+way as the data directory in [§5](#5-back-up-the-data-directory) — stop the
+container, then `docker run --rm -v whatsmeow-gateway-data:/data -v "$PWD":/out
+debian:bookworm-slim tar czf /out/whatsmeow-gateway-backup.tar.gz -C /data .`
+
 ## 3. Wiring it to Odoo
 
 The script ends by printing a gateway URL, an API key and a webhook secret.

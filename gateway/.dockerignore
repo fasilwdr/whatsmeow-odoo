@@ -1,0 +1,20 @@
+# The build context is this directory. The image needs the Go sources plus
+# go.mod/go.sum; everything below is either useless in it or must never be in it.
+
+# A locally built binary: 28 MB of build context, and the image builds its own.
+whatsmeow-gateway
+
+# Real secrets. They are passed at run time (--env-file / compose env_file);
+# baking them into a layer would publish them with the image.
+gateway.env
+gateway.env.example
+
+# A dev data directory: paired session stores, i.e. the WhatsApp pairing keys.
+data/
+
+# Tests do not go into a release build; `go build` ignores them, but leaving
+# them out keeps them from busting the COPY layer cache.
+*_test.go
+
+Dockerfile
+.dockerignore
