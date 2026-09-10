@@ -148,11 +148,24 @@ so anything crossing a network you do not control belongs behind TLS: terminate
 it at a reverse proxy in front of each side and keep the services themselves on
 the loopback. Point Odoo's Gateway URL at the proxy, not at the binary.
 
-A gateway that is not on loopback refuses to register a plain-`http` webhook URL
-for a public host, and refuses a private/LAN one altogether, on the grounds that
-a shared gateway should not be POSTing into its own network because a client
-asked it to. `WMG_WEBHOOK_ALLOW_INSECURE=1` and `WMG_WEBHOOK_ALLOW_PRIVATE=1`
-override each of those if your network genuinely is the trust boundary.
+Concretely, on the gateway host:
+
+```bash
+sudo LISTEN_ADDR=0.0.0.0:8080 ./install.sh
+```
+
+A re-run applies an explicitly passed `LISTEN_ADDR` to the existing env file and
+keeps the secrets and sessions, so this is also how you fix a gateway that was
+installed on loopback by mistake. Firewall the port to the Odoo host.
+
+The gateway refuses to register a plain-`http` webhook URL for a public host
+(the secret and every message travel over it). Whether it will accept a *private*
+one follows where the gateway itself sits: a gateway reachable only from a
+private network is somebody's own infrastructure and an Odoo on the LAN beside
+it is the ordinary case, so those are allowed; a gateway on a public address is
+the one that must not be talked into posting at the network behind it, so there
+they are refused. The startup log says which policy is in force.
+`WMG_WEBHOOK_ALLOW_PRIVATE=1` and `WMG_WEBHOOK_ALLOW_INSECURE=1` override.
 
 ### One gateway, several Odoos
 

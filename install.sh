@@ -266,7 +266,7 @@ WMG_DATA_DIR=$DATA_DIR
 
 # Serving another Odoo from this gateway: sudo install.sh --add-client <label>
 # adds a key here as WMG_API_KEYS=label:key,... The key above stays valid as the
-# client `default`, which is what the sessions installed before you read this
+# client "default", which is what the sessions installed before you read this
 # are filed under.
 
 # Optional tunables (media size/TTL, recipient-check budget, webhook queue)

@@ -384,8 +384,9 @@ func TestValidateWebhookURL(t *testing.T) {
 		}
 	}
 
-	// A gateway bound to loopback is a single-host install: Odoo really is on
-	// 127.0.0.1 there, and requiring TLS to talk to it would be theatre.
+	// A gateway that is itself only reachable from a private network is
+	// somebody's own infrastructure, and an Odoo on the LAN beside it is the
+	// ordinary case — requiring TLS to reach it would be theatre.
 	allowPrivateWebhooks = true
 	if err := validateWebhookURL("http://127.0.0.1:8069/whatsmeow/webhook"); err != nil {
 		t.Errorf("a local install's own URL was rejected: %v", err)
@@ -396,5 +397,40 @@ func TestValidateWebhookURL(t *testing.T) {
 	allowInsecureWebhooks = true
 	if err := validateWebhookURL("http://odoo.example.com/hook"); err != nil {
 		t.Errorf("the explicit override did not work: %v", err)
+	}
+}
+
+// Where the gateway itself sits is what decides whether it may be pointed at a
+// private address. Getting this wrong either blocks the commonest deployment
+// (gateway and Odoo on one LAN) or turns a public gateway into a way to probe
+// the network behind it.
+func TestListensPrivately(t *testing.T) {
+	prev := listenAddr
+	defer func() { listenAddr = prev }()
+
+	for _, tc := range []struct {
+		addr string
+		want bool
+	}{
+		{"127.0.0.1:8080", true},
+		{"localhost:8080", true},
+		{"192.168.20.10:8080", true},
+		{"10.4.0.7:8080", true},
+		{"172.16.9.1:8080", true},
+		{"203.0.113.5:8080", false},
+		{"[2001:db8::1]:8080", false},
+		{"nonsense", false},
+	} {
+		listenAddr = tc.addr
+		if got := listensPrivately(); got != tc.want {
+			t.Errorf("listensPrivately(%q) = %v, want %v", tc.addr, got, tc.want)
+		}
+	}
+
+	// A wildcard bind is as public as the machine is, so it has to ask the
+	// machine rather than assume either answer.
+	listenAddr = "0.0.0.0:8080"
+	if got, want := listensPrivately(), !hasPublicAddress(); got != want {
+		t.Errorf("a wildcard bind reported %v; it must follow the host's own addresses (%v)", got, want)
 	}
 }

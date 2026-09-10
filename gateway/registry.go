@@ -464,11 +464,13 @@ func (r *registry) adoptLegacy(defaultURL, defaultSecret string) error {
 // guard is deliberately mild — the caller is already authenticated — but a
 // shared host should not be talking to its own internal network on request.
 //
-// A gateway bound to loopback is a single-host install where Odoo *is* on
-// 127.0.0.1, so private targets are allowed there by default; one bound to an
-// interface is shared, and they are not.
+// The line it draws is where the *gateway* sits, not where it binds. A gateway
+// reachable only from a private network is somebody's own infrastructure, and
+// an Odoo on the LAN next to it is the ordinary case — refusing that would be
+// friction with no threat behind it. A gateway on a public address is the one
+// that must not be talked into probing the network behind it.
 var (
-	allowPrivateWebhooks  = envBoolOr("WMG_WEBHOOK_ALLOW_PRIVATE", listensOnLoopback())
+	allowPrivateWebhooks  = envBoolOr("WMG_WEBHOOK_ALLOW_PRIVATE", listensPrivately())
 	allowInsecureWebhooks = envBoolOr("WMG_WEBHOOK_ALLOW_INSECURE", false)
 	maxSessionsPerClient  = envIntOr("WMG_MAX_SESSIONS_PER_CLIENT", 10)
 )
@@ -487,16 +489,47 @@ func envBoolOr(key string, def bool) bool {
 	}
 }
 
-func listensOnLoopback() bool {
+// listensPrivately reports whether this gateway can only be reached from a
+// private network.
+func listensPrivately() bool {
 	host, _, err := net.SplitHostPort(listenAddr)
 	if err != nil {
 		return false
 	}
-	if host == "localhost" {
+	switch host {
+	case "", "0.0.0.0", "::", "[::]":
+		// A wildcard bind is as public as the machine is, so ask the machine.
+		return !hasPublicAddress()
+	case "localhost":
 		return true
 	}
 	ip := net.ParseIP(host)
-	return ip != nil && ip.IsLoopback()
+	return ip != nil && isPrivateIP(ip)
+}
+
+func isPrivateIP(ip net.IP) bool {
+	return ip.IsLoopback() || ip.IsPrivate() ||
+		ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast()
+}
+
+func hasPublicAddress() bool {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return true // cannot tell; take the careful branch
+	}
+	for _, a := range addrs {
+		var ip net.IP
+		switch v := a.(type) {
+		case *net.IPNet:
+			ip = v.IP
+		case *net.IPAddr:
+			ip = v.IP
+		}
+		if ip != nil && !ip.IsUnspecified() && !isPrivateIP(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 func isPrivateHost(host string) bool {
@@ -516,7 +549,7 @@ func isPrivateHost(host string) bool {
 		ips = resolved
 	}
 	for _, ip := range ips {
-		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsUnspecified() {
+		if isPrivateIP(ip) || ip.IsUnspecified() {
 			return true
 		}
 	}
@@ -532,6 +565,7 @@ func validateWebhookURL(raw string) error {
 		return fmt.Errorf("webhook_url must be http or https")
 	}
 	private := isPrivateHost(u.Hostname())
+
 	if private && !allowPrivateWebhooks {
 		return fmt.Errorf("webhook_url points inside this host's network; " +
 			"set WMG_WEBHOOK_ALLOW_PRIVATE=1 if that is deliberate")

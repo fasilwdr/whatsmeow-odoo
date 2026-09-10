@@ -1970,6 +1970,14 @@ func main() {
 	go func() {
 		log.Printf("whatsmeow-gateway listening on %s (data dir: %s, %d client(s), %d session(s))",
 			listenAddr, dataDir, len(apiClients), len(reg.all()))
+		// Say the webhook policy out loud: a refused registration is otherwise
+		// a puzzle at exactly the wrong moment, halfway through pairing.
+		if allowPrivateWebhooks {
+			log.Printf("webhook targets: private addresses allowed (this gateway is not on a public network)")
+		} else {
+			log.Printf("webhook targets: https only, no private addresses — " +
+				"set WMG_WEBHOOK_ALLOW_PRIVATE=1 if Odoo is on this gateway's own network")
+		}
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("http server: %v", err)
 		}
