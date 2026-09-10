@@ -378,6 +378,18 @@ echo "    API Key         : ${API_KEY}"
 echo "    Webhook Secret  : ${WEBHOOK_SECRET}"
 echo "    This Odoo's URL : leave empty unless Odoo is behind a proxy"
 echo
+case "${ACTUAL_LISTEN%:*}" in
+  127.*|localhost|::1|"[::1]"|"")
+    # The commonest wrong turn: the default is loopback, so a gateway that
+    # installs perfectly is still unreachable from an Odoo on another host, and
+    # the summary above reads like it should work.
+    echo "  NOTE: it listens on ${ACTUAL_LISTEN} — reachable from THIS host only."
+    echo "        Odoo elsewhere? sudo LISTEN_ADDR=0.0.0.0:${PROBE_PORT} $0"
+    echo "        (a re-run keeps the keys and sessions), then firewall the port"
+    echo "        to the Odoo host and use that address as the Gateway URL."
+    echo
+    ;;
+esac
 echo "  Another Odoo on this gateway: sudo $0 --add-client <label>"
 echo "  Health check      : curl ${PROBE_URL}"
 echo "  Logs              : journalctl -u whatsmeow-gateway -f"
