@@ -189,9 +189,15 @@ chmod 700 "$DATA_DIR"
 
 # ---- build the gateway (CGO required by go-sqlite3) ------------------------
 log "Building gateway..."
-# Don't copy a locally-built binary or dev secrets into the install dir.
-rm -f "$INSTALL_DIR/whatsmeow-gateway"
-cp "$GATEWAY_SRC/main.go" "$GATEWAY_SRC/go.mod" "$GATEWAY_SRC/go.sum" "$INSTALL_DIR/"
+# Don't copy a locally-built binary or dev secrets into the install dir. Clear
+# the old sources too: a file deleted upstream would otherwise linger here and
+# break the build with a duplicate declaration.
+rm -f "$INSTALL_DIR/whatsmeow-gateway" "$INSTALL_DIR"/*.go
+# Every .go file, never a list. The gateway is more than one file now, and a
+# hardcoded list does not fail when it goes stale -- it builds a tree missing
+# the new code, which is what "undefined: registryEntry" was. Tests come along
+# so `go mod tidy` below sees every import and cannot prune one they need.
+cp "$GATEWAY_SRC"/*.go "$GATEWAY_SRC/go.mod" "$GATEWAY_SRC/go.sum" "$INSTALL_DIR/"
 cd "$INSTALL_DIR"
 
 if [ "$UPGRADE_WHATSMEOW" = "1" ]; then
