@@ -17,6 +17,14 @@
       <i t-if="message.message_type === 'whatsmeow'"
          class="fa fa-whatsapp o-whatsmeow-badge me-1"
          title="Via WhatsApp" role="img" aria-label="Via WhatsApp"/>
+      <!-- Name the recipient of an outgoing send right beside the badge. A
+           record's chatter says who wrote the entry but not where it went, and
+           an invoice or an order can be WhatsApped to more than one number. -->
+      <small t-if="message.message_type === 'whatsmeow' and message.whatsmeow_recipient"
+             class="o-whatsmeow-recipient text-muted me-1"
+             t-att-title="message.whatsmeow_recipient">
+        <span>to</span> <span class="o-whatsmeow-recipient-name" t-esc="message.whatsmeow_recipient"/>
+      </small>
     </xpath>
   </t>
 

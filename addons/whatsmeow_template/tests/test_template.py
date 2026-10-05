@@ -308,6 +308,25 @@ class TestChatterLog(TemplateCommon):
         self.assertIn("Hello Alice, welcome.", log.body)
         self.assertEqual(log.author_id, self.env.user.partner_id)
 
+    def test_log_names_the_number_it_was_sent_to(self):
+        """A record's chatter says who wrote the entry, not where it went."""
+        composer = self._composer(self.alice, template_id=self.template.id)
+        composer.action_send()
+        message = self._messages()
+        self.assertEqual(
+            self._logs(self.alice).whatsmeow_recipient,
+            "%s (+%s)" % (self.alice.name, message.phone),
+        )
+
+    def test_log_names_the_group_it_was_sent_to(self):
+        message = self.env["whatsmeow.message"].create({
+            "session_id": self.session.id, "direction": "out",
+            "chat_jid": "1203630@g.us", "chat_name": "Sales Team", "body": "hi",
+            "source_res_model": self.alice._name, "source_res_id": self.alice.id,
+        })
+        message._log_on_source()
+        self.assertEqual(message.mail_message_id.whatsmeow_recipient, "Sales Team")
+
     def test_log_is_a_note_so_followers_are_not_emailed(self):
         """The recipient already has it on WhatsApp; a notifying subtype would
         send them a second copy by email."""

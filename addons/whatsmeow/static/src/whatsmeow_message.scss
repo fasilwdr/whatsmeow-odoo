@@ -7,6 +7,12 @@ $o-whatsmeow-green: #25d366;
     vertical-align: baseline;
 }
 
+// The number is what the operator is looking for, so it carries the weight;
+// the "to" in front of it stays as quiet as the date beside it.
+.o-whatsmeow-recipient-name {
+    font-weight: $font-weight-bold;
+}
+
 // Tint the bubble of a message that went out over WhatsApp. Chatter notes are
 // yellow and comments are white, so a third colour is what keeps the three
 // kinds of entry apart in a busy thread.

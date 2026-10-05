@@ -18,3 +18,24 @@ class MailMessage(models.Model):
         selection_add=[("whatsmeow", "WhatsApp Message")],
         ondelete={"whatsmeow": "set default"},
     )
+    # Stored on the entry rather than looked up from whatsmeow.message: the log
+    # must keep saying where a message went after the contact's number changes
+    # or the message row is purged.
+    whatsmeow_recipient = fields.Char(
+        string="WhatsApp Recipient", readonly=True, copy=False,
+        help="Who an outgoing WhatsApp message was sent to, as shown beside "
+             "the WhatsApp badge in the chatter.",
+    )
+
+    def _to_store_defaults(self, target):
+        return super()._to_store_defaults(target) + ["whatsmeow_recipient"]
+
+
+class MailThread(models.AbstractModel):
+    _inherit = "mail.thread"
+
+    def _get_message_create_valid_field_names(self):
+        # message_post rejects any value it does not know; the recipient has to
+        # be set at creation so it is already there when the client first
+        # renders the entry.
+        return super()._get_message_create_valid_field_names() | {"whatsmeow_recipient"}

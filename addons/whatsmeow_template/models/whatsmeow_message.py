@@ -79,8 +79,29 @@ class WhatsmeowMessage(models.Model):
                 subtype_xmlid="mail.mt_note",
                 author_id=self.env.user.partner_id.id,
                 attachment_ids=attachments.ids,
+                whatsmeow_recipient=rec._chatter_recipient(),
             )
             rec.mail_message_id = message.id
+
+    def _chatter_recipient(self):
+        """Who this went to, as the chatter should name them.
+
+        The number always, because it is the one thing that says which phone
+        the message reached; the contact's name in front of it when there is
+        one, since a record such as an invoice does not say on its own whose
+        number that is. A group has no number, so it goes by its subject.
+        """
+        self.ensure_one()
+        if self.chat_type == "group":
+            return self.chat_name or self.chat_jid or ""
+        phone = (self.phone or "").strip()
+        # Bare digits read as an id; the leading + makes them a phone number.
+        if phone and not phone.startswith("+"):
+            phone = "+" + phone
+        name = (self.partner_id.name or "").strip()
+        if name and phone:
+            return "%s (%s)" % (name, phone)
+        return phone or name or self.chat_jid or ""
 
     def _chatter_body(self):
         """The body as it should read in the chatter: what the recipient sees.
