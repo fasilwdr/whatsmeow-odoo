@@ -113,6 +113,9 @@ The conversation-to-channel mapping is race-safe, so both messages land in the s
 
 ## Changelog
 
+### v19.0.1.3.1 — 2026-10-08
+- The messaging menu previews the last message of a WhatsApp conversation, like any other chat
+
 ### v19.0.1.3.0 — 2026-10-08
 - Bubbles name their sender as **Name (+number)**, the way the conversation is titled — including each participant in a group
 - Links in received messages are clickable

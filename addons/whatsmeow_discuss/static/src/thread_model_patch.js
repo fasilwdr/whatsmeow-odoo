@@ -17,6 +17,16 @@ patch(Thread.prototype, {
         return super._computeDiscussAppCategory();
     },
 
+    // Stock Discuss treats only "chat" and "group" as conversations between
+    // people, and a good deal hangs on that: the messaging menu previews the
+    // newest message of a chat channel but only the newest *needaction* one of
+    // anything else — and a WhatsApp message is never a needaction, so its row
+    // showed a name over an empty line. The unread badge on the row and in the
+    // sidebar follows the same switch. Livechat opts in the same way.
+    get isChatChannel() {
+        return this.channel_type === "whatsmeow" || super.isChatChannel;
+    },
+
     // Without this a WhatsApp conversation draws Odoo's default avatar, exactly
     // like an internal chat: the systray, the sidebar and the chat window all
     // read `avatarUrl`. A channel-type mark is the one that stays right — the
