@@ -16,6 +16,11 @@ no browser. Keep them in step; the tests on both sides cover the same cases.
 Display-only and one-way: nothing is ever read back out of the HTML, so where
 this disagrees with WhatsApp's own parser the phone wins and a chatter entry is
 a little wrong, which costs nothing.
+
+`linkify` is the one thing the twin does not do, and is off unless asked for:
+a phone makes a URL tappable, and an inbound location is little more than its
+map link, so the posts that show a *received* message turn it on. The composer
+preview has no use for it — nobody clicks a link in their own draft.
 """
 import re
 
@@ -27,6 +32,13 @@ from markupsafe import Markup, escape
 # asterisks on a phone, so it must stay literal here too.
 INLINE_RE = re.compile(r"([*_~])(?=\S)((?:(?!\1)[^\n])*?\S)\1")
 INLINE_TAGS = {"*": "strong", "_": "em", "~": "s"}
+
+# A URL in already-escaped text. It stops at whitespace and at an escaped quote
+# or angle bracket, so the match can be dropped into an href as it stands: by
+# the time this runs, `escape` has left nothing in it that could close the
+# attribute. Trailing punctuation belongs to the sentence, not the address.
+URL_RE = re.compile(r"https?://(?:(?!&(?:lt|gt|#34|#39);)\S)+")
+URL_TRAILING = ".,;:!?)"
 
 # Monospace is block-ish: it spans newlines and suppresses the inline marks
 # inside it, so the fences are split off before anything else is looked for.
@@ -52,11 +64,32 @@ def _render_inline(text):
         text = text[match.end():]
 
 
+def _render_chunk(text, linkify):
+    """Inline marks, and — when asked — URLs as links.
+
+    A URL is cut out before the marks are looked for: the `_` in
+    `/some_path_here` is part of an address, not an italic.
+    """
+    if not linkify:
+        return _render_inline(text)
+    parts, pos = [], 0
+    for match in URL_RE.finditer(text):
+        url = match.group(0).rstrip(URL_TRAILING)
+        if url.endswith("://"):
+            continue  # a bare scheme is not a link
+        parts.append(_render_inline(text[pos:match.start()]))
+        parts.append(
+            f'<a href="{url}" target="_blank" rel="noreferrer noopener">{url}</a>')
+        pos = match.start() + len(url)
+    parts.append(_render_inline(text[pos:]))
+    return "".join(parts)
+
+
 def _line_breaks(text):
     return text.replace("\n", "<br/>")
 
 
-def render_markup(text):
+def render_markup(text, linkify=False):
     """`text` as a phone would draw it, as escaped HTML.
 
     The body is escaped first and the tags are a closed set, so an inbound
@@ -75,5 +108,5 @@ def render_markup(text):
             # nothing to close it. `split` ate that fence, so it goes back as
             # the literal text the phone would show.
             opener = FENCE if index % 2 == 1 else ""
-            html.append(opener + _line_breaks(_render_inline(chunk)))
+            html.append(opener + _line_breaks(_render_chunk(chunk, linkify)))
     return Markup("".join(html))

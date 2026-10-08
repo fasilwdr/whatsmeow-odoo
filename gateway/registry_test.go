@@ -273,6 +273,7 @@ func TestOneClientCannotReachAnothersSession(t *testing.T) {
 		{"react", http.MethodPost, handleReact, `{"phone":"447700900123","target_id":"3EB0","emoji":"👍"}`},
 		{"read", http.MethodPost, handleMarkRead, `{"phone":"447700900123","message_ids":["3EB0"]}`},
 		{"check", http.MethodPost, handleCheck, `{"phones":["447700900123"]}`},
+		{"groups", http.MethodGet, handleGroups, ""},
 		{"get-media", http.MethodGet, handleGetMedia, ""},
 		{"delete-media", http.MethodDelete, handleDeleteMedia, ""},
 		{"logout", http.MethodPost, handleLogout, ""},

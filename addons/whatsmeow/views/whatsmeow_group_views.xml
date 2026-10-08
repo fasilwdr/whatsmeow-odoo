@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="whatsmeow_group_view_form" model="ir.ui.view">
+    <field name="name">whatsmeow.group.form</field>
+    <field name="model">whatsmeow.group</field>
+    <field name="arch" type="xml">
+      <form create="0">
+        <header>
+          <button name="action_send_message" type="object" string="Send Message"
+                  class="btn-primary" invisible="not active or is_community"/>
+        </header>
+        <sheet>
+          <div class="oe_button_box" name="button_box">
+            <button name="action_view_messages" type="object"
+                    class="oe_stat_button" icon="fa-comments">
+              <field name="message_count" widget="statinfo" string="Messages"/>
+            </button>
+          </div>
+          <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
+                  invisible="active"/>
+          <div class="oe_title">
+            <label for="name"/>
+            <h1><field name="name" readonly="1"/></h1>
+          </div>
+          <group>
+            <group>
+              <field name="session_id"/>
+              <field name="jid"/>
+              <field name="active" invisible="1"/>
+            </group>
+            <group>
+              <field name="participant_count"/>
+              <field name="is_announce"/>
+              <field name="is_community"/>
+              <field name="last_sync"/>
+            </group>
+          </group>
+          <div class="text-muted" invisible="not is_announce">
+            Only admins can post in this group. WhatsApp refuses a message sent
+            here unless this number is one of them.
+          </div>
+          <div class="text-muted" invisible="not is_community">
+            This is a community, which holds groups rather than messages. Send
+            to its announcement group or to one of its groups instead.
+          </div>
+          <div class="text-muted" invisible="active">
+            The gateway no longer lists this group for the session: the number
+            has left it or was removed. It comes back by itself if the number
+            rejoins.
+          </div>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="whatsmeow_group_view_list" model="ir.ui.view">
+    <field name="name">whatsmeow.group.list</field>
+    <field name="model">whatsmeow.group</field>
+    <field name="arch" type="xml">
+      <list create="0" decoration-muted="not active">
+        <field name="name"/>
+        <field name="session_id"/>
+        <field name="participant_count" optional="show"/>
+        <field name="is_announce" optional="show"/>
+        <field name="is_community" optional="hide"/>
+        <field name="jid" optional="hide"/>
+        <field name="last_sync" optional="show"/>
+        <field name="active" column_invisible="1"/>
+        <button name="action_send_message" type="object" string="Send Message"
+                icon="fa-paper-plane" invisible="not active or is_community"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="whatsmeow_group_view_search" model="ir.ui.view">
+    <field name="name">whatsmeow.group.search</field>
+    <field name="model">whatsmeow.group</field>
+    <field name="arch" type="xml">
+      <search>
+        <field name="name"/>
+        <field name="jid"/>
+        <field name="session_id"/>
+        <filter name="announce" string="Admins Only" domain="[('is_announce','=',True)]"/>
+        <filter name="community" string="Communities" domain="[('is_community','=',True)]"/>
+        <separator/>
+        <filter name="archived" string="Archived" domain="[('active','=',False)]"/>
+        <group name="group_by">
+          <filter name="group_session" string="Session" domain="[]"
+                  context="{'group_by': 'session_id'}"/>
+        </group>
+      </search>
+    </field>
+  </record>
+
+  <record id="whatsmeow_group_action" model="ir.actions.act_window">
+    <field name="name">Groups</field>
+    <field name="res_model">whatsmeow.group</field>
+    <field name="view_mode">list,form</field>
+    <field name="help" type="html">
+      <p class="o_view_nocontent_smiling_face">No groups listed yet</p>
+      <p>Open a connected session and press <b>Synchronise Groups</b> to list the
+         WhatsApp groups its number belongs to. A group also appears here as soon
+         as it sends a message.</p>
+    </field>
+  </record>
+</odoo>

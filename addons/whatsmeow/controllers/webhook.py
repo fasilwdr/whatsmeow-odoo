@@ -6,7 +6,7 @@ from psycopg2 import IntegrityError
 from odoo import http
 from odoo.http import request
 
-from ..models.whatsmeow_message import chat_type_for_jid
+from ..models.whatsmeow_message import RICH_MESSAGE_TYPES, chat_type_for_jid
 from ..models.whatsmeow_match_mixin import _phone_tail
 
 _logger = logging.getLogger(__name__)
@@ -98,6 +98,38 @@ class WhatsmeowWebhook(http.Controller):
             "media_state": "pending",
         }
 
+    def _message_type(self, data):
+        """What kind of message the event describes.
+
+        A file's kind comes with its metadata. Everything else is text unless
+        the gateway names one of the kinds it renders into the body itself — a
+        location, a poll, an event, a contact card. An unknown name is text
+        rather than an error: a newer gateway may learn a kind before this
+        module does, and its body is still perfectly readable.
+        """
+        media = data.get("media") or {}
+        if media:
+            return media.get("kind") or "document"
+        kind = data.get("kind")
+        return kind if kind in RICH_MESSAGE_TYPES else "text"
+
+    def _rich_vals(self, data):
+        """The fields a non-file kind adds to a message: its type, and the pin
+        when it has one (a location always, an event when its venue was)."""
+        if data.get("media"):
+            return {}
+        kind = self._message_type(data)
+        if kind == "text":
+            return {}
+        vals = {"message_type": kind}
+        location = data.get("location") or {}
+        try:
+            vals["latitude"] = float(location.get("latitude") or 0)
+            vals["longitude"] = float(location.get("longitude") or 0)
+        except (TypeError, ValueError):
+            pass  # a pin we cannot read is no reason to lose the message
+        return vals
+
     def _on_message(self, env, session, data):
         wa_id = data.get("wa_message_id")
         existing = self._find_existing(env, wa_id)
@@ -120,7 +152,7 @@ class WhatsmeowWebhook(http.Controller):
         # judged on its own body rather than merged into a stub.
         facts = {
             "chat_type": chat_type_for_jid(data.get("chat_jid")),
-            "message_type": (media.get("kind") or "document") if media else "text",
+            "message_type": self._message_type(data),
             "partner_id": partner.id or False,
             "sender_state": "existing" if partner.id else "new",
             "chat_jid": data.get("chat_jid") or "",
@@ -161,6 +193,14 @@ class WhatsmeowWebhook(http.Controller):
             vals["reply_to_id"] = quoted.id
         if media:
             vals.update(self._media_vals(media))
+        vals.update(self._rich_vals(data))
+        if facts["chat_type"] == "group":
+            # A message is proof the group exists and that we are in it, so it
+            # joins the directory outgoing messages pick their target from.
+            group = env["whatsmeow.group"]._upsert_from_inbound(
+                session, data.get("chat_jid"), data.get("chat_name"))
+            if group:
+                vals["group_id"] = group.id
         try:
             # Two retries can arrive at the same instant: both search, both find
             # nothing, both insert. Only the unique index can settle that, so
@@ -204,6 +244,7 @@ class WhatsmeowWebhook(http.Controller):
             vals["reply_to_id"] = quoted.id
         if media:
             vals.update(self._media_vals(media))
+        vals.update(self._rich_vals(data))
         existing.write(vals)
         _logger.info("whatsmeow: real copy of %s replaced its placeholder",
                      existing.wa_message_id)

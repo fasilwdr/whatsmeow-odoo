@@ -2,7 +2,7 @@
 <odoo>
 
   <menuitem id="menu_whatsmeow_marketing_root" name="WhatsApp Marketing"
-            web_icon="whatsmeow_marketing,static/description/icon.png"
+            web_icon="whatsmeow_marketing,static/description/icon.svg"
             groups="whatsmeow_marketing.group_whatsmeow_marketing_user" sequence="61"/>
 
   <menuitem id="menu_whatsmeow_marketing_campaigns" name="Campaigns"

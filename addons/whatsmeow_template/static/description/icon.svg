@@ -1,11 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
-  <rect x="0" y="0" width="256" height="256" rx="58" ry="58" fill="#25D366"/>
-  <polygon points="64.03999999999999,115.4 89.56,129.9 54.76,154.84" fill="#FFFFFF"/>
-  <circle cx="100" cy="98" r="58" fill="#FFFFFF"/>
-  <circle cx="100" cy="90.46" r="26.68" fill="#25D366"/>
-  <circle cx="170" cy="168" r="60" fill="#25D366"/>
-  <rect x="140" y="128" width="66" height="84" rx="10" ry="10" fill="#FFFFFF"/>
-  <rect x="150.56" y="146" width="36.959999999999994" height="8" rx="4" ry="4" fill="#25D366"/>
-  <rect x="150.56" y="166" width="46.199999999999996" height="8" rx="4" ry="4" fill="#25D366"/>
-  <rect x="150.56" y="186" width="29.039999999999996" height="8" rx="4" ry="4" fill="#25D366"/>
-</svg>
+<svg width="50" height="50" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg"><defs><clipPath id="o_icon_whatsmeow_template__a"><path d="M11 4h17l10 10v28a4 4 0 0 1-4 4H11a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4Z"/></clipPath></defs><path d="M11 4h17l10 10v28a4 4 0 0 1-4 4H11a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4Z" fill="#1AD3BB"/><path d="M28 4l10 10h-6a4 4 0 0 1-4-4V4Z" fill="#1A6F66"/><path d="M35 24c6.075 0 11 4.925 11 11 0 1.86-.46 3.61-1.28 5.15l1.22 4.3c.22.78-.5 1.5-1.28 1.28l-4.3-1.22A10.95 10.95 0 0 1 35 46c-6.075 0-11-4.925-11-11s4.925-11 11-11Z" fill="#985184"/><g clip-path="url(#o_icon_whatsmeow_template__a)"><path d="M35 24c6.075 0 11 4.925 11 11 0 1.86-.46 3.61-1.28 5.15l1.22 4.3c.22.78-.5 1.5-1.28 1.28l-4.3-1.22A10.95 10.95 0 0 1 35 46c-6.075 0-11-4.925-11-11s4.925-11 11-11Z" fill="#005E7A"/></g><rect x="12" y="17" width="12" height="3" rx="1.5" fill="#fff"/><rect x="12" y="24" width="14" height="3" rx="1.5" fill="#fff"/><rect x="12" y="31" width="9" height="3" rx="1.5" fill="#fff"/></svg>

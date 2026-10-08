@@ -24,6 +24,10 @@
               <field name="partner_id" readonly="state != 'outgoing'"/>
               <field name="phone" readonly="state != 'outgoing'"
                      placeholder="447700900123"/>
+              <field name="group_id" options="{'no_create': True}"
+                     readonly="direction == 'in' or state != 'outgoing'"
+                     invisible="direction == 'in' and not group_id"
+                     placeholder="Send to a group instead of a number..."/>
               <field name="sender_lid" invisible="not sender_lid"/>
               <div colspan="2" class="text-muted"
                    invisible="direction != 'in' or phone or not sender_lid">
@@ -41,9 +45,14 @@
               <field name="reply_to_id" invisible="not reply_to_id"
                      readonly="state != 'outgoing'"/>
               <field name="wa_message_id"/>
-              <field name="media_state" invisible="message_type == 'text'"/>
-              <field name="media_mimetype" invisible="message_type == 'text'"/>
-              <field name="media_size" invisible="message_type == 'text'"/>
+              <field name="latitude" invisible="not latitude and not longitude"/>
+              <field name="longitude" invisible="not latitude and not longitude"/>
+              <field name="media_state"
+                     invisible="message_type in ('text', 'location', 'poll', 'event', 'contact')"/>
+              <field name="media_mimetype"
+                     invisible="message_type in ('text', 'location', 'poll', 'event', 'contact')"/>
+              <field name="media_size"
+                     invisible="message_type in ('text', 'location', 'poll', 'event', 'contact')"/>
               <field name="media_duration"
                      invisible="message_type not in ('audio', 'video')"/>
               <field name="is_voice_note" invisible="message_type != 'audio'"
@@ -52,7 +61,8 @@
                      class="text-danger"/>
             </group>
           </group>
-          <group string="Media" invisible="message_type == 'text'">
+          <group string="Media"
+                 invisible="message_type in ('text', 'location', 'poll', 'event', 'contact')">
             <field name="media_data" filename="media_filename" nolabel="1"
                    readonly="direction == 'in'"/>
             <field name="media_filename" invisible="1"/>
@@ -109,6 +119,7 @@
         <field name="partner_id"/>
         <field name="session_id"/>
         <field name="chat_name" string="Group"/>
+        <field name="group_id"/>
         <field name="chat_jid"/>
         <filter name="unmatched" string="No Contact Matched"
                 domain="[('direction','=','in'), ('partner_id','=',False)]"/>
@@ -122,7 +133,11 @@
         <filter name="failed" string="Failed" domain="[('state','=','error')]"/>
         <filter name="queued" string="Queued" domain="[('state','=','outgoing')]"/>
         <separator/>
-        <filter name="has_media" string="With Media" domain="[('message_type','!=','text')]"/>
+        <filter name="has_media" string="With Media"
+                domain="[('message_type','in',('image','video','audio','document','sticker'))]"/>
+        <filter name="locations" string="Locations" domain="[('message_type','=','location')]"/>
+        <filter name="polls_events" string="Polls &amp; Events"
+                domain="[('message_type','in',('poll','event'))]"/>
         <filter name="media_pending" string="Media Not Downloaded"
                 domain="[('media_state','in',('pending','error'))]"/>
         <group name="group_by">

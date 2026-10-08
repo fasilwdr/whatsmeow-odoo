@@ -1,6 +1,6 @@
 {
     "name": "Whatsmeow Marketing",
-    "version": "19.0.1.0.0",
+    "version": "19.0.1.0.1",
     "summary": "Mass WhatsApp campaigns: broadcast lists, traces, /stop-/start, replies in Discuss",
     "description": """
 Send a WhatsApp message to many contacts at once, the way Email Marketing sends a mailing.

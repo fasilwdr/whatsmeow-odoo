@@ -12,6 +12,9 @@
                   invisible="status == 'draft'"/>
           <button name="action_resume_queue" type="object" string="Resume Queue"
                   class="btn-primary" invisible="not queue_paused"/>
+          <button name="action_sync_groups" type="object" string="Synchronise Groups"
+                  invisible="status != 'connected'"
+                  help="List the WhatsApp groups this number belongs to, so a message can be sent to one by name."/>
           <button name="action_logout" type="object" string="Logout"
                   invisible="status not in ('connected', 'qr', 'disconnected')"
                   confirm="Unpair this WhatsApp number? It will need a new QR scan."/>
@@ -29,6 +32,10 @@
             <button name="action_view_inbound_rules" type="object"
                     class="oe_stat_button" icon="fa-filter">
               <field name="inbound_rule_count" widget="statinfo" string="Filter Rules"/>
+            </button>
+            <button name="action_view_groups" type="object"
+                    class="oe_stat_button" icon="fa-users">
+              <field name="group_count" widget="statinfo" string="Groups"/>
             </button>
           </div>
           <div class="oe_title">
