@@ -1,6 +1,6 @@
 {
     "name": "Whatsmeow WhatsApp Connector",
-    "version": "19.0.1.7.0",
+    "version": "19.0.1.8.0",
     "summary": "Send/receive WhatsApp via self-hosted whatsmeow gateways",
     "description": """
 Drive one or more self-hosted whatsmeow gateways from Odoo.
@@ -19,6 +19,7 @@ logged as whatsmeow.message records and posted to the matching partner's chatter
         "views/whatsmeow_connection_views.xml",
         "views/whatsmeow_session_views.xml",
         "views/whatsmeow_message_views.xml",
+        "views/whatsmeow_group_views.xml",
         "views/menus.xml",
         "data/ir_cron.xml",
     ],

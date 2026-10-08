@@ -36,7 +36,7 @@ STATUS_JID = "status@broadcast"
 # filter rules (whatsmeow.session.rule) match on exactly the same sets and can
 # never drift from what a message actually is — the same discipline as
 # SESSION_CODE_RE <-> sessionNameRe. chat_type is the rendering of
-# CHAT_TYPE_BY_SERVER; message_type is the media-kind set the gateway emits.
+# CHAT_TYPE_BY_SERVER; message_type is the set of kinds the gateway emits.
 CHAT_TYPES = [
     ("private", "Private"),
     ("group", "Group"),
@@ -52,7 +52,21 @@ MESSAGE_TYPES = [
     ("audio", "Audio"),
     ("document", "Document"),
     ("sticker", "Sticker"),
+    ("location", "Location"),
+    ("poll", "Poll"),
+    ("event", "Event"),
+    ("contact", "Contact Card"),
 ]
+# Kinds with no file behind them: the gateway renders each into the body (a
+# location also carries its coordinates) and names it in the event's `kind`.
+# They are received, never composed — WhatsApp builds each from a dedicated
+# picker on the phone, and the gateway has no send path for any of them.
+RICH_MESSAGE_TYPES = ("location", "poll", "event", "contact")
+# Everything that is neither text nor one of those is a file.
+MEDIA_MESSAGE_TYPES = tuple(
+    kind for kind, _label in MESSAGE_TYPES
+    if kind != "text" and kind not in RICH_MESSAGE_TYPES
+)
 
 
 def chat_type_for_jid(chat_jid):
@@ -137,6 +151,14 @@ class WhatsmeowMessage(models.Model):
         string="Group Name", readonly=True,
         help="Subject of the group, as fetched by the gateway. Empty for private chats.",
     )
+    group_id = fields.Many2one(
+        "whatsmeow.group", string="Group", index=True, ondelete="set null",
+        domain="[('session_id', '=', session_id)]",
+        help="Send to a WhatsApp group this number belongs to. A group has no "
+             "phone number — its Chat JID is its only address — so picking it "
+             "here fills that in. Use Synchronise Groups on the session if the "
+             "group is not listed yet.",
+    )
     push_name = fields.Char(
         string="Sender Name", readonly=True,
         help="The display name the sender set in WhatsApp. Kept as a fallback "
@@ -178,6 +200,13 @@ class WhatsmeowMessage(models.Model):
     media_duration = fields.Integer(
         string="Duration (s)", readonly=True, help="For audio and video.",
     )
+    # A location is data as well as a line of text: the body carries the place
+    # name and a map link for whoever reads the chatter, these carry the pin
+    # for anything that wants to compute with it. An event's venue lands here
+    # too when it was pinned. Both zero means "no coordinates", which costs
+    # nothing — (0, 0) is open ocean.
+    latitude = fields.Float(digits=(10, 7), readonly=True)
+    longitude = fields.Float(digits=(10, 7), readonly=True)
     wa_message_id = fields.Char(readonly=True, index=True)
     sent_date = fields.Datetime(
         readonly=True, copy=False, index=True,
@@ -249,17 +278,86 @@ class WhatsmeowMessage(models.Model):
                     "not to a %s.", rec.chat_type,
                 ))
 
+    @api.constrains("group_id", "session_id", "chat_jid")
+    def _check_group_matches(self):
+        # A group is only reachable from the number that is a member of it, and
+        # the address actually sent to is chat_jid — so a group that disagrees
+        # with either would show one conversation and message another.
+        for rec in self.filtered("group_id"):
+            if rec.group_id.session_id != rec.session_id:
+                raise ValidationError(self.env._(
+                    "%(group)s belongs to the session %(session)s; send to it "
+                    "from that session.",
+                    group=rec.group_id.display_name,
+                    session=rec.group_id.session_id.display_name,
+                ))
+            if (rec.chat_jid or "") != rec.group_id.jid:
+                raise ValidationError(self.env._(
+                    "The chat JID does not belong to the group %s.",
+                    rec.group_id.display_name,
+                ))
+
     @api.constrains("direction", "message_type", "body", "media_data")
     def _check_content_for_outgoing(self):
         # Inbound records are created by the webhook before the media is fetched,
         # so only outgoing messages are required to be complete.
         for rec in self.filtered(lambda r: r.direction == "out"):
+            if rec.message_type in RICH_MESSAGE_TYPES:
+                raise ValidationError(self.env._(
+                    "A %s can be received from WhatsApp but not sent from here.",
+                    rec.message_type,
+                ))
             if rec.message_type == "text" and not (rec.body or "").strip():
                 raise ValidationError(self.env._("A text message needs a body."))
             if rec.message_type != "text" and not rec.media_data:
                 raise ValidationError(self.env._(
                     "A %s message needs a file attached.", rec.message_type,
                 ))
+
+    # -- addressing a group ---------------------------------------------------
+    # `chat_jid` stays the one thing a send is addressed to; `group_id` is how a
+    # person arrives at it without knowing a JID. Filled in here rather than
+    # computed, so a JID typed by hand (a group not synchronised yet, a
+    # LID-only contact) keeps working exactly as before.
+    @api.model
+    def _group_target_vals(self, group):
+        return {"chat_jid": group.jid, "chat_name": group.name}
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        Group = self.env["whatsmeow.group"]
+        for vals in vals_list:
+            if vals.get("group_id") and not vals.get("chat_jid"):
+                vals.update(self._group_target_vals(Group.browse(vals["group_id"])))
+        return super().create(vals_list)
+
+    def write(self, vals):
+        if vals.get("group_id") and "chat_jid" not in vals:
+            vals = {**vals, **self._group_target_vals(
+                self.env["whatsmeow.group"].browse(vals["group_id"]))}
+        return super().write(vals)
+
+    @api.onchange("group_id")
+    def _onchange_group_id(self):
+        if self.group_id:
+            self.chat_jid = self.group_id.jid
+            self.chat_name = self.group_id.name
+            # A group message has no single recipient: leaving a contact on it
+            # would pin the log on one participant, and a phone number beside a
+            # group JID suggests a private copy that is never sent.
+            self.partner_id = False
+            self.phone = False
+        elif self._origin.group_id or chat_type_for_jid(self.chat_jid) == "group":
+            # Clearing the group clears the address it supplied.
+            self.chat_jid = False
+            self.chat_name = False
+
+    @api.onchange("session_id")
+    def _onchange_session_id_group(self):
+        if self.group_id and self.group_id.session_id != self.session_id:
+            self.group_id = False
+            self.chat_jid = False
+            self.chat_name = False
 
     @api.onchange("media_filename")
     def _onchange_media_filename(self):
@@ -439,6 +537,7 @@ class WhatsmeowMessage(models.Model):
                 "default_message_type": "text",
                 "default_reply_to_id": self.id,
                 "default_chat_jid": self.chat_jid or False,
+                "default_group_id": self.group_id.id or False,
                 # A group reply belongs to the group, not to the participant who
                 # happened to write: addressing it to them would send a private
                 # message instead, and pin the log on the wrong contact.
@@ -756,8 +855,10 @@ class WhatsmeowMessage(models.Model):
             # The body arrives as Markup from `render_markup`, which escaped it
             # itself before turning WhatsApp's markers into real formatting —
             # so the reader sees the message as the sender's phone drew it
-            # rather than a line of `*asterisks*`.
-            body=Markup("<p><b>%s</b><br/>%s</p>") % (label, render_markup(body)),
+            # rather than a line of `*asterisks*`. Links are made clickable:
+            # a location is delivered as its map link.
+            body=Markup("<p><b>%s</b><br/>%s</p>") % (
+                label, render_markup(body, linkify=True)),
             # Typed, not just labelled: the web client badges a 'whatsmeow'
             # message with the WhatsApp mark and tints its bubble, so an
             # operator scanning a busy chatter can tell at a glance which

@@ -316,7 +316,20 @@ func makeEventHandler(s *Session) func(interface{}) {
 				s.notify("message.reaction", s.reactionPayload(v, react))
 				return
 			}
+			// Not a message at all: a group's encryption key on its way to us,
+			// or a vote/RSVP that only annotates an earlier message. Dropped
+			// before anything is rendered, so neither reaches Odoo as an
+			// "[unsupported message type: ...]" line. See content.go.
+			if isKeyDistribution(v.Message) || isAnnotation(v.Message) {
+				return
+			}
 			text := extractText(v.Message)
+			// A location, poll, event or contact card has no body of its own;
+			// it is rendered into one, and its kind travels with it.
+			rich := extractRich(v.Message)
+			if rich != nil {
+				text = rich.Text
+			}
 			// Media is downloaded now, not on demand: WhatsApp expires it from
 			// its servers, so a later fetch would find nothing.
 			var media *mediaInfo
@@ -354,6 +367,10 @@ func makeEventHandler(s *Session) func(interface{}) {
 					return
 				}
 				// Nothing we can render - still tell Odoo something arrived.
+				// The log names what the message actually carried, which the
+				// placeholder cannot: "text" is only the server's label.
+				log.Printf("[%s] cannot render message %s (type=%s, fields=%s)",
+					s.label(), v.Info.ID, kind, populatedFields(unwrap(v.Message)))
 				text = "[unsupported message type: " + kind + "]"
 				placeholder = true
 			}
@@ -393,6 +410,12 @@ func makeEventHandler(s *Session) func(interface{}) {
 			if media != nil {
 				// Metadata only; Odoo pulls the bytes from /media/{id}.
 				payload["media"] = media
+			}
+			if rich != nil {
+				payload["kind"] = rich.Kind
+				if rich.Location != nil {
+					payload["location"] = rich.Location
+				}
 			}
 			s.notify("message.received", payload)
 
@@ -490,6 +513,16 @@ func unwrap(msg *waE2E.Message) *waE2E.Message {
 			msg = msg.GetDocumentWithCaptionMessage().GetMessage()
 		case msg.GetDeviceSentMessage().GetMessage() != nil:
 			msg = msg.GetDeviceSentMessage().GetMessage()
+		case msg.GetEditedMessage().GetMessage() != nil:
+			msg = msg.GetEditedMessage().GetMessage()
+		case msg.GetBotInvokeMessage().GetMessage() != nil:
+			msg = msg.GetBotInvokeMessage().GetMessage()
+		case msg.GetLottieStickerMessage().GetMessage() != nil:
+			msg = msg.GetLottieStickerMessage().GetMessage()
+		case msg.GetGroupMentionedMessage().GetMessage() != nil:
+			msg = msg.GetGroupMentionedMessage().GetMessage()
+		case msg.GetPollCreationMessageV4().GetMessage() != nil:
+			msg = msg.GetPollCreationMessageV4().GetMessage()
 		default:
 			return msg
 		}
@@ -508,6 +541,11 @@ func extractMedia(msg *waE2E.Message) (*mediaInfo, bool) {
 		return &mediaInfo{Kind: "image", Mimetype: m.GetMimetype(), dl: m}, true
 	case msg.GetVideoMessage() != nil:
 		m := msg.GetVideoMessage()
+		return &mediaInfo{Kind: "video", Mimetype: m.GetMimetype(), Seconds: m.GetSeconds(), dl: m}, true
+	case msg.GetPtvMessage() != nil:
+		// A "video note" — the round clip recorded by holding the camera
+		// button. Its own field, but a video in every way that matters here.
+		m := msg.GetPtvMessage()
 		return &mediaInfo{Kind: "video", Mimetype: m.GetMimetype(), Seconds: m.GetSeconds(), dl: m}, true
 	case msg.GetAudioMessage() != nil:
 		m := msg.GetAudioMessage()
@@ -674,6 +712,15 @@ func (g *groupNames) lookup(uid string, cli *whatsmeow.Client, chat types.JID) s
 	return name
 }
 
+// store records a subject learned some other way — the joined-groups listing
+// returns every name in one round trip, so there is no reason to fetch each
+// again when its first message arrives.
+func (g *groupNames) store(uid string, chat types.JID, name string) {
+	g.mu.Lock()
+	g.entries[uid+"|"+chat.String()] = groupNameEntry{name: name, fetched: time.Now()}
+	g.mu.Unlock()
+}
+
 func (g *groupNames) forget(uid string, chat types.JID) {
 	g.mu.Lock()
 	delete(g.entries, uid+"|"+chat.String())
@@ -804,7 +851,9 @@ func extractText(msg *waE2E.Message) string {
 	if lst := msg.GetListResponseMessage(); lst != nil {
 		return lst.GetTitle()
 	}
-	return ""
+	// Last, the template containers a business account sends (an OTP, an
+	// order update): text, but not in any of the fields above.
+	return structuredText(msg)
 }
 
 // quotedID returns the id of the message this one quotes, "" when it quotes
@@ -1646,6 +1695,52 @@ func handleMarkRead(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"status": "read", "count": len(ids)})
 }
 
+// groupRow is one joined group as Odoo lists it. A group has no phone number:
+// its JID is the only address it has, and nobody can be expected to know one,
+// so this listing is what lets an operator pick a group by name.
+func groupRow(g *types.GroupInfo) map[string]any {
+	participants := len(g.Participants)
+	if participants == 0 {
+		participants = g.ParticipantCount
+	}
+	return map[string]any{
+		"jid":          g.JID.String(),
+		"name":         g.Name,
+		"participants": participants,
+		// Only admins may post in an announcement group; a send from anyone
+		// else is refused by WhatsApp, so Odoo is told up front.
+		"announce": g.IsAnnounce,
+		// A community's parent is a container for its groups, not a chat.
+		"community": g.IsParent,
+	}
+}
+
+// handleGroups lists the groups this number is a member of.
+func handleGroups(w http.ResponseWriter, r *http.Request) {
+	s := requireSession(w, r)
+	if s == nil {
+		return
+	}
+	if status, _, _, _ := s.snapshot(); status != "connected" {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "session not connected (status: " + status + ")"})
+		return
+	}
+	groups, err := s.Client.GetJoinedGroups(r.Context())
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "listing groups failed: " + err.Error()})
+		return
+	}
+	rows := make([]map[string]any, 0, len(groups))
+	for _, g := range groups {
+		if g == nil {
+			continue
+		}
+		groupNameCache.store(s.UID, g.JID, g.Name)
+		rows = append(rows, groupRow(g))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"groups": rows})
+}
+
 // handleGetMedia streams a previously downloaded file to Odoo.
 func handleGetMedia(w http.ResponseWriter, r *http.Request) {
 	s := requireSession(w, r)
@@ -1957,6 +2052,7 @@ func main() {
 	mux.HandleFunc("POST /sessions/{name}/react", handleReact)
 	mux.HandleFunc("POST /sessions/{name}/read", handleMarkRead)
 	mux.HandleFunc("POST /sessions/{name}/check", handleCheck)
+	mux.HandleFunc("GET /sessions/{name}/groups", handleGroups)
 	mux.HandleFunc("GET /sessions/{name}/media/{id}", handleGetMedia)
 	mux.HandleFunc("DELETE /sessions/{name}/media/{id}", handleDeleteMedia)
 	mux.HandleFunc("POST /sessions/{name}/logout", handleLogout)

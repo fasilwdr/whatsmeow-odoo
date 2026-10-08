@@ -24,6 +24,12 @@ Start a session and Odoo renders the WhatsApp pairing QR right on the form. A sc
 ### 💬 Send Text & Media, With Replies
 Compose text, images, video, audio, documents, or stickers from a message form. Reply to an inbound message to quote it in WhatsApp, and send voice notes that play inline. Sends can target a private chat or a group.
 
+### 👥 Send to Groups by Name
+A WhatsApp group has no phone number — only a JID nobody knows by heart. **Synchronise Groups** on a session lists every group its number belongs to under **WhatsApp ▸ Groups**, and a group also appears there as soon as it sends a message. Pick the group on a message (or press **Send Message** on the group) and the address is filled in for you; a JID typed by hand still works. Admin-only groups and community parents are flagged, and a group the number has left is archived rather than deleted.
+
+### 📍 Locations, Polls, Events & Business Templates
+A shared location arrives as the place name, its address and a clickable map link, with the latitude and longitude stored on the message. Polls show the question and its options, events their time, venue and join link, and contact cards the name and numbers. Structured messages from business accounts — a one-time passcode, an order update — are read out of their template instead of arriving as an unsupported placeholder. Filter rules can match each of these kinds.
+
 ### 🚦 Paced Outgoing Queue
 Outgoing messages go onto a throttled queue that spaces each number's sends apart by a random delay, takes turns between numbers so one busy session never stalls another, and carries an idempotency key so a mid-transaction crash can never send the same message twice. Failed sends are marked and can be retried.
 
@@ -158,6 +164,15 @@ Only members of the **WhatsApp / Administrator** group. The API key and webhook 
 The message is marked in error with the reason, and the rest of the queue keeps moving — one bad send never stalls the others. You can retry it once the gateway is healthy again; the idempotency key ensures a message that already reached WhatsApp is never sent twice.
 
 ## Changelog
+
+### v19.0.1.8.0 — 2026-10-08
+- Send to a WhatsApp group by name: a per-session group directory, **Synchronise Groups**, and a group picker on the message form
+- Inbound locations (with coordinates and a map link), polls, events and contact cards are rendered instead of arriving as unsupported
+- Business template messages such as OTPs are read as text
+- The first message from a group participant no longer posts an extra "unsupported message type: text" line
+- Links in received messages are clickable in the chatter and in Discuss
+- New app icons in the Odoo 19 style
+- **Rebuild the gateway** (`sudo ./install.sh`, or rebuild the container image) — the rendering, the group listing and the group fix all live there
 
 ### v19.0.1.6.0 — 2026-09-02
 - Per-session sending hours, in the number's own timezone, honoured by the queue only

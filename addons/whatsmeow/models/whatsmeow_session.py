@@ -209,6 +209,13 @@ class WhatsmeowSession(models.Model):
     )
     inbound_rule_count = fields.Integer(compute="_compute_inbound_rule_count")
 
+    group_ids = fields.One2many(
+        "whatsmeow.group", "session_id", string="Groups",
+        help="The WhatsApp groups this number belongs to, as last listed by "
+             "the gateway. Pick one on a message to send to it.",
+    )
+    group_count = fields.Integer(compute="_compute_group_count")
+
     auto_mark_read = fields.Boolean(
         string="Auto Mark as Read", default=False,
         help="Send WhatsApp's read receipt (the blue ticks) as soon as an "
@@ -646,6 +653,39 @@ class WhatsmeowSession(models.Model):
                 data.update(rec._gw("GET", f"/sessions/{rec.code}/qr"))
             rec._apply_state(data)
             rec._sync_webhook(data)
+
+    # -- groups ---------------------------------------------------------------
+    @api.depends("group_ids")
+    def _compute_group_count(self):
+        for rec in self:
+            rec.group_count = len(rec.group_ids)
+
+    def action_sync_groups(self):
+        """Ask the gateway which groups this number is in, and mirror them.
+
+        On demand rather than on a schedule: the listing is a query to
+        WhatsApp's servers, and a number that polls its group list all day
+        looks like no phone anyone owns. Groups also register themselves the
+        moment they send us a message, so this is only needed for one that has
+        been quiet since the number joined it.
+        """
+        for rec in self:
+            data = rec._gw("GET", f"/sessions/{rec.code}/groups")
+            self.env["whatsmeow.group"]._sync_from_gateway(
+                rec, data.get("groups") or [])
+        return self.action_view_groups()
+
+    def action_view_groups(self):
+        action = {
+            "type": "ir.actions.act_window",
+            "name": self.env._("WhatsApp Groups"),
+            "res_model": "whatsmeow.group",
+            "view_mode": "list,form",
+            "domain": [("session_id", "in", self.ids)],
+        }
+        if len(self) == 1:
+            action["context"] = {"default_session_id": self.id}
+        return action
 
     def action_logout(self):
         for rec in self:

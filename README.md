@@ -78,7 +78,11 @@ The bridges are opt-in and change nothing until installed.
 **Messaging** — text and media in both directions: image, video, audio (including
 voice notes), document, sticker. Delivery states (sent → delivered → read), replies
 to private chats and groups, and LID-only contacts (senders with no visible phone
-number).
+number). Inbound locations (with coordinates and a map link), polls, events,
+contact cards and business templates such as OTPs are rendered as readable text.
+
+**Groups** — each session lists the WhatsApp groups its number belongs to, so a
+message is addressed to a group by name rather than by its JID.
 
 **Inbound filtering** — each session accepts or rejects incoming messages by rule,
 first-match-wins: by chat, contact, phone, LID, chat type, message type, keyword or
@@ -254,6 +258,7 @@ All routes except `/health` require `Authorization: Bearer $WMG_API_KEY`.
 | `POST` | `/sessions/{name}/react` | React to a message |
 | `POST` | `/sessions/{name}/read` | Mark read |
 | `POST` | `/sessions/{name}/check` | Are these numbers on WhatsApp? |
+| `GET` | `/sessions/{name}/groups` | Groups this number belongs to |
 | `GET`/`DELETE` | `/sessions/{name}/media/{id}` | Fetch / release staged inbound media |
 
 ## License

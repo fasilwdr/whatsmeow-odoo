@@ -311,7 +311,8 @@ class WhatsmeowMessage(models.Model):
         if parent.model != "discuss.channel" or parent.res_id != channel.id:
             parent = self.env["mail.message"]
         posted = channel.with_context(whatsmeow_skip_send=True).message_post(
-            body=(Markup("<p>%s</p>") % render_markup(body)) if body else Markup(""),
+            body=(Markup("<p>%s</p>") % render_markup(body, linkify=True))
+            if body else Markup(""),
             author_id=author.id or False,
             # Only reached when there is no author to name: `email_from` is
             # ignored by the client as soon as a persona exists, and a channel
