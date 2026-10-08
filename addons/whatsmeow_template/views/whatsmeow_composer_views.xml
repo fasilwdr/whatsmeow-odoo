@@ -23,6 +23,10 @@
           <field name="session_id" options='{"no_open": True, "no_create": True}'/>
           <field name="phone" invisible="batch_mode"
                  placeholder="e.g. 447700900123"/>
+          <field name="group_ids" widget="many2many_tags"
+                 options='{"no_create": True}'
+                 context="{'whatsmeow_group_show_session': True}"
+                 placeholder="Also send to these groups..."/>
         </group>
         <!--
           Same toolbar as the template editor. The body here is already

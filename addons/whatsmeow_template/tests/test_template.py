@@ -1,4 +1,5 @@
 import json
+from unittest.mock import patch
 
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests import TransactionCase, tagged
@@ -575,3 +576,256 @@ class TestComposerOptOut(TemplateCommon):
         self.assertIn("opted out", blocked.error_message)
         self.assertEqual(messages.filtered(lambda m: m.partner_id == self.bob).state,
                          "sent")
+
+
+@tagged("post_install", "-at_install")
+class TestTemplateGroups(TemplateCommon):
+    """A template can name WhatsApp groups. With a recipient field as well, a
+    message goes to both; with groups alone, to the groups only."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        Group = cls.env["whatsmeow.group"]
+        cls.sales = Group.create({
+            "session_id": cls.session.id, "jid": "120363000000000001@g.us",
+            "name": "Sales Team",
+        })
+        cls.dispatch = Group.create({
+            "session_id": cls.session.id, "jid": "120363000000000002@g.us",
+            "name": "Dispatch",
+        })
+
+    def _private(self):
+        return self._messages().filtered(lambda m: m.chat_type == "private")
+
+    def _to_groups(self):
+        return self._messages().filtered(lambda m: m.chat_type == "group")
+
+    # -- who receives it -------------------------------------------------------
+    def test_phone_field_and_group_sends_to_both(self):
+        self.template.write({
+            "phone_field": "phone", "group_ids": [(6, 0, self.sales.ids)]})
+        composer = self._composer(self.alice, template_id=self.template.id)
+        self.assertEqual(composer.phone, "+44 7700 900123")
+        self.assertEqual(composer.group_ids, self.sales)
+        composer.action_send()
+
+        self.assertEqual(len(self._messages()), 2)
+        private, group = self._private(), self._to_groups()
+        self.assertEqual(private.phone, "447700900123")
+        self.assertEqual(private.partner_id, self.alice)
+        self.assertEqual(group.group_id, self.sales)
+        self.assertEqual(group.chat_jid, self.sales.jid)
+        self.assertFalse(group.phone)
+        self.assertFalse(group.partner_id, "a group message has no single recipient")
+        self.assertEqual(private.body, "Hello Alice, welcome.")
+        self.assertEqual(group.body, "Hello Alice, welcome.")
+        self.assertEqual(set(self._messages().mapped("state")), {"outgoing"})
+
+    def test_group_without_a_phone_field_sends_to_the_group_only(self):
+        """Otherwise "tell the dispatch group" would also message the customer
+        every time, with nothing to switch it off."""
+        self.template.group_ids = self.sales
+        composer = self._composer(self.alice, template_id=self.template.id)
+        self.assertFalse(composer.phone)
+        composer.action_send()
+
+        message = self._messages()
+        self.assertEqual(len(message), 1)
+        self.assertEqual(message.group_id, self.sales)
+        self.assertEqual(message.body, "Hello Alice, welcome.")
+
+    def test_no_group_still_probes_for_the_number(self):
+        """Unchanged for every template that existed before groups did."""
+        composer = self._composer(self.alice, template_id=self.template.id)
+        self.assertEqual(composer.phone, "+44 7700 900123")
+        composer.action_send()
+        self.assertEqual(self._messages().phone, "447700900123")
+        self.assertFalse(self._messages().group_id)
+
+    def test_every_group_gets_a_copy(self):
+        self.template.write({
+            "phone_field": "phone",
+            "group_ids": [(6, 0, (self.sales + self.dispatch).ids)]})
+        self._composer(self.alice, template_id=self.template.id).action_send()
+        self.assertEqual(len(self._private()), 1)
+        self.assertEqual(self._to_groups().group_id, self.sales + self.dispatch)
+
+    def test_batch_sends_each_record_to_its_number_and_the_group(self):
+        self.template.write({
+            "phone_field": "phone", "group_ids": [(6, 0, self.sales.ids)]})
+        self._composer(
+            self.alice + self.bob, template_id=self.template.id).action_send()
+
+        self.assertEqual({m.phone for m in self._private()},
+                         {"447700900123", "447700900456"})
+        self.assertEqual(
+            sorted(self._to_groups().mapped("body")),
+            ["Hello Alice, welcome.", "Hello Bob, welcome."],
+            "the group hears about each record, rendered for that record")
+
+    @mute_logger("odoo.addons.whatsmeow_template.wizard.whatsmeow_composer")
+    def test_record_without_a_number_still_reaches_the_group(self):
+        self.template.write({
+            "phone_field": "phone", "group_ids": [(6, 0, self.sales.ids)]})
+        result = self._composer(
+            self.nobody, template_id=self.template.id).action_send()
+
+        message = self._messages()
+        self.assertEqual(len(message), 1)
+        self.assertEqual(message.group_id, self.sales)
+        self.assertEqual(result["params"]["type"], "success",
+                         "the record was not skipped: its group copy went out")
+
+    # -- the operator's edits --------------------------------------------------
+    def test_operator_can_drop_the_groups_for_one_send(self):
+        self.template.write({
+            "phone_field": "phone", "group_ids": [(6, 0, self.sales.ids)]})
+        composer = self._composer(self.alice, template_id=self.template.id)
+        composer.group_ids = False
+        composer.action_send()
+        self.assertEqual(len(self._messages()), 1)
+        self.assertFalse(self._to_groups())
+
+    def test_operator_can_add_a_number_to_a_group_only_send(self):
+        self.template.group_ids = self.sales
+        composer = self._composer(self.alice, template_id=self.template.id)
+        composer.phone = "+44 7700 900999"
+        composer.action_send()
+        self.assertEqual(self._private().phone, "447700900999")
+        self.assertEqual(self._to_groups().group_id, self.sales)
+
+    def test_dropping_the_groups_of_a_group_only_template_falls_back_to_the_number(self):
+        """In a batch there is no preview to type a number into, so clearing
+        the groups must not leave the send with nowhere to go."""
+        self.template.group_ids = self.sales
+        composer = self._composer(
+            self.alice + self.bob, template_id=self.template.id)
+        composer.group_ids = False
+        composer.action_send()
+        self.assertEqual({m.phone for m in self._messages()},
+                         {"447700900123", "447700900456"})
+
+    def test_a_group_can_be_added_without_a_template(self):
+        composer = self._composer(self.alice, session_id=self.session.id)
+        composer.body = "Freeform hello"
+        composer.group_ids = self.sales
+        composer.action_send()
+        self.assertEqual(self._private().phone, "447700900123")
+        self.assertEqual(self._to_groups().body, "Freeform hello")
+
+    # -- sessions --------------------------------------------------------------
+    def test_a_group_copy_leaves_from_the_groups_own_number(self):
+        """Only a member can post in a group, so Send From cannot apply."""
+        other = self.env["whatsmeow.session"].create({
+            "name": "Other", "code": "other", "connection_id": self.connection.id,
+        })
+        self.template.write({
+            "phone_field": "phone", "group_ids": [(6, 0, self.sales.ids)]})
+        composer = self._composer(
+            self.alice, template_id=self.template.id, session_id=other.id)
+        composer.action_send()
+
+        messages = self.env["whatsmeow.message"].search(
+            [("source_res_id", "=", self.alice.id),
+             ("source_res_model", "=", "res.partner")])
+        private = messages.filtered(lambda m: m.chat_type == "private")
+        group = messages.filtered(lambda m: m.chat_type == "group")
+        self.assertEqual(private.session_id, other)
+        self.assertEqual(group.session_id, self.session)
+
+    def test_template_refuses_a_group_of_another_number(self):
+        other = self.env["whatsmeow.session"].create({
+            "name": "Other", "code": "other", "connection_id": self.connection.id,
+        })
+        foreign = self.env["whatsmeow.group"].create({
+            "session_id": other.id, "jid": "120363000000000009@g.us",
+            "name": "Not Ours",
+        })
+        with self.assertRaises(ValidationError):
+            self.template.group_ids = foreign
+        # With no Send From on the template there is nothing to disagree with.
+        self.template.session_id = False
+        self.template.group_ids = foreign
+
+    def test_an_archived_group_is_not_sent_to(self):
+        """A group the number has left is archived; a send to it would only
+        fail at the gateway."""
+        self.template.write({
+            "phone_field": "phone", "group_ids": [(6, 0, self.sales.ids)]})
+        self.sales.active = False
+        self._composer(self.alice, template_id=self.template.id).action_send()
+        self.assertEqual(len(self._messages()), 1)
+        self.assertFalse(self._to_groups())
+
+    # -- media, log, automation, gates -----------------------------------------
+    def test_attachments_go_to_the_group_as_well(self):
+        attachment = self.env["ir.attachment"].create({
+            "name": "price-list.pdf", "datas": "JVBERi0=",
+            "mimetype": "application/pdf",
+        })
+        self.template.write({
+            "phone_field": "phone", "group_ids": [(6, 0, self.sales.ids)],
+            "attachment_ids": [(6, 0, attachment.ids)],
+        })
+        self._composer(self.alice, template_id=self.template.id).action_send()
+        for message in self._private() + self._to_groups():
+            self.assertEqual(message.message_type, "document")
+            self.assertEqual(message.media_filename, "price-list.pdf")
+            self.assertEqual(message.body, "Hello Alice, welcome.")
+
+    def test_each_copy_is_logged_with_where_it_went(self):
+        self.template.write({
+            "phone_field": "phone", "group_ids": [(6, 0, self.sales.ids)]})
+        self._composer(self.alice, template_id=self.template.id).action_send()
+        logs = self.alice.message_ids.filtered(
+            lambda m: m.message_type == "whatsmeow")
+        self.assertEqual(
+            set(logs.mapped("whatsmeow_recipient")),
+            {"Alice (+447700900123)", "Sales Team"})
+
+    def test_server_action_sends_to_both(self):
+        self.template.write({
+            "phone_field": "phone", "group_ids": [(6, 0, self.sales.ids)]})
+        action = self.env["ir.actions.server"].create({
+            "name": "WhatsApp the customer and the team",
+            "model_id": self.partner_model.id,
+            "state": "whatsmeow_send",
+            "whatsmeow_template_id": self.template.id,
+        })
+        action.with_context(
+            active_model="res.partner",
+            active_ids=(self.alice + self.bob).ids,
+            active_id=self.alice.id,
+        ).run()
+        self.assertEqual(len(self._private()), 2)
+        self.assertEqual(len(self._to_groups()), 2)
+
+    def test_group_copy_is_sent_even_when_the_contact_opted_out(self):
+        """The private copy is blocked; one member cannot speak for a group."""
+        self.alice.whatsmeow_optout = True
+        self.template.write({
+            "phone_field": "phone", "group_ids": [(6, 0, self.sales.ids)]})
+        self._composer(self.alice, template_id=self.template.id).action_send()
+        with patch.object(type(self.session), "_gw",
+                          return_value={"wa_message_id": "G1"}):
+            self._messages().with_context(whatsmeow_queued=True).action_send()
+        self.assertEqual(self._private().state, "error")
+        self.assertEqual(self._to_groups().state, "sent")
+
+    def test_plain_user_can_send_to_a_group(self):
+        user = self.env["res.users"].create({
+            "name": "Plain", "login": "plain_group_sender",
+            "group_ids": [(6, 0, [
+                self.env.ref("base.group_user").id,
+                self.env.ref("whatsmeow.group_whatsmeow_user").id,
+            ])],
+        })
+        self.template.group_ids = self.sales
+        composer = self.env["whatsmeow.composer"].with_user(user).create({
+            "res_model": "res.partner", "res_ids": json.dumps(self.alice.ids),
+            "template_id": self.template.id,
+        })
+        composer.action_send()
+        self.assertEqual(self._messages().group_id, self.sales)

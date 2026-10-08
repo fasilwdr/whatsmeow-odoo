@@ -72,7 +72,17 @@ class WhatsmeowTemplate(models.Model):
         string="Recipient Field",
         help="Field path on the model holding the recipient's number, e.g. "
              "'phone' or 'partner_id.phone'. Leave empty to probe the record's "
-             "own phone fields and then its contact's.",
+             "own phone fields and then its contact's — or, when groups are "
+             "set below, to send to the groups only.",
+    )
+    group_ids = fields.Many2many(
+        "whatsmeow.group", string="Groups",
+        domain="[('session_id', '=?', session_id)]",
+        help="WhatsApp groups that receive every message sent from this "
+             "template. With a Recipient Field as well, the message goes to "
+             "both: the record's number and each group. With groups and no "
+             "Recipient Field, it goes to the groups only. A group is always "
+             "messaged from the number that belongs to it.",
     )
     body = fields.Text(
         required=True,
@@ -116,6 +126,23 @@ class WhatsmeowTemplate(models.Model):
             error = tmpl._phone_field_error(tmpl.phone_field)
             if error:
                 raise ValidationError(error)
+
+    @api.constrains("session_id", "group_ids")
+    def _check_groups_session(self):
+        # A group can only be reached from the number that is a member of it.
+        # With a Send From number on the template, a group of another number
+        # would quietly leave from somewhere the author did not choose.
+        for tmpl in self.filtered("session_id"):
+            foreign = tmpl.group_ids.filtered(
+                lambda g: g.session_id != tmpl.session_id)
+            if foreign:
+                raise ValidationError(self.env._(
+                    "%(groups)s cannot be reached from %(session)s: the number "
+                    "is not in that group. Choose groups of this session, or "
+                    "clear Send From.",
+                    groups=", ".join(foreign.mapped("name")),
+                    session=tmpl.session_id.display_name,
+                ))
 
     @api.constrains("model_id", "report_id")
     def _check_report_model(self):
@@ -217,6 +244,19 @@ class WhatsmeowTemplate(models.Model):
         if self.phone_field:
             return self._traverse(record, self.phone_field)
         return self._probe_phone(record)
+
+    def _sends_to_number(self, groups):
+        """Whether a send to `groups` also goes to the record's own number.
+
+        An empty Recipient Field normally means "find the number yourself",
+        which is right when the number is the only place a message can go.
+        Once there are groups it would make a group-only template impossible —
+        "tell the dispatch group an order was confirmed" would also message
+        the customer, every time, with nothing to switch it off. So with
+        groups, the number is included only when it was asked for by name.
+        """
+        self.ensure_one()
+        return bool(self.phone_field) or not groups
 
     @api.model
     def _probe_phone(self, record):

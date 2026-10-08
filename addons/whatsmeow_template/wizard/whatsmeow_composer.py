@@ -48,6 +48,13 @@ class WhatsmeowComposer(models.TransientModel):
         compute="_compute_single_values", store=True, readonly=False,
         help="Resolved from the record. Only meaningful for a single send.",
     )
+    group_ids = fields.Many2many(
+        "whatsmeow.group", string="Groups",
+        compute="_compute_group_ids", store=True, readonly=False,
+        help="WhatsApp groups that also receive the message, taken from the "
+             "template. Each is messaged from the number that belongs to it, "
+             "whatever Send From says.",
+    )
     body = fields.Text(
         string="Message",
         compute="_compute_single_values", store=True, readonly=False,
@@ -96,6 +103,11 @@ class WhatsmeowComposer(models.TransientModel):
         for comp in self:
             comp.session_id = comp.template_id.session_id or fallback
 
+    @api.depends("template_id")
+    def _compute_group_ids(self):
+        for comp in self:
+            comp.group_ids = comp.template_id.group_ids
+
     @api.constrains("session_id")
     def _check_session(self):
         for comp in self:
@@ -123,7 +135,11 @@ class WhatsmeowComposer(models.TransientModel):
             # back whatever the ORM is mid-way through computing.
             if template:
                 comp.body = template._render_body(record.ids).get(record.id, "")
-                comp.phone = template._resolve_phone(record)
+                # The template's own groups, not comp.group_ids: that field is
+                # computed from the same template, and reading one compute's
+                # output from another makes the result depend on their order.
+                comp.phone = template._resolve_phone(record) \
+                    if template._sends_to_number(template.group_ids) else False
             else:
                 comp.body = False
                 comp.phone = comp._fallback_phone(record)
@@ -134,9 +150,22 @@ class WhatsmeowComposer(models.TransientModel):
         self.ensure_one()
         return self.env["whatsmeow.template"]._probe_phone(record)
 
+    def _record_phone(self, record):
+        """The number one record's message goes to, "" when it goes to none."""
+        self.ensure_one()
+        template = self.template_id
+        if not template:
+            return self._fallback_phone(record)
+        if not template._sends_to_number(self.group_ids):
+            return ""  # a group-only template: see `_sends_to_number`
+        return template._resolve_phone(record)
+
     # -- sending --------------------------------------------------------------
     def action_send(self):
-        """Queue one message per record. Nothing is sent inline.
+        """Queue one message per record and recipient. Nothing is sent inline.
+
+        A record's message goes to its number, to each group, or to both —
+        whatever the template (and the operator, who may edit either) named.
 
         The mirror image of the Discuss bridge's live reply: a template send is
         exactly the bursty many-recipient traffic the per-session throttle
@@ -156,26 +185,44 @@ class WhatsmeowComposer(models.TransientModel):
         # when it actually holds something.
         use_preview = len(records) == 1 and bool(self.phone or self.body)
 
-        vals_list, skipped = [], []
+        groups = self.group_ids
+        vals_list, skipped, numberless = [], [], []
         for record in records:
             if use_preview:
                 phone = self.phone
                 body = self.body or ""
             else:
-                phone = template._resolve_phone(record) if template \
-                    else self._fallback_phone(record)
+                phone = self._record_phone(record)
                 body = bodies.get(record.id, self.body or "")
             digits = DIGITS.sub("", phone or "")
-            if not digits:
+            if not digits and not groups:
                 skipped.append(record.display_name)
                 continue
-            vals_list.extend(self._message_vals(record, digits, body))
+            # Rendered once per record, not once per recipient: a report is the
+            # expensive part, and every copy of this record's message carries
+            # the same file.
+            media = self._media_items(record)
+            if digits:
+                vals_list.extend(self._message_vals(record, digits, body, media=media))
+            elif self._wants_number():
+                numberless.append(record.display_name)
+            for group in groups:
+                vals_list.extend(
+                    self._message_vals(record, "", body, group=group, media=media))
 
         if skipped and not vals_list:
             raise UserError(self.env._(
                 "None of the selected records have a WhatsApp number:\n%s",
                 "\n".join(skipped[:10]),
             ))
+        if numberless:
+            # The groups still got it, so the record is not skipped — but the
+            # private copy it was meant to have did not go out.
+            _logger.info(
+                "whatsmeow.composer: %s record(s) reached their groups but had "
+                "no number of their own: %s",
+                len(numberless), ", ".join(numberless[:10]),
+            )
 
         messages = self.env["whatsmeow.message"].create(vals_list)
         # Logged now, at queue time, not when the gateway confirms: the chatter
@@ -191,8 +238,31 @@ class WhatsmeowComposer(models.TransientModel):
             )
         return self._done_action(len(messages), skipped)
 
-    def _message_vals(self, record, digits, body):
-        """Values for the message(s) one record produces.
+    def _wants_number(self):
+        """Whether this send is meant to reach each record's own number."""
+        self.ensure_one()
+        template = self.template_id
+        return template._sends_to_number(self.group_ids) if template else True
+
+    def _target_vals(self, digits, group):
+        """Where one copy of the message goes: a number, or a group.
+
+        A group copy leaves from the group's own session rather than the
+        composer's: only the number that is a member can post there, so the
+        operator's Send From cannot apply to it.
+        """
+        self.ensure_one()
+        if group:
+            return {"session_id": group.session_id.id, "group_id": group.id}
+        partner = self.env["whatsmeow.message"]._find_partner(digits)
+        return {
+            "session_id": self.session_id.id,
+            "phone": digits,
+            "partner_id": partner.id,
+        }
+
+    def _message_vals(self, record, digits, body, group=None, media=None):
+        """Values for the message(s) one record produces for one recipient.
 
         A `whatsmeow.message` carries at most one file, so extra attachments
         become their own follow-up messages — the queue paces them apart just
@@ -203,18 +273,16 @@ class WhatsmeowComposer(models.TransientModel):
         is, wherever it entered Odoo.
         """
         self.ensure_one()
-        partner = self.env["whatsmeow.message"]._find_partner(digits)
         common = {
-            "session_id": self.session_id.id,
+            **self._target_vals(digits, group),
             "direction": "out",
-            "phone": digits,
-            "partner_id": partner.id,
             # Where this was composed from, so the send can be logged on that
             # record's chatter the way a sent email is.
             "source_res_model": record._name,
             "source_res_id": record.id,
         }
-        media = self._media_items(record)
+        if media is None:
+            media = self._media_items(record)
         if not media:
             return [{**common, "message_type": "text", "body": body}]
 

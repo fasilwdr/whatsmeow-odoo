@@ -11,6 +11,7 @@
         <field name="model_id"/>
         <field name="session_id"/>
         <field name="phone_field" optional="hide"/>
+        <field name="group_ids" widget="many2many_tags" optional="show"/>
         <field name="active" column_invisible="1"/>
       </list>
     </field>
@@ -49,6 +50,19 @@
             <group>
               <field name="phone_field"
                      placeholder="phone — leave empty to auto-detect" widget="field_selector" class="oe_inline" options="{'model': 'model', 'allow_properties': False}"/>
+              <field name="group_ids" widget="many2many_tags"
+                     options="{'no_create': True}"
+                     context="{'whatsmeow_group_show_session': True}"
+                     placeholder="Also send to these groups..."/>
+              <div colspan="2" class="text-muted" invisible="not group_ids">
+                <span invisible="not phone_field">
+                  Each message goes to the record's number and to every group listed.
+                </span>
+                <span invisible="phone_field">
+                  Each message goes to the groups only. Set a Recipient Field
+                  to send it to the record's number as well.
+                </span>
+              </div>
             </group>
           </group>
           <notebook>

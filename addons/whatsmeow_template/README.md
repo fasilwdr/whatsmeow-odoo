@@ -27,6 +27,9 @@ Attach static files that go with every send, and/or name a report that is render
 ### 🎯 Smart Recipient Resolution
 Set an explicit recipient field path (e.g. `partner_id.phone`), or leave it blank to probe the record's own phone fields and then its contact's. Typos in a field path are caught while editing the template, not at send time when a batch is already going out.
 
+### 👥 Send to Groups Too
+Name one or more WhatsApp groups on a template and every message it sends goes to them. Set a recipient field as well and each message goes to both — the record's own number and each group; leave the recipient field empty and it goes to the groups only, which is how "tell the dispatch group an order was confirmed" stays out of the customer's chat. The composer shows the groups and lets the operator change them before sending, and a group is always messaged from the number that belongs to it.
+
 ### 🖼️ Composer With Live Preview
 The composer opens preloaded with the template, shows the rendered message and resolved number for a single record, and lets the operator edit before sending. In batch mode each record renders its own body and resolves its own number, and records with no WhatsApp number are reported, never silently dropped.
 
@@ -47,6 +50,7 @@ Templates are managed under **WhatsApp → Configuration → Templates** (visibl
 - **Create a template**: Go to **WhatsApp → Configuration → Templates**, click **New**, and choose the model under **Applies to**.
 - **Write the body**: Enter the message with `{{ object.field }}` placeholders; a live preview shows how it renders.
 - **Set the sender and recipient**: Optionally pick a default **Send From** number, and set the **Recipient Field** path (or leave it blank to auto-probe the record and its contact).
+- **Add groups (optional)**: Pick **Groups** to send every message to them as well. With a Recipient Field the message goes to both; without one, to the groups only. Groups are listed by **Synchronise Groups** on the session.
 - **Attach files or a report**: Add static **Attachments**, and/or pick a **Report** to generate a per-record PDF.
 - **Wire an automation (optional)**: In Settings → Technical → Server Actions (or an automation rule), create a **Send WhatsApp** action, choose the model and the template, and trigger it however you like.
 
@@ -124,6 +128,10 @@ The composer only creates outgoing messages and hands them to the core connector
 Yes. Create a **Send WhatsApp** server action on the model, choose the template, and trigger it from an automation rule, a button, or a schedule.
 
 ## Changelog
+
+### v19.0.1.3.0 — 2026-10-08
+- Templates can send to WhatsApp groups: to the groups alone, or to the record's number and the groups together
+- The composer shows a template's groups and lets them be changed before sending
 
 ### v19.0.1.0.0 — 2026-07-19
 - Initial release
