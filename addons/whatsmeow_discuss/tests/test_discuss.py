@@ -5,6 +5,7 @@ from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
 from odoo.tools import mute_logger
 
+from odoo.addons.mail.tools.discuss import Store
 from odoo.addons.whatsmeow.controllers.webhook import WhatsmeowWebhook
 
 
@@ -271,6 +272,70 @@ class TestInboundToChannel(DiscussCommon):
         posted = self._channels().message_ids.filtered(
             lambda m: m.message_type == "comment")
         self.assertTrue(posted.author_id)
+
+    def _bubble(self):
+        return self._channels().message_ids.filtered(
+            lambda m: m.message_type == "comment")
+
+    def test_a_bubble_names_its_sender_with_the_number_too(self):
+        """The conversation is titled "Name (+number)"; the bubbles inside it
+        must not say less than the sidebar does."""
+        partner = self.env["res.partner"].create({
+            "name": "Fasil Wandoor", "phone": "+44 7700 900777"})
+        self._inbound(sender_phone="447700900777", push_name="fasil")
+        posted = self._bubble()
+        self.assertEqual(posted.author_id, partner)
+        self.assertEqual(posted.whatsmeow_author_label,
+                         "Fasil Wandoor (+447700900777)")
+        self.assertEqual(posted.whatsmeow_author_label, self._channels().name)
+
+    def test_the_label_reaches_the_web_client(self):
+        """Stored is not enough: the client only sees what the store sends."""
+        self._inbound(sender_phone="447700900777", push_name="Fasil Wandoor")
+        data = Store().add(self._bubble()).get_result()
+        self.assertEqual(data["mail.message"][0]["whatsmeow_author_label"],
+                         "Fasil Wandoor (+447700900777)")
+
+    def test_a_group_bubble_names_the_participant_not_the_group(self):
+        self._inbound(chat_jid="123@g.us", chat_name="Site Team",
+                      sender_jid="447700900888@s.whatsapp.net",
+                      sender_phone="447700900888", push_name="Site Lead")
+        self.assertEqual(self._bubble().whatsmeow_author_label,
+                         "Site Lead (+447700900888)")
+
+    def test_a_bubble_with_only_a_number_gets_no_label(self):
+        """Not "+44… (+44…)": a contact auto-named after its own number is
+        already shown as that number."""
+        self.session.auto_create_partner = True
+        self._inbound(sender_phone="447700900222", push_name="")
+        self.assertFalse(self._bubble().whatsmeow_author_label)
+
+    def test_a_bubble_with_only_a_name_gets_no_label(self):
+        """A LID-only sender has no number to add; `email_from` names them."""
+        self._inbound(sender_lid="12345", sender_phone="", push_name="Ghost")
+        posted = self._bubble()
+        self.assertFalse(posted.whatsmeow_author_label)
+        self.assertEqual(posted.email_from, "Ghost")
+
+    def test_the_label_survives_the_contact_being_renamed(self):
+        partner = self.env["res.partner"].create({
+            "name": "Old Name", "phone": "+44 7700 900999"})
+        self._inbound(sender_phone="447700900999")
+        partner.write({"name": "New Name", "phone": "+44 20 7946 0000"})
+        self.assertEqual(self._bubble().whatsmeow_author_label,
+                         "Old Name (+447700900999)")
+
+    def test_an_operators_reply_is_not_relabelled(self):
+        self.env["res.partner"].create({
+            "name": "Customer", "phone": "+44 7700 900777"})
+        self._inbound(sender_phone="447700900777")
+        channel = self._channels()
+        with patch.object(type(self.session), "_gw",
+                          return_value={"wa_message_id": "OUT1"}):
+            reply = channel.with_user(self.env.ref("base.user_admin")).message_post(
+                body="On it", message_type="comment",
+                subtype_xmlid="mail.mt_comment")
+        self.assertFalse(reply.whatsmeow_author_label)
 
     def test_routing_off_posts_to_chatter_and_makes_no_channel(self):
         self.session.route_to_discuss = False

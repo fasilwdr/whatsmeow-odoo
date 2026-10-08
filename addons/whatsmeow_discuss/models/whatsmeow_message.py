@@ -271,6 +271,20 @@ class WhatsmeowMessage(models.Model):
         return (name or phone or channel.whatsmeow_partner_id.name
                 or self.sender_lid or self.sender_jid or self.env._("WhatsApp"))
 
+    def _wa_sender_label(self):
+        """The sender as "Name (+number)", or nothing when we lack either half.
+
+        A conversation is titled this way, but the bubbles inside it showed the
+        contact's name alone — so in a group, or once three customers share a
+        first name, the one place an operator is actually reading gave them
+        less than the sidebar did. Empty rather than half a label: a name with
+        no number, or a number with no name, is what Discuss already shows by
+        itself.
+        """
+        self.ensure_one()
+        name, phone = self._wa_display_name(), self._wa_display_phone()
+        return f"{name} ({phone})" if name and phone else ""
+
     def _wa_post_into_channel(self, channel):
         self.ensure_one()
         if not channel:
@@ -318,6 +332,9 @@ class WhatsmeowMessage(models.Model):
             # ignored by the client as soon as a persona exists, and a channel
             # notifies its members, never an address.
             email_from=None if author else self._wa_bubble_author_label(channel),
+            # With an author the client would show the contact's name alone;
+            # this is what it shows instead (see message_model_patch.js).
+            whatsmeow_author_label=self._wa_sender_label() or False,
             message_type="comment",
             subtype_xmlid="mail.mt_comment",
             attachment_ids=attachments.ids,

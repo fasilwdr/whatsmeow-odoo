@@ -113,6 +113,10 @@ The conversation-to-channel mapping is race-safe, so both messages land in the s
 
 ## Changelog
 
+### v19.0.1.3.0 — 2026-10-08
+- Bubbles name their sender as **Name (+number)**, the way the conversation is titled — including each participant in a group
+- Links in received messages are clickable
+
 ### v19.0.1.2.0 — 2026-09-02
 - Conversations are named **Name (+number)**, and learn a name that arrives later
 - Bubbles from a sender with no Odoo contact show the WhatsApp name, not *Unnamed*
