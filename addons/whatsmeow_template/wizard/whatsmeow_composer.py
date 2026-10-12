@@ -1,10 +1,10 @@
-import base64
 import json
 import logging
 import re
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
+from odoo.tools import BinaryBytes
 
 _logger = logging.getLogger(__name__)
 
@@ -301,7 +301,7 @@ class WhatsmeowComposer(models.TransientModel):
         return vals_list
 
     def _media_items(self, record):
-        """(filename, mimetype, base64 bytes) for everything to attach."""
+        """(filename, mimetype, binary value) for everything to attach."""
         self.ensure_one()
         items = []
         attachments = self.attachment_ids | self.template_id.attachment_ids
@@ -309,12 +309,12 @@ class WhatsmeowComposer(models.TransientModel):
             items.append((
                 attachment.name,
                 attachment.mimetype or "application/octet-stream",
-                attachment.datas,
+                attachment.raw,
             ))
         rendered = self.template_id._render_report(record) if self.template_id else None
         if rendered:
             name, content = rendered
-            items.append((name, "application/pdf", base64.b64encode(content)))
+            items.append((name, "application/pdf", BinaryBytes(content)))
         return items
 
     def _done_action(self, sent, skipped):

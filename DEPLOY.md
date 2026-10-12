@@ -17,7 +17,7 @@ or if something did not come up.
 | Access | root, via `sudo` |
 | Network | outbound HTTPS (Go toolchain, Go modules, WhatsApp servers) |
 | Disk | ~1.5 GB while building; a few hundred MB after |
-| Odoo | 19, reachable from the gateway host |
+| Odoo | 20, reachable from the gateway host |
 
 One Odoo can drive several gateways, and one gateway can hold several WhatsApp
 numbers. Running the gateway on the same host as Odoo is the simple case and is

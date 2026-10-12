@@ -1,5 +1,3 @@
-import base64
-import io
 import logging
 
 from odoo import fields, models
@@ -98,7 +96,7 @@ class WhatsmeowBroadcastImport(models.TransientModel):
         try:
             from openpyxl import load_workbook
             book = load_workbook(
-                io.BytesIO(base64.b64decode(self.file)), read_only=True, data_only=True)
+                self.file.open(), read_only=True, data_only=True)
         except UserError:
             raise
         except Exception as exc:

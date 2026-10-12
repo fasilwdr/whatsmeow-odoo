@@ -99,9 +99,9 @@
         <field name="state" widget="badge"
                decoration-success="state in ('delivered', 'read')"
                decoration-danger="state == 'error'"/>
-        <button name="action_send" type="object" string="Send" icon="fa-paper-plane"
+        <button name="action_send" type="object" string="Send" icon="send"
                 invisible="direction != 'out' or state not in ('outgoing', 'error')"/>
-        <button name="action_reply" type="object" string="Reply" icon="fa-reply"
+        <button name="action_reply" type="object" string="Reply" icon="reply"
                 invisible="not can_reply"/>
         <field name="can_reply" column_invisible="1"/>
       </list>

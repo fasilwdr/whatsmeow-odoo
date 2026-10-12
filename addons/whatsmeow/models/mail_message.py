@@ -27,8 +27,9 @@ class MailMessage(models.Model):
              "the WhatsApp badge in the chatter.",
     )
 
-    def _to_store_defaults(self, target):
-        return super()._to_store_defaults(target) + ["whatsmeow_recipient"]
+    def _store_message_fields(self, res, **kwargs):
+        super()._store_message_fields(res, **kwargs)
+        res.attr("whatsmeow_recipient")
 
 
 class MailThread(models.AbstractModel):

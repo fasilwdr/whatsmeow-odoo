@@ -12,7 +12,7 @@
         <sheet>
           <div class="oe_button_box" name="button_box">
             <button name="action_view_messages" type="object"
-                    class="oe_stat_button" icon="fa-comments">
+                    class="oe_stat_button" icon="forum">
               <field name="message_count" widget="statinfo" string="Messages"/>
             </button>
           </div>
@@ -67,7 +67,7 @@
         <field name="last_sync" optional="show"/>
         <field name="active" column_invisible="1"/>
         <button name="action_send_message" type="object" string="Send Message"
-                icon="fa-paper-plane" invisible="not active or is_community"/>
+                icon="send" invisible="not active or is_community"/>
       </list>
     </field>
   </record>

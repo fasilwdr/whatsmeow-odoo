@@ -2,7 +2,7 @@ import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { TextField, textField } from "@web/views/fields/text/text_field";
 
-import { markup, useState } from "@odoo/owl";
+import { markup, proxy } from "@odoo/owl";
 
 import { applyMark, isInsideMonospace, MARKS, renderPreview } from "./whatsmeow_markup";
 
@@ -39,11 +39,11 @@ export class WhatsmeowBodyField extends TextField {
             icon: mark.icon,
             title: MARK_TITLES[name],
         }));
-        this.toolbar = useState({ visible: false, top: 0, left: 0, inMonospace: false });
+        this.toolbar = proxy({ visible: false, top: 0, left: 0, inMonospace: false });
     }
 
     get textarea() {
-        return this.textareaRef.el;
+        return this.textareaRef();
     }
 
     /**

@@ -267,7 +267,7 @@ class TestComposer(TemplateCommon):
     def test_attachment_becomes_a_media_message(self):
         attachment = self.env["ir.attachment"].create({
             "name": "flyer.png",
-            "datas": b"aGVsbG8=",
+            "raw": b"hello",
             "mimetype": "image/png",
         })
         self.template.attachment_ids = attachment
@@ -284,7 +284,7 @@ class TestComposer(TemplateCommon):
         """The chatter button opens the composer with no template at all; the
         kind must still come from the mimetype."""
         attachment = self.env["ir.attachment"].create({
-            "name": "clip.mp4", "datas": b"aGVsbG8=", "mimetype": "video/mp4",
+            "name": "clip.mp4", "raw": b"hello", "mimetype": "video/mp4",
         })
         composer = self._composer(self.alice, session_id=self.session.id)
         composer.attachment_ids = attachment
@@ -360,7 +360,7 @@ class TestChatterLog(TemplateCommon):
 
     def test_media_is_attached_to_the_log(self):
         attachment = self.env["ir.attachment"].create({
-            "name": "flyer.png", "datas": b"aGVsbG8=", "mimetype": "image/png",
+            "name": "flyer.png", "raw": b"hello", "mimetype": "image/png",
         })
         self.template.attachment_ids = attachment
         composer = self._composer(self.alice, template_id=self.template.id)
@@ -762,7 +762,7 @@ class TestTemplateGroups(TemplateCommon):
     # -- media, log, automation, gates -----------------------------------------
     def test_attachments_go_to_the_group_as_well(self):
         attachment = self.env["ir.attachment"].create({
-            "name": "price-list.pdf", "datas": "JVBERi0=",
+            "name": "price-list.pdf", "raw": b"%PDF-",
             "mimetype": "application/pdf",
         })
         self.template.write({

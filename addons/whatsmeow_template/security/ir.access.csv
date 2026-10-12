@@ -1,0 +1,4 @@
+id,name,model_id,group_id/id,operation,domain
+access_whatsmeow_template_user,whatsmeow.template user,whatsmeow.template,whatsmeow.group_whatsmeow_user,r,
+access_whatsmeow_template_manager,whatsmeow.template manager,whatsmeow.template,whatsmeow.group_whatsmeow_manager,crud,
+access_whatsmeow_composer_user,whatsmeow.composer user,whatsmeow.composer,whatsmeow.group_whatsmeow_user,crud,

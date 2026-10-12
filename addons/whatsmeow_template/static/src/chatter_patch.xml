@@ -3,12 +3,11 @@
 
   <t t-inherit="mail.Chatter" t-inherit-mode="extension">
     <xpath expr="//button[hasclass('o-mail-Chatter-logNote')]" position="after">
-      <button t-if="hasWhatsmeowButton"
-              class="o-mail-Chatter-whatsmeow btn btn-secondary text-nowrap me-1"
-              t-att-class="{ 'my-2': !props.compactHeight }"
+      <button t-if="this.hasWhatsmeowButton"
+              class="o-mail-Chatter-whatsmeow btn btn-secondary text-nowrap"
               title="Send a WhatsApp message"
-              t-on-click="onClickWhatsmeow">
-        <i class="fa fa-whatsapp me-1" role="img"/>
+              t-on-click="this.onClickWhatsmeow">
+        <i class="oi me-1" data-icon="oi_whatsapp" role="img"/>
         <span>WhatsApp</span>
       </button>
     </xpath>

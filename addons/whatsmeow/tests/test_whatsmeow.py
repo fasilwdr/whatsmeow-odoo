@@ -1,4 +1,5 @@
 import base64
+import importlib.util
 import re
 from datetime import timedelta
 from unittest.mock import patch
@@ -8,7 +9,8 @@ from psycopg2 import IntegrityError
 from odoo import fields
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests import TransactionCase, tagged
-from odoo.tools import mute_logger
+from odoo.tools import BinaryBytes, mute_logger
+from odoo.tools.misc import file_path
 
 
 class WhatsmeowCommon(TransactionCase):
@@ -97,8 +99,7 @@ class TestSession(WhatsmeowCommon):
         self.session._apply_state({"status": "qr", "qr": "2@abcdef"})
         self.assertEqual(self.session.status, "qr")
         self.assertTrue(self.session.qr_image)
-        import base64
-        self.assertTrue(base64.b64decode(self.session.qr_image).startswith(b"\x89PNG"))
+        self.assertTrue(self.session.qr_image.content.startswith(b"\x89PNG"))
 
     def test_apply_state_clears_qr_once_connected(self):
         self.session._apply_state({"status": "qr", "qr": "2@abcdef"})
@@ -179,9 +180,9 @@ class TestMessage(WhatsmeowCommon):
 @tagged("post_install", "-at_install")
 class TestMedia(WhatsmeowCommon):
 
-    PNG = base64.b64encode(
-        b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
-    )
+    RAW_PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
+    # A Binary field takes a BinaryValue, not base64 bytes.
+    PNG = BinaryBytes(RAW_PNG)
 
     def test_kind_inferred_from_mimetype(self):
         msg = self.env["whatsmeow.message"]
@@ -262,14 +263,14 @@ class TestMedia(WhatsmeowCommon):
             "media_filename": "photo.jpg", "media_mimetype": "image/jpeg",
             "media_state": "pending", "wa_message_id": "IN-MEDIA-1",
         })
-        raw = base64.b64decode(self.PNG)
+        raw = self.RAW_PNG
         with patch.object(type(self.connection), "_request_raw",
                           return_value=(raw, {})) as fetch, \
                 patch.object(type(self.session), "_gw", return_value={}) as gw:
             msg.action_fetch_media()
 
         self.assertEqual(msg.media_state, "fetched")
-        self.assertEqual(base64.b64decode(msg.media_data), raw)
+        self.assertEqual(msg.media_data.content, raw)
         self.assertEqual(msg.media_size, len(raw))
         self.assertIn("/media/IN-MEDIA-1", fetch.call_args.args[1])
         # the gateway should be told it can drop the file
@@ -300,7 +301,7 @@ class TestMedia(WhatsmeowCommon):
             "media_state": "pending", "wa_message_id": "IN-MEDIA-3",
             "body": "look at this",
         })
-        raw = base64.b64decode(self.PNG)
+        raw = self.RAW_PNG
         with patch.object(type(self.connection), "_request_raw", return_value=(raw, {})), \
                 patch.object(type(self.session), "_gw", return_value={}):
             msg.action_fetch_media()
@@ -693,7 +694,7 @@ class TestSendIdempotency(WhatsmeowCommon):
         media = self.env["whatsmeow.message"].create({
             "session_id": self.session.id, "phone": "447700900123",
             "direction": "out", "message_type": "image",
-            "media_data": base64.b64encode(b"x"), "media_filename": "p.jpg",
+            "media_data": BinaryBytes(b"x"), "media_filename": "p.jpg",
         })
         path, payload = media._send_payload()
         self.assertIn("send-media", path)
@@ -1991,7 +1992,7 @@ class TestGatewayRegistration(WhatsmeowCommon):
     tell it where this Odoo lives. See PLAN.md §14."""
 
     def test_webhook_url_defaults_to_the_system_base_url(self):
-        self.env["ir.config_parameter"].sudo().set_param(
+        self.env["ir.config_parameter"].sudo().set_str(
             "web.base.url", "https://odoo.example.com")
         self.connection.invalidate_recordset(["webhook_url"])
         self.assertEqual(self.connection.webhook_url,
@@ -2000,7 +2001,7 @@ class TestGatewayRegistration(WhatsmeowCommon):
     def test_connection_override_wins_over_the_system_parameter(self):
         """A staging clone restored from production has the wrong base URL, and
         a proxy makes it wrong for everyone — so the connection may override."""
-        self.env["ir.config_parameter"].sudo().set_param(
+        self.env["ir.config_parameter"].sudo().set_str(
             "web.base.url", "https://odoo.example.com")
         self.connection.callback_base_url = "https://acme.example.com/"
         self.assertEqual(self.connection.webhook_url,
@@ -2086,3 +2087,38 @@ class TestGatewayRegistration(WhatsmeowCommon):
         self.assertEqual(self.session.status, "connected")
         self.assertEqual(self.session.jid, "44770@s.whatsapp.net")
         self.assertIn("404", self.session.webhook_error)
+
+
+@tagged("post_install", "-at_install")
+class TestUpgradeFrom19(WhatsmeowCommon):
+    """The 20.0 migration: a pairing QR stored by Odoo 19 must still draw."""
+
+    PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
+
+    def _run_migration(self):
+        spec = importlib.util.spec_from_file_location(
+            "whatsmeow_pre_migrate_20",
+            file_path("whatsmeow/migrations/20.0.1.8.0/pre-migrate.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        module.migrate(self.env.cr, "19.0.1.8.0")
+        self.session.invalidate_recordset(["qr_image"])
+
+    def _store_raw(self, value):
+        self.env.cr.execute(
+            "UPDATE whatsmeow_session SET qr_image = %s WHERE id = %s",
+            [value, self.session.id])
+        self.session.invalidate_recordset(["qr_image"])
+
+    def test_a_base64_qr_is_decoded(self):
+        # What Odoo 19 left in the column: the base64 text of the image.
+        self._store_raw(base64.b64encode(self.PNG))
+        self._run_migration()
+        self.assertEqual(self.session.qr_image.content, self.PNG)
+
+    def test_an_already_raw_qr_is_left_alone(self):
+        # Run twice, or on a row Odoo 20 wrote: decoding again would corrupt it.
+        self._store_raw(self.PNG)
+        self._run_migration()
+        self._run_migration()
+        self.assertEqual(self.session.qr_image.content, self.PNG)

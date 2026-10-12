@@ -1,7 +1,7 @@
-# WhatsApp for Odoo 19 — whatsmeow connector
+# WhatsApp for Odoo 20 — whatsmeow connector
 
 [![License: LGPL-3.0](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)](LICENSE)
-[![Odoo](https://img.shields.io/badge/Odoo-19.0-714B67.svg)](https://github.com/odoo/odoo/tree/19.0)
+[![Odoo](https://img.shields.io/badge/Odoo-20.0-714B67.svg)](https://github.com/odoo/odoo/tree/20.0)
 [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8.svg)](https://go.dev)
 
 Send and receive WhatsApp messages from Odoo through a self-hosted gateway — no
@@ -42,7 +42,7 @@ its own webhook URL.
 
 ```mermaid
 flowchart LR
-    subgraph odoo["Odoo 19"]
+    subgraph odoo["Odoo 20"]
         C["whatsmeow.connection<br/><i>one gateway endpoint</i>"]
         S["whatsmeow.session<br/><i>one WhatsApp number</i>"]
         M["whatsmeow.message<br/><i>the message log</i>"]
@@ -105,8 +105,8 @@ duplicate-with-empty-body quirk is merged so the real copy wins.
 
 | | |
 |---|---|
-| Odoo | 19.0 |
-| Python | 3.10+ (Odoo 19's minimum), with `qrcode` and `requests` |
+| Odoo | 20.0 (the `19.0` branch carries the Odoo 19 version) |
+| Python | 3.12+ (Odoo 20's minimum), with `qrcode` and `requests` |
 | Gateway host | Debian 12/13 or Ubuntu 22.04/24.04 (systemd + apt), root access |
 | Go | 1.26+ — the installer provisions it if missing |
 | Build | a C compiler; `go-sqlite3` needs CGO |

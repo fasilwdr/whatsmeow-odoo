@@ -28,10 +28,10 @@
  * caret sits inside one.
  */
 export const MARKS = {
-    bold: { marker: "*", icon: "fa-bold" },
-    italic: { marker: "_", icon: "fa-italic" },
-    strikethrough: { marker: "~", icon: "fa-strikethrough" },
-    monospace: { marker: "```", icon: "fa-code", block: true },
+    bold: { marker: "*", icon: "format_bold" },
+    italic: { marker: "_", icon: "format_italic" },
+    strikethrough: { marker: "~", icon: "strikethrough_s" },
+    monospace: { marker: "```", icon: "code", block: true },
 };
 
 /**

@@ -37,14 +37,14 @@ class DiscussChannel(models.Model):
         # Behave like a private conversation: members see read markers.
         return super()._types_allowing_seen_infos() + ["whatsmeow"]
 
-    def _notify_thread(self, message, msg_vals=False, **kwargs):
+    def _notify_thread(self, message, **kwargs):
         """Relay an operator's reply out over WhatsApp.
 
         `_notify_thread` is the post-send seam every `message_post` passes
         through — the same one Odoo's own WhatsApp module hooks. We let the
         normal notification happen, then send WhatsApp for our own channels.
         """
-        rdata = super()._notify_thread(message, msg_vals=msg_vals, **kwargs)
+        rdata = super()._notify_thread(message, **kwargs)
         for channel in self.filtered(lambda c: c.channel_type == "whatsmeow"):
             channel._whatsmeow_relay(message)
         return rdata
@@ -95,7 +95,7 @@ class DiscussChannel(models.Model):
                 **base_vals,
                 "message_type": Message._kind_for_mimetype(att.mimetype),
                 "body": "",
-                "media_data": att.datas,
+                "media_data": att.raw,
                 "media_filename": att.name,
                 "media_mimetype": att.mimetype,
                 "media_size": att.file_size,

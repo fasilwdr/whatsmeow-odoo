@@ -278,7 +278,10 @@ class WhatsmeowMarketingCampaign(models.Model):
         """
         self.ensure_one()
         if self.recipient_source == "list":
-            return self.broadcast_list_ids.sudo()._sendable_contacts()
+            # sudo *before* the read: Odoo 20 filters an x2many down to what
+            # the reader may see, so `self.broadcast_list_ids.sudo()` would
+            # already have lost the lists someone else owns.
+            return self.sudo().broadcast_list_ids._sendable_contacts()
         model = self.mailing_model_name
         if not model or model not in self.env:
             return self.env["whatsmeow.broadcast.contact"].browse()
@@ -452,7 +455,7 @@ class WhatsmeowMarketingCampaign(models.Model):
         mimetype = attachment.mimetype or "application/octet-stream"
         return {
             "message_type": self.env["whatsmeow.message"]._kind_for_mimetype(mimetype),
-            "media_data": attachment.datas,
+            "media_data": attachment.raw,
             "media_filename": attachment.name,
             "media_mimetype": mimetype,
             "media_state": "none",

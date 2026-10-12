@@ -1,0 +1,14 @@
+id,name,model_id,group_id/id,operation,domain
+whatsmeow_marketing_campaign_rule_user,Campaign: own only,whatsmeow.marketing.campaign,whatsmeow_marketing.group_whatsmeow_marketing_user,crud,"[('user_id', '=', user.id)]"
+whatsmeow_marketing_campaign_rule_manager,Campaign: all,whatsmeow.marketing.campaign,whatsmeow_marketing.group_whatsmeow_marketing_manager,crud,
+whatsmeow_marketing_trace_rule_user,Trace: own campaigns only,whatsmeow.marketing.trace,whatsmeow_marketing.group_whatsmeow_marketing_user,crud,"[('campaign_id.user_id', '=', user.id)]"
+whatsmeow_marketing_trace_rule_manager,Trace: all,whatsmeow.marketing.trace,whatsmeow_marketing.group_whatsmeow_marketing_manager,crud,
+whatsmeow_broadcast_contact_rule_user,Broadcast contact: own only,whatsmeow.broadcast.contact,whatsmeow_marketing.group_whatsmeow_marketing_user,crud,"[('user_id', '=', user.id)]"
+whatsmeow_broadcast_contact_rule_manager,Broadcast contact: all,whatsmeow.broadcast.contact,whatsmeow_marketing.group_whatsmeow_marketing_manager,crud,
+whatsmeow_broadcast_list_rule_user,Broadcast list: own only,whatsmeow.broadcast.list,whatsmeow_marketing.group_whatsmeow_marketing_user,crud,"[('user_id', '=', user.id)]"
+whatsmeow_broadcast_list_rule_manager,Broadcast list: all,whatsmeow.broadcast.list,whatsmeow_marketing.group_whatsmeow_marketing_manager,crud,
+whatsmeow_broadcast_subscription_rule_user,Subscription: own contacts only,whatsmeow.broadcast.subscription,whatsmeow_marketing.group_whatsmeow_marketing_user,crud,"[('contact_id.user_id', '=', user.id)]"
+whatsmeow_broadcast_subscription_rule_manager,Subscription: all,whatsmeow.broadcast.subscription,whatsmeow_marketing.group_whatsmeow_marketing_manager,crud,
+access_whatsmeow_marketing_filter_user,whatsmeow.marketing.filter user,whatsmeow.marketing.filter,whatsmeow_marketing.group_whatsmeow_marketing_user,r,
+access_whatsmeow_marketing_filter_manager,whatsmeow.marketing.filter manager,whatsmeow.marketing.filter,whatsmeow_marketing.group_whatsmeow_marketing_manager,crud,
+access_whatsmeow_broadcast_import_user,whatsmeow.broadcast.import user,whatsmeow.broadcast.import,whatsmeow_marketing.group_whatsmeow_marketing_user,crud,

@@ -1,8 +1,7 @@
-import { Chatter } from "@mail/chatter/web_portal/chatter";
+import { Chatter } from "@mail/chatter/web_portal_project/chatter";
 
 import { _t } from "@web/core/l10n/translation";
 import { patch } from "@web/core/utils/patch";
-import { useService } from "@web/core/utils/hooks";
 import { session } from "@web/session";
 
 /**
@@ -17,19 +16,16 @@ import { session } from "@web/session";
  * untouched.
  */
 patch(Chatter.prototype, {
-    setup() {
-        super.setup();
-        this.action = useService("action");
-    },
-
     get hasWhatsmeowButton() {
         // A record has to exist before it can be messaged: threadId is false
         // while a form is still being created.
-        return Boolean(session.whatsmeow_can_send && this.props.threadId);
+        return Boolean(session.whatsmeow_can_send && this.threadId());
     },
 
     onClickWhatsmeow() {
-        this.action.doAction(
+        const threadModel = this.threadModel();
+        const threadId = this.threadId();
+        this.env.services.action.doAction(
             {
                 type: "ir.actions.act_window",
                 name: _t("Send WhatsApp"),
@@ -38,25 +34,19 @@ patch(Chatter.prototype, {
                 view_mode: "form",
                 target: "new",
                 context: {
-                    active_model: this.props.threadModel,
-                    active_id: this.props.threadId,
-                    active_ids: [this.props.threadId],
+                    active_model: threadModel,
+                    active_id: threadId,
+                    active_ids: [threadId],
                 },
             },
             {
                 // The message lands on the record's chatter through the normal
-                // inbound/outbound path, so refresh what the user is looking at.
-                //
-                // `requestList` alone is not enough: the form chatter's list is
-                // activities/attachments/followers/… and *not* "messages", and
-                // `Thread.fetchThreadData` only calls `fetchNewMessages()` when
-                // "messages" is in it — so the log we just wrote never arrived
-                // until the form itself was reloaded. Same shape as core's
-                // `onActivityChanged`, plus the scroll core does after a post.
-                onClose: () => {
-                    this.state.jumpThreadPresent++;
-                    this.load(this.state.thread, [...this.requestList, "messages"]);
-                },
+                // inbound/outbound path, so refresh what the user is looking
+                // at — exactly what core does after a post: scroll to the
+                // present and fetch the messages the form chatter's own
+                // request list (activities, attachments, followers, …) leaves
+                // out.
+                onClose: () => this.onPostCallback(),
             }
         );
     },

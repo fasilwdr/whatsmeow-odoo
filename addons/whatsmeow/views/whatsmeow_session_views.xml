@@ -30,11 +30,11 @@
         <sheet>
           <div class="oe_button_box" name="button_box">
             <button name="action_view_inbound_rules" type="object"
-                    class="oe_stat_button" icon="fa-filter">
+                    class="oe_stat_button" icon="filter_alt">
               <field name="inbound_rule_count" widget="statinfo" string="Filter Rules"/>
             </button>
             <button name="action_view_groups" type="object"
-                    class="oe_stat_button" icon="fa-users">
+                    class="oe_stat_button" icon="group">
               <field name="group_count" widget="statinfo" string="Groups"/>
             </button>
           </div>

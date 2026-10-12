@@ -1,0 +1,11 @@
+id,name,model_id,group_id/id,operation,domain
+access_whatsmeow_connection_user,whatsmeow.connection user,whatsmeow.connection,whatsmeow.group_whatsmeow_user,r,
+access_whatsmeow_connection_manager,whatsmeow.connection manager,whatsmeow.connection,whatsmeow.group_whatsmeow_manager,crud,
+access_whatsmeow_session_user,whatsmeow.session user,whatsmeow.session,whatsmeow.group_whatsmeow_user,r,
+access_whatsmeow_session_manager,whatsmeow.session manager,whatsmeow.session,whatsmeow.group_whatsmeow_manager,crud,
+access_whatsmeow_message_user,whatsmeow.message user,whatsmeow.message,whatsmeow.group_whatsmeow_user,cru,
+access_whatsmeow_message_manager,whatsmeow.message manager,whatsmeow.message,whatsmeow.group_whatsmeow_manager,crud,
+access_whatsmeow_group_user,whatsmeow.group user,whatsmeow.group,whatsmeow.group_whatsmeow_user,r,
+access_whatsmeow_group_manager,whatsmeow.group manager,whatsmeow.group,whatsmeow.group_whatsmeow_manager,crud,
+access_whatsmeow_session_rule_user,whatsmeow.session.rule user,whatsmeow.session.rule,whatsmeow.group_whatsmeow_user,r,
+access_whatsmeow_session_rule_manager,whatsmeow.session.rule manager,whatsmeow.session.rule,whatsmeow.group_whatsmeow_manager,crud,

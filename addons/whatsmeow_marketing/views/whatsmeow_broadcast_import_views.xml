@@ -30,7 +30,7 @@
               <a class="btn btn-secondary btn-sm" role="button"
                  download="broadcast_import_template.xlsx"
                  href="/whatsmeow_marketing/static/xlx/broadcast_import_template.xlsx">
-                <i class="fa fa-download me-1" role="img" aria-label="Download"
+                <i class="oi me-1" data-icon="download" role="img" aria-label="Download"
                    title="Download"/>Download the template
               </a>
             </div>

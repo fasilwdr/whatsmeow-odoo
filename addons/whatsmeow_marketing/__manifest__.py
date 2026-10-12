@@ -1,6 +1,6 @@
 {
     "name": "Whatsmeow Marketing",
-    "version": "19.0.1.0.1",
+    "version": "20.0.1.0.1",
     "summary": "Mass WhatsApp campaigns: broadcast lists, traces, /stop-/start, replies in Discuss",
     "description": """
 Send a WhatsApp message to many contacts at once, the way Email Marketing sends a mailing.
@@ -21,8 +21,7 @@ banned.
     "depends": ["whatsmeow", "whatsmeow_template", "whatsmeow_discuss", "mail", "web"],
     "data": [
         "security/whatsmeow_marketing_groups.xml",
-        "security/ir.model.access.csv",
-        "security/whatsmeow_marketing_rules.xml",
+        "security/ir.access.csv",
         "views/whatsmeow_broadcast_contact_views.xml",
         "views/whatsmeow_broadcast_list_views.xml",
         "views/whatsmeow_broadcast_import_views.xml",

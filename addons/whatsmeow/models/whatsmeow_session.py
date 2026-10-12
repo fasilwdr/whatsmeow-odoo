@@ -1,4 +1,3 @@
-import base64
 import io
 import logging
 import math
@@ -12,6 +11,7 @@ import qrcode
 from odoo import _, api, fields, models
 from odoo.addons.base.models.res_partner import _tz_get
 from odoo.exceptions import UserError, ValidationError
+from odoo.tools import BinaryBytes
 
 _logger = logging.getLogger(__name__)
 
@@ -583,7 +583,7 @@ class WhatsmeowSession(models.Model):
         if qr_string:
             buf = io.BytesIO()
             qrcode.make(qr_string).save(buf, format="PNG")
-            vals["qr_image"] = base64.b64encode(buf.getvalue())
+            vals["qr_image"] = BinaryBytes(buf.getvalue())
         elif vals["status"] != "qr":
             vals["qr_image"] = False
         self.write(vals)

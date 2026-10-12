@@ -23,14 +23,16 @@
     <field name="model">res.partner</field>
     <field name="inherit_id" ref="base.view_res_partner_filter"/>
     <field name="arch" type="xml">
-      <filter name="type_company" position="after">
-        <separator/>
+      <!-- Odoo 20 dropped the Individuals/Companies filters this used to
+           follow; "Archived" is the stable anchor left in the filter row. -->
+      <filter name="inactive" position="before">
         <filter name="whatsmeow_optout" string="WhatsApp Opt-Out"
                 domain="[('whatsmeow_optout', '=', True)]"
                 groups="whatsmeow.group_whatsmeow_user"/>
         <filter name="whatsmeow_unregistered" string="Not on WhatsApp"
                 domain="[('whatsmeow_registered', '=', 'no')]"
                 groups="whatsmeow.group_whatsmeow_user"/>
+        <separator/>
       </filter>
     </field>
   </record>

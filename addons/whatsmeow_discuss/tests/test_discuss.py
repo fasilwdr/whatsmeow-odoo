@@ -1,9 +1,8 @@
-import base64
 from unittest.mock import patch
 
 from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
-from odoo.tools import mute_logger
+from odoo.tools import BinaryBytes, mute_logger
 
 from odoo.addons.mail.tools.discuss import Store
 from odoo.addons.whatsmeow.controllers.webhook import WhatsmeowWebhook
@@ -174,7 +173,7 @@ class TestInboundToChannel(DiscussCommon):
         self._inbound(wa_message_id="A")
         channel = self._channels()
         # a manual reassignment the second message must not clobber
-        channel.add_members(partner_ids=self.manager.partner_id.ids)
+        channel._add_members(partners=self.manager.partner_id)
         self._inbound(wa_message_id="B")
 
         self.assertEqual(self._channels(), channel)          # still one channel
@@ -190,7 +189,7 @@ class TestInboundToChannel(DiscussCommon):
             "session_id": self.session.id, "direction": "in", "state": "received",
             "chat_jid": "447700900001@s.whatsapp.net", "phone": "447700900001",
             "message_type": "audio", "is_voice_note": True,
-            "media_data": base64.b64encode(b"OggS fake voice"),
+            "media_data": BinaryBytes(b"OggS fake voice"),
             "media_filename": "voice.ogg", "media_mimetype": "audio/ogg",
             "media_state": "fetched", "wa_message_id": "VN1",
         })
@@ -292,7 +291,7 @@ class TestInboundToChannel(DiscussCommon):
     def test_the_label_reaches_the_web_client(self):
         """Stored is not enough: the client only sees what the store sends."""
         self._inbound(sender_phone="447700900777", push_name="Fasil Wandoor")
-        data = Store().add(self._bubble()).get_result()
+        data = Store().add(self._bubble(), "_store_message_fields")._build_result()
         self.assertEqual(data["mail.message"][0]["whatsmeow_author_label"],
                          "Fasil Wandoor (+447700900777)")
 

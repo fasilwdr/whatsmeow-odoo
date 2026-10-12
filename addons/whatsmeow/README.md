@@ -165,6 +165,11 @@ The message is marked in error with the reason, and the rest of the queue keeps 
 
 ## Changelog
 
+### v20.0.1.8.0 — 2026-10-12
+- Ported to Odoo 20: access rights in the new `ir.access` format, binary fields on the new raw-bytes API, and the chatter badge on the Odoo 20 icon set
+- Upgrading from 19.0 keeps a pending pairing QR readable (migration included)
+- No gateway change: the same gateway serves Odoo 19 and Odoo 20 databases
+
 ### v19.0.1.8.0 — 2026-10-08
 - Send to a WhatsApp group by name: a per-session group directory, **Synchronise Groups**, and a group picker on the message form
 - Inbound locations (with coordinates and a map link), polls, events and contact cards are rendered instead of arriving as unsupported

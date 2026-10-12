@@ -39,11 +39,11 @@ from a sender Odoo has no contact for are labelled with their WhatsApp name inst
 reading *Unnamed*.
 
 ### 🟢 Its Own Place in Discuss
-WhatsApp conversations sit in their own **WhatsApp** section of the Discuss sidebar, carry a
-WhatsApp avatar wherever Odoo draws a thread, and get a **WhatsApp** tab in the messaging
-menu — so a customer on someone else's phone is never mistaken for a colleague, and the
-whole day's WhatsApp traffic is one click away. The tab appears only once there is a
-WhatsApp conversation to show.
+WhatsApp conversations sit under their own **WhatsApp** tab — in the Discuss sidebar and in
+the messaging menu alike — and carry a WhatsApp avatar wherever Odoo draws a thread, so a
+customer on someone else's phone is never mistaken for a colleague, and the whole day's
+WhatsApp traffic is one click away. The tab has an **Unread** filter, and appears only once
+there is a WhatsApp conversation to show.
 
 ### 📊 Conversations Smart Button
 A routed session shows a **Conversations** button that opens every Discuss channel it has spawned, so a manager can review or jump into any WhatsApp thread for that number.
@@ -112,6 +112,9 @@ The operators added to its channel by the routing rules (or the default operator
 The conversation-to-channel mapping is race-safe, so both messages land in the same single conversation rather than creating duplicates.
 
 ## Changelog
+
+### v20.0.1.3.1 — 2026-10-12
+- Ported to Odoo 20. Discuss no longer has sidebar sections: WhatsApp conversations now live under their own **WhatsApp** tab, which is the same list in the Discuss sidebar and in the messaging menu, with an **Unread** filter
 
 ### v19.0.1.3.1 — 2026-10-08
 - The messaging menu previews the last message of a WhatsApp conversation, like any other chat

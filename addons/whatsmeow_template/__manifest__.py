@@ -1,6 +1,6 @@
 {
     "name": "Whatsmeow Templates & Composer",
-    "version": "19.0.1.3.0",
+    "version": "20.0.1.3.0",
     "summary": "Send templated WhatsApp messages from a record of any model",
     "description": """
 Send WhatsApp from any Odoo record.
@@ -19,7 +19,7 @@ whatsmeow.message rows, which inherit pacing, retries and idempotency for free.
     "category": "Discuss",
     "depends": ["whatsmeow", "mail", "web"],
     "data": [
-        "security/ir.model.access.csv",
+        "security/ir.access.csv",
         "views/whatsmeow_template_views.xml",
         "views/whatsmeow_composer_views.xml",
         "views/ir_actions_server_views.xml",

@@ -70,7 +70,7 @@ class WhatsmeowConnection(models.Model):
         the connection must be able to override it. Read through sudo because
         `callback_base_url` is a manager-only field and any user may send.
         """
-        default = self.env["ir.config_parameter"].sudo().get_param("web.base.url") or ""
+        default = self.env["ir.config_parameter"].sudo().get_str("web.base.url")
         for rec in self:
             base = (rec.sudo().callback_base_url or default).strip().rstrip("/")
             rec.webhook_url = f"{base}{WEBHOOK_PATH}" if base else False

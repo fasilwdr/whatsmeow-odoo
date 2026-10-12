@@ -129,6 +129,9 @@ Yes. Create a **Send WhatsApp** server action on the model, choose the template,
 
 ## Changelog
 
+### v20.0.1.3.0 — 2026-10-12
+- Ported to Odoo 20: the chatter button, the composer and the formatting toolbar on the new web client
+
 ### v19.0.1.3.0 — 2026-10-08
 - Templates can send to WhatsApp groups: to the groups alone, or to the record's number and the groups together
 - The composer shows a template's groups and lets them be changed before sending

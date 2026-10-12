@@ -1,4 +1,3 @@
-import base64
 import logging
 import mimetypes
 import re
@@ -9,7 +8,7 @@ from markupsafe import Markup
 
 from odoo import api, fields, models, modules
 from odoo.exceptions import UserError, ValidationError
-from odoo.tools import SQL
+from odoo.tools import SQL, BinaryBytes
 
 from .whatsmeow_connection import MEDIA_TIMEOUT
 from .whatsmeow_markup import render_markup
@@ -512,8 +511,8 @@ class WhatsmeowMessage(models.Model):
             "mimetype": self.media_mimetype or "",
             "kind": self.message_type,
             "ptt": self.is_voice_note,
-            # media_data is already base64 in Odoo; decode/re-encode would be waste.
-            "data": (self.media_data or b"").decode(),
+            # The gateway takes the file base64-encoded in the JSON body.
+            "data": self.media_data.to_base64() if self.media_data else "",
         }
 
     def action_reply(self):
@@ -784,7 +783,7 @@ class WhatsmeowMessage(models.Model):
                 continue
 
             rec.write({
-                "media_data": base64.b64encode(content),
+                "media_data": BinaryBytes(content),
                 "media_size": len(content),
                 "media_state": "fetched",
                 "error_message": False,
@@ -827,7 +826,7 @@ class WhatsmeowMessage(models.Model):
         if self.media_data:
             attachments = self.env["ir.attachment"].create({
                 "name": self.media_filename or "whatsapp-media",
-                "datas": self.media_data,
+                "raw": self.media_data,
                 "mimetype": self.media_mimetype or "application/octet-stream",
                 "res_model": self._name,
                 "res_id": self.id,

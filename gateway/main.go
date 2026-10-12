@@ -1,5 +1,5 @@
 // whatsmeow-gateway: a minimal multi-session HTTP gateway around whatsmeow,
-// designed to be driven entirely from an Odoo 19 module.
+// designed to be driven entirely from an Odoo module.
 //
 //	Odoo  --HTTP-->  this gateway  --WebSocket-->  WhatsApp
 //	Odoo  <--webhook--  this gateway                (inbound messages/events)

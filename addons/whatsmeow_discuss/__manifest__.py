@@ -1,6 +1,6 @@
 {
     "name": "Whatsmeow Discuss Routing",
-    "version": "19.0.1.3.1",
+    "version": "20.0.1.3.1",
     "summary": "Attend WhatsApp conversations in Odoo Discuss, with rule-based routing",
     "description": """
 Turn accepted inbound WhatsApp messages into live Discuss conversations.
@@ -14,7 +14,7 @@ session; a session with routing off keeps posting to the partner's chatter.
     "category": "Discuss",
     "depends": ["whatsmeow", "mail"],
     "data": [
-        "security/ir.model.access.csv",
+        "security/ir.access.csv",
         "views/whatsmeow_session_views.xml",
     ],
     'images': [
@@ -22,11 +22,9 @@ session; a session with routing off keeps posting to the partner's chatter.
     ],
     "assets": {
         "web.assets_backend": [
-            "whatsmeow_discuss/static/src/thread_model_patch.js",
+            "whatsmeow_discuss/static/src/discuss_channel_model_patch.js",
             "whatsmeow_discuss/static/src/message_model_patch.js",
-            "whatsmeow_discuss/static/src/discuss_app_model_patch.js",
-            "whatsmeow_discuss/static/src/messaging_menu_patch.js",
-            "whatsmeow_discuss/static/src/messaging_menu_patch.xml",
+            "whatsmeow_discuss/static/src/messaging_menu_model_patch.js",
         ],
     },
     "license": "LGPL-3",

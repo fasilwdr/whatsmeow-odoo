@@ -1,4 +1,3 @@
-import base64
 from datetime import timedelta
 from io import BytesIO
 from unittest.mock import patch
@@ -8,7 +7,7 @@ from openpyxl import Workbook
 from odoo import fields
 from odoo.exceptions import AccessError, UserError
 from odoo.tests import TransactionCase, tagged
-from odoo.tools import mute_logger
+from odoo.tools import BinaryBytes, mute_logger
 from odoo.tools.misc import file_path
 
 from odoo.addons.whatsmeow.controllers.webhook import WhatsmeowWebhook
@@ -334,7 +333,7 @@ class TestSending(MarketingCommon):
 
     def test_media_campaign_sends_the_file(self):
         attachment = self.env["ir.attachment"].create({
-            "name": "flyer.png", "datas": b"aGVsbG8=", "mimetype": "image/png",
+            "name": "flyer.png", "raw": b"hello", "mimetype": "image/png",
         })
         campaign = self._campaign_of(1, attachment_ids=[(6, 0, attachment.ids)])
         campaign.action_send()
@@ -703,7 +702,7 @@ class TestBroadcastImport(MarketingCommon):
             sheet.append(list(row))
         buffer = BytesIO()
         book.save(buffer)
-        return base64.b64encode(buffer.getvalue())
+        return BinaryBytes(buffer.getvalue())
 
     def _wizard(self, rows, user=None, **vals):
         env = self.env(user=user) if user else self.env
@@ -856,14 +855,14 @@ class TestBroadcastImport(MarketingCommon):
 
     def test_a_non_excel_file_is_refused(self):
         wizard = self.env["whatsmeow.broadcast.import"].create({
-            "file": base64.b64encode(b"name,phone\nX,1"), "filename": "list.csv",
+            "file": BinaryBytes(b"name,phone\nX,1"), "filename": "list.csv",
         })
         with self.assertRaises(UserError):
             wizard.action_import()
 
     def test_a_corrupt_workbook_is_refused(self):
         wizard = self.env["whatsmeow.broadcast.import"].create({
-            "file": base64.b64encode(b"not a workbook"), "filename": "list.xlsx",
+            "file": BinaryBytes(b"not a workbook"), "filename": "list.xlsx",
         })
         with self.assertRaises(UserError):
             wizard.action_import()
@@ -873,7 +872,7 @@ class TestBroadcastImport(MarketingCommon):
         # two drift apart the moment nothing checks.
         path = file_path("whatsmeow_marketing/static/xlx/broadcast_import_template.xlsx")
         with open(path, "rb") as handle:
-            wizard = self._wizard(base64.b64encode(handle.read()))
+            wizard = self._wizard(BinaryBytes(handle.read()))
         wizard.action_import()
         self.assertEqual(wizard.imported_list_ids.name, "Broadcast list1")
         # Whether the sample numbers are new here or already on file, all three

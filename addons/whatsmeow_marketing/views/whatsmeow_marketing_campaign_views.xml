@@ -47,32 +47,32 @@
         <sheet>
           <div class="oe_button_box" name="button_box">
             <button name="action_view_traces" type="object"
-                    class="oe_stat_button" icon="fa-users" invisible="state == 'draft'">
+                    class="oe_stat_button" icon="group" invisible="state == 'draft'">
               <field name="total_count" widget="statinfo" string="Recipients"/>
             </button>
             <button name="action_view_sent" type="object"
-                    class="oe_stat_button" icon="fa-paper-plane" invisible="state == 'draft'">
+                    class="oe_stat_button" icon="send" invisible="state == 'draft'">
               <field name="sent_count" widget="statinfo" string="Sent"/>
             </button>
             <button name="action_view_delivered" type="object"
-                    class="oe_stat_button" icon="fa-check" invisible="state == 'draft'">
+                    class="oe_stat_button" icon="check" invisible="state == 'draft'">
               <field name="delivered_count" widget="statinfo" string="Delivered"/>
             </button>
             <button name="action_view_read" type="object"
-                    class="oe_stat_button" icon="fa-check-circle" invisible="state == 'draft'">
+                    class="oe_stat_button" icon="check_circle" invisible="state == 'draft'">
               <field name="read_count" widget="statinfo" string="Read"/>
             </button>
             <button name="action_view_replied" type="object"
-                    class="oe_stat_button" icon="fa-reply" invisible="state == 'draft'">
+                    class="oe_stat_button" icon="reply" invisible="state == 'draft'">
               <field name="replied_count" widget="statinfo" string="Replied"/>
             </button>
             <button name="action_view_failed" type="object"
-                    class="oe_stat_button" icon="fa-exclamation-triangle"
+                    class="oe_stat_button" icon="warning"
                     invisible="state == 'draft' or failed_count == 0">
               <field name="failed_count" widget="statinfo" string="Failed"/>
             </button>
             <button name="action_view_skipped" type="object"
-                    class="oe_stat_button" icon="fa-ban"
+                    class="oe_stat_button" icon="block"
                     invisible="state == 'draft' or skipped_count == 0">
               <field name="skipped_count" widget="statinfo" string="Skipped"/>
             </button>

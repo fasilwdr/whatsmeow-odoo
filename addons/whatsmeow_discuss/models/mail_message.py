@@ -15,8 +15,9 @@ class MailMessage(models.Model):
              "conversation itself is titled.",
     )
 
-    def _to_store_defaults(self, target):
-        return super()._to_store_defaults(target) + ["whatsmeow_author_label"]
+    def _store_message_fields(self, res, **kwargs):
+        super()._store_message_fields(res, **kwargs)
+        res.attr("whatsmeow_author_label")
 
     def _message_reaction(self, content, action, partner, guest, store=None):
         """Relay an operator's Discuss reaction out over WhatsApp.

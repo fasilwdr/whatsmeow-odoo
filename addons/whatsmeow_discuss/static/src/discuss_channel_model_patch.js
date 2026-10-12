@@ -1,30 +1,23 @@
-import { Thread } from "@mail/core/common/thread_model";
+import { DiscussChannel } from "@mail/discuss/core/common/discuss_channel_model";
 import { patch } from "@web/core/utils/patch";
 
 export const WHATSMEOW_AVATAR = "/whatsmeow_discuss/static/src/img/whatsapp.svg";
 
-patch(Thread.prototype, {
-    // A custom channel_type has no sidebar category out of the box
-    // (_computeDiscussAppCategory returns nothing for it), so a WhatsApp
-    // conversation would never appear in Discuss. Give it its own section
-    // rather than filing it under "Direct messages": these threads are not
-    // colleagues, they are customers on someone else's phone, and an operator
-    // scanning the sidebar should be able to tell the two apart at a glance.
-    _computeDiscussAppCategory() {
-        if (this.channel_type === "whatsmeow") {
-            return this.store.discuss.whatsmeowCategory;
-        }
-        return super._computeDiscussAppCategory();
-    },
-
+patch(DiscussChannel.prototype, {
     // Stock Discuss treats only "chat" and "group" as conversations between
     // people, and a good deal hangs on that: the messaging menu previews the
     // newest message of a chat channel but only the newest *needaction* one of
     // anything else — and a WhatsApp message is never a needaction, so its row
-    // showed a name over an empty line. The unread badge on the row and in the
-    // sidebar follows the same switch. Livechat opts in the same way.
-    get isChatChannel() {
-        return this.channel_type === "whatsmeow" || super.isChatChannel;
+    // would show a name over an empty line. The unread badge on the row and on
+    // the WhatsApp tab follows the same switch (`importantCounter`).
+    get chatChannelTypes() {
+        return [...super.chatChannelTypes, "whatsmeow"];
+    },
+
+    // The server lets an operator leave a conversation (reassignment, see
+    // `_types_allowing_unfollow`); the client keeps a list of its own.
+    get allowedToLeaveChannelTypes() {
+        return [...super.allowedToLeaveChannelTypes, "whatsmeow"];
     },
 
     // Without this a WhatsApp conversation draws Odoo's default avatar, exactly

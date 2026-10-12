@@ -1,6 +1,6 @@
 {
     "name": "Whatsmeow WhatsApp Connector",
-    "version": "19.0.1.8.0",
+    "version": "20.0.1.8.0",
     "summary": "Send/receive WhatsApp via self-hosted whatsmeow gateways",
     "description": """
 Drive one or more self-hosted whatsmeow gateways from Odoo.
@@ -14,7 +14,7 @@ logged as whatsmeow.message records and posted to the matching partner's chatter
     "depends": ["base", "mail", "web"],
     "data": [
         "security/whatsmeow_groups.xml",
-        "security/ir.model.access.csv",
+        "security/ir.access.csv",
         "views/res_partner_views.xml",
         "views/whatsmeow_connection_views.xml",
         "views/whatsmeow_session_views.xml",
@@ -34,6 +34,7 @@ logged as whatsmeow.message records and posted to the matching partner's chatter
             # preview extends, so it must load first — which module dependency
             # order already guarantees.
             "whatsmeow/static/src/whatsmeow_message.scss",
+            "whatsmeow/static/src/message_model_patch.js",
             "whatsmeow/static/src/message_patch.xml",
         ],
     },

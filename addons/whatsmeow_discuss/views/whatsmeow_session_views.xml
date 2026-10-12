@@ -8,7 +8,7 @@
 
       <xpath expr="//div[@name='button_box']" position="inside">
         <button name="action_view_channels" type="object"
-                class="oe_stat_button" icon="fa-comments"
+                class="oe_stat_button" icon="forum"
                 invisible="not route_to_discuss">
           <field name="channel_count" widget="statinfo" string="Conversations"/>
         </button>

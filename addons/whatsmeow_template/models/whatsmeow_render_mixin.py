@@ -50,7 +50,7 @@ class WhatsmeowRenderMixin(models.AbstractModel):
     _description = "Whatsmeow Body Rendering"
 
     # Same call mail.template and sms.template make: writing a template or a
-    # campaign is manager-only (see ir.model.access.csv), so the *record* is
+    # campaign is manager-only (see ir.access.csv), so the *record* is
     # trusted config and rendering it must not demand
     # `mail.group_mail_template_editor` from the operator who sends it. Without
     # this, a plain user sending a body that says {{ user.name }} gets an

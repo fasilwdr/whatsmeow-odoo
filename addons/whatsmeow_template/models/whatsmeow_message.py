@@ -128,7 +128,7 @@ class WhatsmeowMessage(models.Model):
             return self.env["ir.attachment"]
         return self.env["ir.attachment"].create({
             "name": self.media_filename or "whatsapp-media",
-            "datas": self.media_data,
+            "raw": self.media_data,
             "mimetype": self.media_mimetype or "application/octet-stream",
             "res_model": self._name,
             "res_id": self.id,

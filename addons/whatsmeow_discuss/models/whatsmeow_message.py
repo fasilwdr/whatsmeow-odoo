@@ -293,7 +293,7 @@ class WhatsmeowMessage(models.Model):
         if self.media_data:
             attachments = self.env["ir.attachment"].sudo().create({
                 "name": self.media_filename or "whatsapp-media",
-                "datas": self.media_data,
+                "raw": self.media_data,
                 "mimetype": self.media_mimetype or "application/octet-stream",
                 "res_model": "discuss.channel",
                 "res_id": channel.id,
