@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+
+    <t t-name="whatsmeow_pos.WhatsmeowPairDialog">
+        <Dialog title.translate="Connect WhatsApp" footer="false" size="'md'"
+                bodyClass="'d-flex flex-column align-items-center gap-3 py-4 text-center whatsmeow-pair-dialog'">
+            <t t-if="this.state.status === 'failed'">
+                <div class="text-danger" t-out="this.state.error"/>
+                <button class="btn btn-primary btn-lg" t-on-click="() => this.retry()">Try again</button>
+            </t>
+            <t t-elif="this.state.qr">
+                <img class="whatsmeow-pair-qr border rounded-3 p-2 bg-white" t-att-src="this.qrSrc"
+                     alt="WhatsApp pairing QR code" style="width: 300px; height: 300px;"/>
+                <div class="text-muted">
+                    Open WhatsApp on the shop's phone: Linked Devices → Link a Device → scan this code.
+                </div>
+                <div class="small text-muted" t-if="this.state.session">
+                    Pairing <t t-out="this.state.session"/>
+                </div>
+            </t>
+            <t t-else="">
+                <i class="oi oi-fw oi-spin oi-lg" data-icon="autorenew"/>
+                <div class="text-muted">Asking the gateway for a pairing code…</div>
+                <div class="small text-danger" t-if="this.state.error" t-out="this.state.error"/>
+            </t>
+        </Dialog>
+    </t>
+
+</templates>

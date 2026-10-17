@@ -70,6 +70,7 @@ registered when it started, routed to the right connection by the
 | `whatsmeow_discuss` | Attend WhatsApp conversations in Odoo Discuss — one channel per chat, operator replies, rule-based routing, two-way reactions. | Optional |
 | `whatsmeow_template` | Saved, field-interpolated message bodies (`{{ object.name }}`), attachments and generated PDF reports, a chatter *Send WhatsApp* button and a *Send WhatsApp* server action. | Optional |
 | `whatsmeow_marketing` | Mass campaigns: broadcast lists and contacts, audiences by filter or dynamic list, per-recipient delivered/read/replied/failed tracking, `/stop`–`/start`, and replies handled in Discuss. Depends on the two bridges above. | Optional |
+| `whatsmeow_pos` | Send POS receipts and invoices over WhatsApp from the Send Receipt dialog, pick a connected number per point of sale automatically, and pair one from the register by QR. Depends on `whatsmeow_template`. | Optional |
 
 The bridges are opt-in and change nothing until installed.
 
@@ -154,6 +155,8 @@ odoo-bin -c odoo.conf -d <database> -i whatsmeow --stop-after-init
 odoo-bin -c odoo.conf -d <database> -i whatsmeow_discuss,whatsmeow_template --stop-after-init
 # mass campaigns (pulls in both bridges)
 odoo-bin -c odoo.conf -d <database> -i whatsmeow_marketing --stop-after-init
+# receipts from the Point of Sale
+odoo-bin -c odoo.conf -d <database> -i whatsmeow_pos --stop-after-init
 ```
 
 ### 3. Pair a number

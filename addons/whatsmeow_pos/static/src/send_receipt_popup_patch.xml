@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+
+    <t t-inherit="point_of_sale.SendReceiptPopup" t-inherit-mode="extension">
+        <xpath expr="//div[hasclass('notice')]" position="inside">
+            <div t-if="this.whatsmeowError" class="text-danger small whatsmeow-send-error"
+                 t-out="this.whatsmeowError"/>
+            <t t-if="this.pos.config.whatsmeow_enabled and this.whatsmeow.checked and !this.whatsmeow.ready">
+                <div t-if="this.whatsmeow.canPair" class="text-muted small whatsmeow-not-connected">
+                    No WhatsApp number is connected.
+                    <a href="#" class="whatsmeow-pair-link" t-on-click.prevent="() => this.whatsmeowPair()">Scan a QR code to connect one.</a>
+                </div>
+                <div t-else="" class="text-muted small whatsmeow-not-connected">
+                    No WhatsApp number is connected. Ask a manager to connect one.
+                </div>
+            </t>
+        </xpath>
+    </t>
+
+</templates>

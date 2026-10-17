@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="res_config_settings_view_form" model="ir.ui.view">
+    <field name="name">res.config.settings.view.form.inherit.whatsmeow.pos</field>
+    <field name="model">res.config.settings</field>
+    <field name="inherit_id" ref="point_of_sale.res_config_settings_view_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//block[@id='pos_bills_and_receipts_section']" position="inside">
+        <setting id="whatsmeow_pos" string="WhatsApp Receipts"
+                 help="Send receipts and invoices from the Send Receipt dialog over WhatsApp">
+          <field name="pos_whatsmeow_enabled"/>
+          <div class="content-group" invisible="not pos_whatsmeow_enabled">
+            <div class="row mt16">
+              <label for="pos_whatsmeow_session_id" class="col-lg-3 o_light_label"/>
+              <field name="pos_whatsmeow_session_id" options="{'no_create': True}"
+                     placeholder="First connected number"/>
+            </div>
+            <div class="row" invisible="not pos_whatsmeow_session_id">
+              <label for="pos_whatsmeow_session_status" string="Status"
+                     class="col-lg-3 o_light_label"/>
+              <field name="pos_whatsmeow_session_status"/>
+            </div>
+            <div class="row mt8">
+              <label for="pos_whatsmeow_receipt_template_id" class="col-lg-3 o_light_label"/>
+              <field name="pos_whatsmeow_receipt_template_id" placeholder="POS Receipt"/>
+            </div>
+            <div class="row mt8">
+              <label for="pos_whatsmeow_invoice_template_id" class="col-lg-3 o_light_label"/>
+              <field name="pos_whatsmeow_invoice_template_id" placeholder="POS Invoice"/>
+            </div>
+            <div class="text-muted mt8">
+              With no number connected, a manager can pair one from the register:
+              Send Receipt, then the WhatsApp button, then scan the QR code.
+            </div>
+          </div>
+        </setting>
+      </xpath>
+    </field>
+  </record>
+</odoo>
